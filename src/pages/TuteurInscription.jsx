@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import { elevesAPI, notificationsAPI, demandesAPI } from '../services/apiService';
+import { calculerMontantFacture, formaterMontantFacture } from '../utils/calculFacture';
 
 // Helper function to get admins
 const getAdmins = async () => {
@@ -90,6 +91,8 @@ export default function TuteurInscription() {
       }
       
       // Prepare eleve data for database
+      // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs, pas l'ID utilisateur
+      const tuteurId = tuteur.type_id || tuteur.id;
       const eleveData = {
         nom: formData.nom,
         prenom: formData.prenom,
@@ -98,7 +101,7 @@ export default function TuteurInscription() {
         telephone_parent: tuteur.telephone,
         email_parent: tuteur.email,
         classe: formData.classe,
-        tuteur_id: tuteur.id,
+        tuteur_id: tuteurId,
         statut: 'Inactif' // Will be 'Actif' after payment
       };
       
@@ -119,9 +122,10 @@ export default function TuteurInscription() {
         : formData.lien_parente;
       
       // Create demande (inscription request)
+      // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
       const demandeResponse = await demandesAPI.create({
         eleve_id: newEleve.id,
-        tuteur_id: tuteur.id,
+        tuteur_id: tuteurId,
         type_demande: 'inscription',
         zone_geographique: formData.zone,
         description: JSON.stringify({
@@ -142,10 +146,11 @@ export default function TuteurInscription() {
         throw new Error(errorMsg);
       }
       
-      // Create notification for tuteur
+      // Create notification for tuteur (utiliser l'ID utilisateur pour les notifications)
+      // Les notifications utilisent l'utilisateur_id, pas le tuteur_id
       try {
         await notificationsAPI.create({
-          destinataire_id: tuteur.id,
+          destinataire_id: tuteur.id, // ID utilisateur pour les notifications
           destinataire_type: 'tuteur',
           titre: 'Inscription envoyée',
           message: `L'inscription de ${formData.prenom} ${formData.nom} a été envoyée et est en attente de validation.`,
@@ -605,10 +610,9 @@ export default function TuteurInscription() {
                     <div className="border-t border-amber-200 pt-2 mt-2 flex justify-between">
                       <span className="text-gray-800 font-semibold">Montant estimé:</span>
                       <span className="font-bold text-amber-600">
-                        {formData.abonnement === 'Mensuel' 
-                          ? (formData.type_transport === 'Aller-Retour' ? '400 DH/mois' : '250 DH/mois')
-                          : (formData.type_transport === 'Aller-Retour' ? '4000 DH/an' : '2500 DH/an')
-                        }
+                        {formData.type_transport && formData.abonnement
+                          ? formaterMontantFacture(formData.type_transport, formData.abonnement)
+                          : '-'}
                       </span>
                     </div>
                   </div>

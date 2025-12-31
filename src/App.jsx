@@ -21,8 +21,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminBus from './pages/AdminBus';
 import AdminChauffeur from './pages/AdminChauffeur';
 import AdminResponsable from './pages/AdminResponsable';
+import AdminEleves from './pages/AdminEleves';
 import AdminInscriptions from './pages/AdminInscriptions';
-import AdminDemandes from './pages/AdminDemandes';
 import AdminAccidents from './pages/AdminAccidents';
 import AdminStats from './pages/AdminStats';
 import AdminPaiements from './pages/AdminPaiements';
@@ -56,11 +56,11 @@ function App() {
         {/* Admin Routes */}
         <Route path="/AdminLogin" element={<AdminLogin />} />
         <Route path="/AdminDashboard" element={<AdminDashboard />} />
+        <Route path="/AdminEleves" element={<AdminEleves />} />
         <Route path="/AdminBus" element={<AdminBus />} />
         <Route path="/AdminChauffeurs" element={<AdminChauffeur />} />
         <Route path="/AdminResponsables" element={<AdminResponsable />} />
         <Route path="/AdminInscriptions" element={<AdminInscriptions />} />
-        <Route path="/AdminDemandes" element={<AdminDemandes />} />
         <Route path="/AdminAccidents" element={<AdminAccidents />} />
         <Route path="/AdminStats" element={<AdminStats />} />
         <Route path="/AdminPaiements" element={<AdminPaiements />} />

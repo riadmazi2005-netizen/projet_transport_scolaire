@@ -31,7 +31,17 @@ try {
         exit;
     }
     
-    if (!password_verify($data['password'], $user['mot_de_passe'])) {
+    // Vérifier le mot de passe (supporte à la fois hashé et en clair)
+    $passwordValid = false;
+    // Si le mot de passe commence par $2y$ (bcrypt hash), utiliser password_verify
+    if (strpos($user['mot_de_passe'], '$2y$') === 0) {
+        $passwordValid = password_verify($data['password'], $user['mot_de_passe']);
+    } else {
+        // Sinon, comparaison directe en clair
+        $passwordValid = ($data['password'] === $user['mot_de_passe']);
+    }
+    
+    if (!$passwordValid) {
         http_response_code(401);
         echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect']);
         exit;

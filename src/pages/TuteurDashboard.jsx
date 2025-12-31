@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI } from '../services/apiService';
+import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI, inscriptionsAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { 
@@ -35,21 +35,86 @@ export default function TuteurDashboard() {
     
     const tuteurData = JSON.parse(session);
     setTuteur(tuteurData);
-    loadData(tuteurData.id);
+    // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
+    const tuteurId = tuteurData.type_id || tuteurData.id;
+    loadData(tuteurId, tuteurData.id); // Passer aussi l'ID utilisateur
   }, [navigate]);
 
-  const loadData = async (tuteurId) => {
+  const loadData = async (tuteurId, userId) => {
     try {
-      // Charger les élèves du tuteur
-      const allElevesResponse = await elevesAPI.getAll();
-      const allEleves = allElevesResponse?.data || allElevesResponse || [];
-      const elevesData = allEleves.filter(e => e.tuteur_id === tuteurId);
+      // Charger toutes les données nécessaires
+      const [elevesRes, notificationsRes, demandesRes, inscriptionsRes] = await Promise.allSettled([
+        elevesAPI.getAll(),
+        notificationsAPI.getByUser(userId, 'tuteur'),
+        demandesAPI.getAll(),
+        inscriptionsAPI.getAll()
+      ]);
       
-      // Charger les notifications
-      const notificationsResponse = await notificationsAPI.getByUser(tuteurId, 'tuteur');
-      const notificationsData = notificationsResponse?.data || notificationsResponse || [];
+      const allEleves = elevesRes.status === 'fulfilled'
+        ? (Array.isArray(elevesRes.value?.data) ? elevesRes.value.data : (Array.isArray(elevesRes.value) ? elevesRes.value : []))
+        : [];
+      const notificationsData = notificationsRes.status === 'fulfilled'
+        ? (Array.isArray(notificationsRes.value?.data) ? notificationsRes.value.data : (Array.isArray(notificationsRes.value) ? notificationsRes.value : []))
+        : [];
+      const allDemandes = demandesRes.status === 'fulfilled'
+        ? (Array.isArray(demandesRes.value?.data) ? demandesRes.value.data : (Array.isArray(demandesRes.value) ? demandesRes.value : []))
+        : [];
+      const allInscriptions = inscriptionsRes.status === 'fulfilled'
+        ? (Array.isArray(inscriptionsRes.value?.data) ? inscriptionsRes.value.data : (Array.isArray(inscriptionsRes.value) ? inscriptionsRes.value : []))
+        : [];
       
-      setEleves(elevesData);
+      // Filtrer les élèves du tuteur
+      const elevesData = Array.isArray(allEleves) ? allEleves.filter(e => e.tuteur_id === tuteurId) : [];
+      
+      // Filtrer uniquement les demandes d'inscription
+      const demandesInscription = Array.isArray(allDemandes) 
+        ? allDemandes.filter(d => d.type_demande === 'inscription' && d.tuteur_id === tuteurId)
+        : [];
+      
+      // Enrichir les élèves avec les informations de demande et d'inscription
+      const elevesEnriched = elevesData.map(eleve => {
+        // Trouver la demande d'inscription la plus récente pour cet élève
+        const demandeInscription = demandesInscription
+          .filter(d => d.eleve_id === eleve.id)
+          .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0];
+        
+        // Trouver l'inscription active pour cet élève
+        const inscription = Array.isArray(allInscriptions) 
+          ? allInscriptions.find(i => i.eleve_id === eleve.id && i.statut === 'Active')
+          : null;
+        
+        // Déterminer le statut à afficher
+        let statutDemande = null;
+        if (inscription) {
+          // L'élève a une inscription active, donc il est inscrit
+          statutDemande = 'Inscrit';
+        } else if (demandeInscription) {
+          // Utiliser le statut de la demande et mapper selon les besoins
+          const statut = demandeInscription.statut || 'En attente';
+          if (statut === 'En attente') {
+            statutDemande = 'En cours de traitement';
+          } else if (statut === 'Validée') {
+            // Quand l'admin valide, on affiche "En attente de paiement"
+            statutDemande = 'En attente de paiement';
+          } else if (statut === 'Refusée') {
+            statutDemande = 'Refusée';
+          } else {
+            statutDemande = statut;
+          }
+        } else {
+          // Pas de demande ni d'inscription - par défaut "En cours de traitement"
+          statutDemande = 'En cours de traitement';
+        }
+        
+        return {
+          ...eleve,
+          demande_inscription: demandeInscription,
+          inscription: inscription,
+          statut_demande: statutDemande
+        };
+      });
+      
+      setEleves(elevesEnriched);
       setNotifications(notificationsData.sort((a, b) => new Date(b.date || b.date_creation || 0) - new Date(a.date || a.date_creation || 0)));
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
@@ -73,42 +138,48 @@ export default function TuteurDashboard() {
 
   const getStatusBadge = (statut) => {
     const styles = {
-      'Actif': 'bg-green-100 text-green-700 border-green-200',
-      'Inactif': 'bg-yellow-100 text-yellow-700 border-yellow-200',
-      'En attente': 'bg-orange-100 text-orange-700 border-orange-200',
-      'Validé': 'bg-blue-100 text-blue-700 border-blue-200',
-      'Refusé': 'bg-red-100 text-red-700 border-red-200',
-      'Suspendu': 'bg-gray-100 text-gray-700 border-gray-200'
+      'En cours de traitement': 'bg-blue-100 text-blue-700 border-blue-200',
+      'En attente de paiement': 'bg-orange-100 text-orange-700 border-orange-200',
+      'Refusée': 'bg-red-100 text-red-700 border-red-200',
+      'Inscrit': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      'En attente': 'bg-yellow-100 text-yellow-700 border-yellow-200'
     };
-    return styles[statut] || 'bg-gray-100 text-gray-700';
+    return styles[statut] || 'bg-gray-100 text-gray-700 border-gray-200';
   };
 
-  const handleCancelInscription = async (eleve) => {
-    if (!confirm(`Êtes-vous sûr de vouloir annuler l'inscription de ${eleve.prenom} ${eleve.nom}? L'élève sera supprimé du système.`)) {
+  const handleCancelDemande = async (eleve) => {
+    if (!confirm(`Êtes-vous sûr de vouloir annuler la demande d'inscription de ${eleve.prenom} ${eleve.nom}?`)) {
       return;
     }
     
     try {
-      // Mettre à jour le statut d'abord
-      await elevesAPI.update(eleve.id, {
-        statut: 'Inactif'
-      });
-      
-      // Supprimer l'élève
-      await elevesAPI.delete(eleve.id);
+      // Si une demande existe, mettre à jour son statut
+      if (eleve.demande_inscription?.id) {
+        // Note: Il faudrait peut-être créer une API pour mettre à jour le statut de la demande
+        // Pour l'instant, on peut supprimer l'élève si la demande n'est pas encore traitée
+        if (eleve.statut_demande === 'En cours de traitement') {
+          await elevesAPI.delete(eleve.id);
+        }
+      } else {
+        // Supprimer l'élève s'il n'y a pas de demande
+        await elevesAPI.delete(eleve.id);
+      }
       
       // Recharger les données
-      loadData(tuteur.id);
+      const tuteurId = tuteur.type_id || tuteur.id;
+      loadData(tuteurId, tuteur.id);
     } catch (err) {
       console.error('Erreur lors de l\'annulation:', err);
-      alert('Erreur lors de l\'annulation de l\'inscription');
+      alert('Erreur lors de l\'annulation de la demande');
     }
   };
 
   const filteredEleves = eleves.filter(e => {
     if (inscriptionFilter === 'all') return true;
-    if (inscriptionFilter === 'inscrit') return e.statut === 'Actif';
-    if (inscriptionFilter === 'non_inscrit') return e.statut === 'Inactif';
+    if (inscriptionFilter === 'inscrit') return e.statut_demande === 'Inscrit';
+    if (inscriptionFilter === 'en_attente') return e.statut_demande === 'En attente de paiement';
+    if (inscriptionFilter === 'en_traitement') return e.statut_demande === 'En cours de traitement';
+    if (inscriptionFilter === 'refusee') return e.statut_demande === 'Refusée';
     return true;
   });
 
@@ -185,14 +256,14 @@ export default function TuteurDashboard() {
             color="amber"
           />
           <StatCard 
-            title="Inactifs" 
-            value={eleves.filter(e => e.statut === 'Inactif').length} 
+            title="En attente" 
+            value={eleves.filter(e => e.statut_demande === 'En cours de traitement' || e.statut_demande === 'En attente').length} 
             icon={Clock} 
             color="orange"
           />
           <StatCard 
-            title="Actifs" 
-            value={eleves.filter(e => e.statut === 'Actif').length} 
+            title="Affectés" 
+            value={eleves.filter(e => e.statut_demande === 'Inscrit' || e.statut_demande === 'En attente de paiement').length} 
             icon={CheckCircle} 
             color="green"
           />
@@ -245,8 +316,10 @@ export default function TuteurDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous les élèves</SelectItem>
-                  <SelectItem value="inscrit">Inscrits (Actifs)</SelectItem>
-                  <SelectItem value="non_inscrit">Non inscrits (Inactifs)</SelectItem>
+                  <SelectItem value="inscrit">Inscrits</SelectItem>
+                  <SelectItem value="en_attente">En attente de paiement</SelectItem>
+                  <SelectItem value="en_traitement">En cours de traitement</SelectItem>
+                  <SelectItem value="refusee">Refusées</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -294,10 +367,11 @@ export default function TuteurDashboard() {
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className={`px-4 py-2 rounded-xl text-sm font-medium border ${getStatusBadge(eleve.statut)}`}>
-                        {eleve.statut}
+                      <span className={`px-4 py-2 rounded-xl text-sm font-medium border ${getStatusBadge(eleve.statut_demande)}`}>
+                        {eleve.statut_demande}
                       </span>
                       
+                      {/* Bouton Détails - toujours visible */}
                       <Link to={createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`)}>
                         <Button variant="outline" className="rounded-xl">
                           <Eye className="w-4 h-4 mr-2" />
@@ -305,15 +379,41 @@ export default function TuteurDashboard() {
                         </Button>
                       </Link>
                       
-                      {eleve.statut === 'Actif' && (
-                        <Button
-                          variant="outline"
-                          onClick={() => handleCancelInscription(eleve)}
-                          className="rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50"
-                        >
-                          <XCircle className="w-4 h-4 mr-2" />
-                          Annuler
-                        </Button>
+                      {/* Boutons selon le statut */}
+                      {(eleve.statut_demande === 'En cours de traitement' || eleve.statut_demande === 'En attente') && (
+                        <>
+                          <Link to={createPageUrl(`TuteurDemandes`)}>
+                            <Button variant="outline" className="rounded-xl">
+                              <Edit className="w-4 h-4 mr-2" />
+                              Modifier
+                            </Button>
+                          </Link>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleCancelDemande(eleve)}
+                            className="rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Annuler
+                          </Button>
+                        </>
+                      )}
+                      
+                      {eleve.statut_demande === 'En attente de paiement' && eleve.demande_inscription?.id && (
+                        <Link to={createPageUrl(`TuteurPaiement?demandeId=${eleve.demande_inscription.id}`)}>
+                          <Button className="bg-green-500 hover:bg-green-600 text-white rounded-xl">
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Payer
+                          </Button>
+                        </Link>
+                      )}
+                      
+                      {eleve.statut_demande === 'Refusée' && (
+                        <span className="text-sm text-red-600 font-medium italic">Demande refusée</span>
+                      )}
+                      
+                      {eleve.statut_demande === 'Inscrit' && (
+                        <span className="text-sm text-green-600 font-medium">Élève inscrit</span>
                       )}
                     </div>
                   </div>

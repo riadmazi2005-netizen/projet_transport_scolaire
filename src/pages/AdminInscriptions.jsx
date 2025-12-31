@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, busAPI, trajetsAPI, tuteursAPI, inscriptionsAPI, notificationsAPI } from '../services/apiService';
+import { elevesAPI, busAPI, trajetsAPI, tuteursAPI, inscriptionsAPI, notificationsAPI, demandesAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from '../components/AdminLayout';
 import { 
   ClipboardList, Search, CheckCircle, XCircle, 
-  Eye, User, Bus, MapPin, Filter, Calendar
+  Eye, User, Bus, MapPin, Filter, Calendar, ArrowLeft, FileText
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { calculerMontantFacture, extraireInfosTransport } from '../utils/calculFacture';
 
 export default function AdminInscriptions() {
   const navigate = useNavigate();
@@ -29,13 +30,23 @@ export default function AdminInscriptions() {
   const [showInscriptionModal, setShowInscriptionModal] = useState(false);
   const [availableBuses, setAvailableBuses] = useState([]);
   const [error, setError] = useState(null);
+  const [adminUser, setAdminUser] = useState(null);
   const [inscriptionForm, setInscriptionForm] = useState({
-    montant_mensuel: 500,
     date_debut: format(new Date(), 'yyyy-MM-dd'),
     date_fin: format(new Date(new Date().setMonth(new Date().getMonth() + 10)), 'yyyy-MM-dd')
   });
 
   useEffect(() => {
+    // Charger les données de l'admin depuis la session
+    const adminSession = localStorage.getItem('admin_session');
+    if (adminSession) {
+      try {
+        const adminData = JSON.parse(adminSession);
+        setAdminUser(adminData);
+      } catch (err) {
+        console.warn('Erreur parsing admin session:', err);
+      }
+    }
     loadData();
   }, []);
 
@@ -44,127 +55,242 @@ export default function AdminInscriptions() {
     setError(null);
     
     try {
-      const [elevesRes, busesRes, trajetsRes, inscriptionsRes, tuteursRes] = await Promise.all([
+      // Charger toutes les données en parallèle, mais gérer les erreurs individuellement
+      const results = await Promise.allSettled([
         elevesAPI.getAll(),
         busAPI.getAll(),
         trajetsAPI.getAll(),
         inscriptionsAPI.getAll(),
-        tuteursAPI.getAll()
+        tuteursAPI.getAll(),
+        demandesAPI.getAll()
       ]);
       
       // Extraire les données avec gestion de différents formats de réponse
-      const elevesArray = elevesRes?.data || elevesRes || [];
-      const busesArray = busesRes?.data || busesRes || [];
-      const trajetsArray = trajetsRes?.data || trajetsRes || [];
-      const inscriptionsArray = inscriptionsRes?.data || inscriptionsRes || [];
-      const tuteursArray = tuteursRes?.data || tuteursRes || [];
+      const elevesArray = results[0].status === 'fulfilled' 
+        ? (Array.isArray(results[0].value?.data) ? results[0].value.data : (Array.isArray(results[0].value) ? results[0].value : []))
+        : [];
+      const busesArray = results[1].status === 'fulfilled'
+        ? (Array.isArray(results[1].value?.data) ? results[1].value.data : (Array.isArray(results[1].value) ? results[1].value : []))
+        : [];
+      const trajetsArray = results[2].status === 'fulfilled'
+        ? (Array.isArray(results[2].value?.data) ? results[2].value.data : (Array.isArray(results[2].value) ? results[2].value : []))
+        : [];
+      const inscriptionsArray = results[3].status === 'fulfilled'
+        ? (Array.isArray(results[3].value?.data) ? results[3].value.data : (Array.isArray(results[3].value) ? results[3].value : []))
+        : [];
+      const tuteursArray = results[4].status === 'fulfilled'
+        ? (Array.isArray(results[4].value?.data) ? results[4].value.data : (Array.isArray(results[4].value) ? results[4].value : []))
+        : [];
+      const demandesArray = results[5].status === 'fulfilled'
+        ? (Array.isArray(results[5].value?.data) ? results[5].value.data : (Array.isArray(results[5].value) ? results[5].value : []))
+        : [];
       
-      // Enrichir les élèves avec les infos du tuteur et de l'inscription
-      const elevesWithDetails = elevesArray.map(e => {
-        const tuteur = tuteursArray.find(t => t.id === e.tuteur_id);
-        const inscription = inscriptionsArray.find(i => i.eleve_id === e.id && i.statut !== 'Terminée');
-        const bus = inscription?.bus_id ? busesArray.find(b => b.id === inscription.bus_id) : null;
-        
-        return {
-          ...e,
-          tuteur,
-          inscription,
-          bus,
-          statut_inscription: inscription?.statut || 'En attente'
-        };
-      });
+      // Filtrer uniquement les demandes d'inscription
+      const demandesInscription = Array.isArray(demandesArray) ? demandesArray.filter(d => d.type_demande === 'inscription') : [];
+      
+      // Enrichir les élèves avec les infos du tuteur, de l'inscription et de la demande
+      // Afficher TOUS les élèves qui ont une demande d'inscription, même s'ils n'ont pas encore d'inscription créée
+      const elevesWithDetails = Array.isArray(elevesArray) ? elevesArray
+        .filter(e => {
+          // Filtrer uniquement les élèves qui ont une demande d'inscription
+          return demandesInscription.some(d => d.eleve_id === e.id);
+        })
+        .map(e => {
+          const tuteur = Array.isArray(tuteursArray) ? tuteursArray.find(t => t.id === e.tuteur_id) : null;
+          const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut !== 'Terminée') : null;
+          const bus = inscription?.bus_id && Array.isArray(busesArray) ? busesArray.find(b => b.id === inscription.bus_id) : null;
+          // Trouver la demande d'inscription pour cet élève (la plus récente)
+          const demandeInscription = Array.isArray(demandesInscription) ? demandesInscription
+            .filter(d => d.eleve_id === e.id)
+            .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
+          
+          return {
+            ...e,
+            tuteur,
+            inscription,
+            bus,
+            demande_inscription: demandeInscription,
+            // Utiliser le statut de la demande d'inscription au lieu de Actif/Inactif
+            statut_demande: demandeInscription?.statut || 'En attente'
+          };
+        }) : [];
       
       setEleves(elevesWithDetails);
       setBuses(busesArray);
       setTrajets(trajetsArray);
       setInscriptions(inscriptionsArray);
       setTuteurs(tuteursArray);
+      
+      // Afficher un avertissement si certaines données n'ont pas pu être chargées
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+      if (failedCount > 0) {
+        console.warn(`${failedCount} appel(s) API ont échoué`);
+      }
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
-      setError('Erreur lors du chargement des données: ' + err.message);
+      setError('Erreur lors du chargement des données: ' + (err.message || 'Erreur de connexion au serveur'));
     } finally {
       setLoading(false);
     }
   };
 
+  const calculateDates = (abonnement) => {
+    const today = new Date();
+    const dateDebut = format(today, 'yyyy-MM-dd');
+    
+    let dateFin;
+    if (abonnement === 'Annuel') {
+      // Si on est après juin, utiliser le 30 juin de l'année suivante, sinon de l'année en cours
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth(); // 0-11, juin = 5
+      
+      if (currentMonth >= 6) {
+        // Après juin, utiliser l'année suivante
+        dateFin = format(new Date(currentYear + 1, 5, 30), 'yyyy-MM-dd'); // 30 juin année suivante
+      } else {
+        // Avant ou en juin, utiliser le 30 juin de l'année en cours
+        dateFin = format(new Date(currentYear, 5, 30), 'yyyy-MM-dd'); // 30 juin année en cours
+      }
+    } else {
+      // Mensuel : date de fin = date de début + 1 mois
+      const dateFinDate = new Date(today);
+      dateFinDate.setMonth(dateFinDate.getMonth() + 1);
+      dateFin = format(dateFinDate, 'yyyy-MM-dd');
+    }
+    
+    return { dateDebut, dateFin };
+  };
+
   const handleValidate = async (eleve) => {
     setSelectedEleve(eleve);
+    
+    // Extraire le type d'abonnement depuis la demande
+    let abonnement = 'Mensuel'; // Par défaut
+    if (eleve.demande_inscription?.description) {
+      try {
+        const descriptionData = typeof eleve.demande_inscription.description === 'string'
+          ? JSON.parse(eleve.demande_inscription.description)
+          : eleve.demande_inscription.description;
+        abonnement = descriptionData.abonnement || 'Mensuel';
+      } catch (err) {
+        console.warn('Erreur parsing description:', err);
+      }
+    }
+    
+    // Calculer les dates selon le type d'abonnement
+    const { dateDebut, dateFin } = calculateDates(abonnement);
+    
+    // Initialiser le formulaire avec les dates calculées
+    setInscriptionForm({
+      date_debut: dateDebut,
+      date_fin: dateFin
+    });
+    
     setShowInscriptionModal(true);
   };
 
   const handleCreateInscription = async () => {
-    if (!selectedEleve) return;
+    if (!selectedEleve || !selectedEleve.demande_inscription?.id) {
+      setError('Élève ou demande d\'inscription manquant.');
+      return;
+    }
+    
+    if (!adminUser?.type_id) {
+      setError('Session administrateur invalide. Veuillez vous reconnecter.');
+      return;
+    }
+
+    // Vérifier que les dates sont valides
+    if (!inscriptionForm.date_debut || !inscriptionForm.date_fin) {
+      setError('Veuillez remplir les dates de début et de fin.');
+      return;
+    }
+
+    if (new Date(inscriptionForm.date_debut) >= new Date(inscriptionForm.date_fin)) {
+      setError('La date de fin doit être postérieure à la date de début.');
+      return;
+    }
     
     setError(null);
     
     try {
+      // Mettre à jour le statut de la demande en "En attente de paiement" via l'API traiter
+      // Cela génère automatiquement le code de vérification et le montant de la facture
+      const traiterResponse = await demandesAPI.traiter(
+        selectedEleve.demande_inscription.id, 
+        'En attente de paiement', 
+        'Inscription validée par l\'administrateur',
+        null,
+        adminUser.type_id
+      );
+      
+      if (!traiterResponse || !traiterResponse.success) {
+        throw new Error(traiterResponse?.message || 'Erreur lors du traitement de la demande');
+      }
+      
+      // Extraire les infos de transport pour calculer le montant mensuel
+      const infosTransport = extraireInfosTransport(selectedEleve.demande_inscription.description);
+      const montantFacture = calculerMontantFacture(infosTransport.type_transport, infosTransport.abonnement);
+      // Pour l'inscription, on utilise le montant mensuel (même pour annuel, on stocke le montant mensuel)
+      const montantMensuel = infosTransport.abonnement === 'Annuel' ? montantFacture / 10 : montantFacture;
+      
       // Créer l'inscription avec tous les champs requis
+      // Note: L'inscription est créée mais le statut reste "Active" car le paiement sera fait ensuite par le tuteur
       const inscriptionData = {
         eleve_id: selectedEleve.id,
-        bus_id: selectedEleve.bus?.id || null,
+        bus_id: null, // Le bus sera affecté après le paiement
         date_debut: inscriptionForm.date_debut,
         date_fin: inscriptionForm.date_fin,
-        montant_mensuel: parseFloat(inscriptionForm.montant_mensuel),
+        montant_mensuel: montantMensuel,
         statut: 'Active'
       };
       
       const response = await inscriptionsAPI.create(inscriptionData);
       
-      if (response.success) {
-        // Mettre à jour le statut de l'élève
-        await elevesAPI.update(selectedEleve.id, {
-          statut: 'Actif'
-        });
-        
-        // Envoyer notification au tuteur
-        if (selectedEleve.tuteur_id) {
-          await notificationsAPI.create({
-            destinataire_id: selectedEleve.tuteur_id,
-            destinataire_type: 'tuteur',
-            titre: 'Inscription validée',
-            message: `L'inscription de ${selectedEleve.prenom} ${selectedEleve.nom} a été validée. Montant mensuel: ${inscriptionForm.montant_mensuel} DH.`,
-            type: 'info',
-            date: new Date().toISOString()
-          });
-        }
-        
-        setShowInscriptionModal(false);
-        setSelectedEleve(null);
-        await loadData();
+      if (!response || !response.success) {
+        throw new Error(response?.message || 'Erreur lors de la création de l\'inscription');
       }
+      
+      // Tout s'est bien passé, fermer le modal et recharger les données
+      setShowInscriptionModal(false);
+      setSelectedEleve(null);
+      setInscriptionForm({
+        date_debut: format(new Date(), 'yyyy-MM-dd'),
+        date_fin: format(new Date(new Date().setMonth(new Date().getMonth() + 10)), 'yyyy-MM-dd')
+      });
+      await loadData();
     } catch (err) {
       console.error('Erreur lors de la validation:', err);
-      setError('Erreur lors de la validation de l\'inscription: ' + err.message);
+      setError('Erreur lors de la validation de l\'inscription: ' + (err.message || 'Erreur inconnue'));
     }
   };
 
   const handleRefuse = async (eleve, motif) => {
     if (!motif) return;
     
+    if (!adminUser?.type_id) {
+      setError('Session administrateur invalide. Veuillez vous reconnecter.');
+      return;
+    }
+    
     setError(null);
     
     try {
+      // Mettre à jour le statut de la demande en "Refusée" via l'API traiter
+      if (eleve.demande_inscription?.id) {
+        await demandesAPI.traiter(
+          eleve.demande_inscription.id,
+          'Refusée',
+          `Inscription refusée: ${motif}`,
+          motif,
+          adminUser.type_id
+        );
+      }
+      
       // Si une inscription existe, la marquer comme terminée
       if (eleve.inscription) {
         await inscriptionsAPI.update(eleve.inscription.id, {
           statut: 'Terminée'
-        });
-      }
-      
-      // Mettre à jour le statut de l'élève
-      await elevesAPI.update(eleve.id, {
-        statut: 'Inactif'
-      });
-      
-      // Envoyer notification au tuteur
-      if (eleve.tuteur_id) {
-        await notificationsAPI.create({
-          destinataire_id: eleve.tuteur_id,
-          destinataire_type: 'tuteur',
-          titre: 'Inscription refusée',
-          message: `L'inscription de ${eleve.prenom} ${eleve.nom} a été refusée. Motif: ${motif}`,
-          type: 'alerte',
-          date: new Date().toISOString()
         });
       }
       
@@ -216,13 +342,20 @@ export default function AdminInscriptions() {
           statut: 'Active'
         });
       } else {
-        // Créer une nouvelle inscription
+        // Créer une nouvelle inscription avec montant calculé depuis la demande
+        let montantMensuel = 500; // valeur par défaut
+        if (selectedEleve.demande_inscription?.description) {
+          const infosTransport = extraireInfosTransport(selectedEleve.demande_inscription.description);
+          const montantFacture = calculerMontantFacture(infosTransport.type_transport, infosTransport.abonnement);
+          montantMensuel = infosTransport.abonnement === 'Annuel' ? montantFacture / 10 : montantFacture;
+        }
+        
         const inscriptionData = {
           eleve_id: selectedEleve.id,
           bus_id: busId,
           date_debut: format(new Date(), 'yyyy-MM-dd'),
           date_fin: format(new Date(new Date().setMonth(new Date().getMonth() + 10)), 'yyyy-MM-dd'),
-          montant_mensuel: 500
+          montant_mensuel: montantMensuel
         };
         
         await inscriptionsAPI.create(inscriptionData);
@@ -256,15 +389,19 @@ export default function AdminInscriptions() {
       e.adresse?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.classe?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchStatus = statusFilter === 'all' || e.statut === statusFilter;
+    // Filtrer par statut de la demande d'inscription
+    const matchStatus = statusFilter === 'all' || e.statut_demande === statusFilter;
     
     return matchSearch && matchStatus;
   });
 
   const getStatusBadge = (statut) => {
     const styles = {
-      'Actif': 'bg-green-100 text-green-700',
-      'Inactif': 'bg-yellow-100 text-yellow-700',
+      'En attente': 'bg-yellow-100 text-yellow-700',
+      'En cours de traitement': 'bg-blue-100 text-blue-700',
+      'En attente de paiement': 'bg-orange-100 text-orange-700',
+      'Validée': 'bg-green-100 text-green-700',
+      'Refusée': 'bg-red-100 text-red-700',
       'Active': 'bg-emerald-100 text-emerald-700',
       'Suspendue': 'bg-orange-100 text-orange-700',
       'Terminée': 'bg-gray-100 text-gray-700'
@@ -284,6 +421,15 @@ export default function AdminInscriptions() {
 
   return (
     <AdminLayout title="Gestion des Inscriptions">
+      <div className="mb-4">
+        <button
+          onClick={() => navigate(createPageUrl('AdminDashboard'))}
+          className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour au tableau de bord
+        </button>
+      </div>
 
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between">
@@ -302,9 +448,9 @@ export default function AdminInscriptions() {
           <div className="p-6 bg-gradient-to-r from-blue-500 to-cyan-500">
             <h1 className="text-2xl font-bold text-white flex items-center gap-3">
               <ClipboardList className="w-7 h-7" />
-              Gestion des Inscriptions
+              Gestion des Inscriptions des Élèves
             </h1>
-            <p className="text-blue-100 mt-1">{eleves.length} élève(s) • {inscriptions.filter(i => i.statut === 'Active').length} inscription(s) active(s)</p>
+            <p className="text-blue-100 mt-1">Inscriptions envoyées par les tuteurs • {eleves.length} élève(s) • {inscriptions.filter(i => i.statut === 'Active').length} inscription(s) active(s)</p>
           </div>
 
           {/* Filters */}
@@ -326,8 +472,11 @@ export default function AdminInscriptions() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="Actif">Actif</SelectItem>
-                  <SelectItem value="Inactif">En attente</SelectItem>
+                  <SelectItem value="En attente">En attente</SelectItem>
+                  <SelectItem value="En cours de traitement">En cours de traitement</SelectItem>
+                  <SelectItem value="En attente de paiement">En attente de paiement</SelectItem>
+                  <SelectItem value="Validée">Validée</SelectItem>
+                  <SelectItem value="Refusée">Refusée</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -391,11 +540,43 @@ export default function AdminInscriptions() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className={`px-4 py-2 rounded-xl text-sm font-medium ${getStatusBadge(eleve.statut)}`}>
-                        {eleve.statut}
+                      <span className={`px-4 py-2 rounded-xl text-sm font-medium ${getStatusBadge(eleve.statut_demande || 'En attente')}`}>
+                        {eleve.statut_demande || 'En attente'}
                       </span>
 
-                      {eleve.statut === 'Inactif' && !eleve.inscription && (
+                      {/* Bouton Détails - toujours visible */}
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedEleve(eleve);
+                          // Si on peut valider, initialiser le formulaire avec les dates calculées
+                          if ((eleve.statut_demande === 'En attente' || eleve.statut_demande === 'En cours de traitement') && !eleve.inscription) {
+                            let abonnement = 'Mensuel';
+                            if (eleve.demande_inscription?.description) {
+                              try {
+                                const descriptionData = typeof eleve.demande_inscription.description === 'string'
+                                  ? JSON.parse(eleve.demande_inscription.description)
+                                  : eleve.demande_inscription.description;
+                                abonnement = descriptionData.abonnement || 'Mensuel';
+                              } catch (err) {
+                                console.warn('Erreur parsing description:', err);
+                              }
+                            }
+                            const { dateDebut, dateFin } = calculateDates(abonnement);
+                            setInscriptionForm({
+                              date_debut: dateDebut,
+                              date_fin: dateFin
+                            });
+                          }
+                          setShowInscriptionModal(true);
+                        }}
+                        className="rounded-xl"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Détails
+                      </Button>
+
+                      {(eleve.statut_demande === 'En attente' || eleve.statut_demande === 'En cours de traitement') && !eleve.inscription && (
                         <>
                           <Button
                             onClick={() => handleValidate(eleve)}
@@ -417,7 +598,7 @@ export default function AdminInscriptions() {
                         </>
                       )}
 
-                      {eleve.statut === 'Actif' && eleve.inscription && !eleve.inscription.bus_id && (
+                      {eleve.statut_demande === 'Validée' && eleve.inscription && !eleve.inscription.bus_id && (
                         <Button
                           onClick={() => handleVerifyZone(eleve)}
                           className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
@@ -433,7 +614,6 @@ export default function AdminInscriptions() {
             )}
           </div>
         </motion.div>
-      </div>
 
       {/* Modal Inscription Details */}
       {showInscriptionModal && selectedEleve && (
@@ -441,57 +621,207 @@ export default function AdminInscriptions() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full"
+            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           >
             <div className="p-6 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-gray-800">
-                Valider l'inscription
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Eye className="w-5 h-5" />
+                Détails de l'inscription
               </h2>
-              <p className="text-gray-500">
+              <p className="text-gray-500 mt-1">
                 {selectedEleve.prenom} {selectedEleve.nom}
               </p>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-6">
+              {/* Informations de l'élève */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  Date de début
-                </label>
-                <Input
-                  type="date"
-                  value={inscriptionForm.date_debut}
-                  onChange={(e) => setInscriptionForm({...inscriptionForm, date_debut: e.target.value})}
-                  className="rounded-xl"
-                />
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <User className="w-5 h-5 text-blue-500" />
+                  Informations de l'élève
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Nom</label>
+                    <p className="text-gray-800">{selectedEleve.nom}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Prénom</label>
+                    <p className="text-gray-800">{selectedEleve.prenom}</p>
+                  </div>
+                  {selectedEleve.date_naissance && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Date de naissance</label>
+                      <p className="text-gray-800">{format(new Date(selectedEleve.date_naissance), 'dd/MM/yyyy', { locale: fr })}</p>
+                    </div>
+                  )}
+                  {selectedEleve.classe && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Classe</label>
+                      <p className="text-gray-800">{selectedEleve.classe}</p>
+                    </div>
+                  )}
+                  {selectedEleve.adresse && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-600 mb-1 flex items-center gap-1">
+                        <MapPin className="w-4 h-4" />
+                        Adresse
+                      </label>
+                      <p className="text-gray-800">{selectedEleve.adresse}</p>
+                    </div>
+                  )}
+                  {selectedEleve.demande_inscription?.zone_geographique && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Zone géographique</label>
+                      <p className="text-gray-800">{selectedEleve.demande_inscription.zone_geographique}</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <Calendar className="w-4 h-4 inline mr-1" />
-                  Date de fin
-                </label>
-                <Input
-                  type="date"
-                  value={inscriptionForm.date_fin}
-                  onChange={(e) => setInscriptionForm({...inscriptionForm, date_fin: e.target.value})}
-                  className="rounded-xl"
-                />
-              </div>
+              {/* Informations du tuteur */}
+              {selectedEleve.tuteur && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5 text-green-500" />
+                    Informations du tuteur
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Nom</label>
+                      <p className="text-gray-800">{selectedEleve.tuteur.nom}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Prénom</label>
+                      <p className="text-gray-800">{selectedEleve.tuteur.prenom}</p>
+                    </div>
+                    {selectedEleve.tuteur.telephone && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Téléphone</label>
+                        <p className="text-gray-800">{selectedEleve.tuteur.telephone}</p>
+                      </div>
+                    )}
+                    {selectedEleve.tuteur.email && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Email</label>
+                        <p className="text-gray-800">{selectedEleve.tuteur.email}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Montant mensuel (DH)
-                </label>
-                <Input
-                  type="number"
-                  value={inscriptionForm.montant_mensuel}
-                  onChange={(e) => setInscriptionForm({...inscriptionForm, montant_mensuel: e.target.value})}
-                  className="rounded-xl"
-                  min="0"
-                  step="50"
-                />
-              </div>
+              {/* Informations de la demande */}
+              {selectedEleve.demande_inscription && (() => {
+                let descriptionData = {};
+                try {
+                  descriptionData = typeof selectedEleve.demande_inscription.description === 'string'
+                    ? JSON.parse(selectedEleve.demande_inscription.description)
+                    : selectedEleve.demande_inscription.description || {};
+                } catch (err) {
+                  console.warn('Erreur parsing description:', err);
+                }
+                return (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-amber-500" />
+                      Informations de l'inscription
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {descriptionData.type_transport && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Type de transport</label>
+                          <p className="text-gray-800">{descriptionData.type_transport}</p>
+                        </div>
+                      )}
+                      {descriptionData.abonnement && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Type d'abonnement</label>
+                          <p className="text-gray-800 font-semibold">{descriptionData.abonnement}</p>
+                        </div>
+                      )}
+                      {descriptionData.groupe && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Groupe horaire</label>
+                          <p className="text-gray-800">{descriptionData.groupe}</p>
+                        </div>
+                      )}
+                      {descriptionData.niveau && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Niveau</label>
+                          <p className="text-gray-800">{descriptionData.niveau}</p>
+                        </div>
+                      )}
+                      {descriptionData.lien_parente && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Lien de parenté</label>
+                          <p className="text-gray-800">{descriptionData.lien_parente}</p>
+                        </div>
+                      )}
+                      {selectedEleve.demande_inscription.date_creation && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Date de la demande</label>
+                          <p className="text-gray-800">{format(new Date(selectedEleve.demande_inscription.date_creation), 'dd/MM/yyyy à HH:mm', { locale: fr })}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Formulaire de validation (seulement si pas encore validé) */}
+              {(selectedEleve.statut_demande === 'En attente' || selectedEleve.statut_demande === 'En cours de traitement') && !selectedEleve.inscription && (
+                <div className="border-t border-gray-200 pt-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    Valider l'inscription
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Calendar className="w-4 h-4 inline mr-1" />
+                        Date de début
+                      </label>
+                      <Input
+                        type="date"
+                        value={inscriptionForm.date_debut}
+                        onChange={(e) => setInscriptionForm({...inscriptionForm, date_debut: e.target.value})}
+                        className="rounded-xl"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Calendar className="w-4 h-4 inline mr-1" />
+                        Date de fin
+                      </label>
+                      <Input
+                        type="date"
+                        value={inscriptionForm.date_fin}
+                        onChange={(e) => setInscriptionForm({...inscriptionForm, date_fin: e.target.value})}
+                        className="rounded-xl"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {(() => {
+                          let abonnement = 'Mensuel';
+                          if (selectedEleve.demande_inscription?.description) {
+                            try {
+                              const desc = typeof selectedEleve.demande_inscription.description === 'string'
+                                ? JSON.parse(selectedEleve.demande_inscription.description)
+                                : selectedEleve.demande_inscription.description || {};
+                              abonnement = desc.abonnement || 'Mensuel';
+                            } catch (err) {}
+                          }
+                          return abonnement === 'Annuel' 
+                            ? 'Date de fin calculée jusqu\'au 30 juin selon le type d\'abonnement annuel'
+                            : 'Date de fin calculée pour 1 mois selon le type d\'abonnement mensuel';
+                        })()}
+                      </p>
+                    </div>
+
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
@@ -503,15 +833,17 @@ export default function AdminInscriptions() {
                 }}
                 className="rounded-xl"
               >
-                Annuler
+                Fermer
               </Button>
-              <Button
-                onClick={handleCreateInscription}
-                className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Valider l'inscription
-              </Button>
+              {(selectedEleve.statut_demande === 'En attente' || selectedEleve.statut_demande === 'En cours de traitement') && !selectedEleve.inscription && (
+                <Button
+                  onClick={handleCreateInscription}
+                  className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Valider l'inscription
+                </Button>
+              )}
             </div>
           </motion.div>
         </div>

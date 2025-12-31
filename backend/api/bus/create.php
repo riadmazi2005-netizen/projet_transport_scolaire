@@ -12,15 +12,35 @@ $data = json_decode(file_get_contents('php://input'), true);
 
 try {
     $pdo = getDBConnection();
+    // Vérifier si le chauffeur est déjà affecté
+    if (!empty($data['chauffeur_id'])) {
+        $stmt = $pdo->prepare('SELECT id FROM bus WHERE chauffeur_id = ?');
+        $stmt->execute([$data['chauffeur_id']]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Ce chauffeur est déjà affecté à un autre bus']);
+            exit;
+        }
+    }
+    
+    // Vérifier si le responsable est déjà affecté
+    if (!empty($data['responsable_id'])) {
+        $stmt = $pdo->prepare('SELECT id FROM bus WHERE responsable_id = ?');
+        $stmt->execute([$data['responsable_id']]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Ce responsable est déjà affecté à un autre bus']);
+            exit;
+        }
+    }
+    
     $stmt = $pdo->prepare('
-        INSERT INTO bus (numero, marque, modele, annee_fabrication, capacite, chauffeur_id, responsable_id, trajet_id, statut)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO bus (numero, annee_fabrication, capacite, chauffeur_id, responsable_id, trajet_id, statut)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ');
     
     $stmt->execute([
         $data['numero'],
-        $data['marque'] ?? null,
-        $data['modele'] ?? null,
         $data['annee_fabrication'] ?? null,
         $data['capacite'],
         $data['chauffeur_id'] ?? null,

@@ -1,16 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { accidentsAPI, busAPI, chauffeursAPI, notificationsAPI } from '../services/apiService';
+import { accidentsAPI, busAPI, chauffeursAPI, notificationsAPI, elevesAPI, inscriptionsAPI, tuteursAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  AlertCircle, Plus, Calendar, Bus, User, MapPin, Save, X
+  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -20,21 +16,13 @@ export default function AdminAccidents() {
   const [accidents, setAccidents] = useState([]);
   const [buses, setBuses] = useState([]);
   const [chauffeurs, setChauffeurs] = useState([]);
+  const [eleves, setEleves] = useState([]);
+  const [inscriptions, setInscriptions] = useState([]);
+  const [tuteurs, setTuteurs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [selectedAccident, setSelectedAccident] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [error, setError] = useState(null);
-
-  const [form, setForm] = useState({
-    date: '', 
-    heure: '', 
-    bus_id: '', 
-    chauffeur_id: '', 
-    description: '', 
-    degats: '', 
-    lieu: '', 
-    gravite: '', 
-    blesses: false
-  });
 
   useEffect(() => {
     loadData();
@@ -44,15 +32,28 @@ export default function AdminAccidents() {
     setLoading(true);
     setError(null);
     try {
-      const [accidentsData, busesData, chauffeursData] = await Promise.all([
+      const [accidentsRes, busesRes, chauffeursRes, elevesRes, inscriptionsRes, tuteursRes] = await Promise.all([
         accidentsAPI.getAll(),
         busAPI.getAll(),
-        chauffeursAPI.getAll()
+        chauffeursAPI.getAll(),
+        elevesAPI.getAll(),
+        inscriptionsAPI.getAll(),
+        tuteursAPI.getAll()
       ]);
       
-      setAccidents(accidentsData.sort((a, b) => new Date(b.date) - new Date(a.date)));
-      setBuses(busesData);
-      setChauffeurs(chauffeursData);
+      const accidentsData = accidentsRes?.data || accidentsRes || [];
+      const busesData = busesRes?.data || busesRes || [];
+      const chauffeursData = chauffeursRes?.data || chauffeursRes || [];
+      const elevesData = elevesRes?.data || elevesRes || [];
+      const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
+      const tuteursData = tuteursRes?.data || tuteursRes || [];
+      
+      setAccidents(Array.isArray(accidentsData) ? accidentsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)) : []);
+      setBuses(Array.isArray(busesData) ? busesData : []);
+      setChauffeurs(Array.isArray(chauffeursData) ? chauffeursData : []);
+      setEleves(Array.isArray(elevesData) ? elevesData : []);
+      setInscriptions(Array.isArray(inscriptionsData) ? inscriptionsData : []);
+      setTuteurs(Array.isArray(tuteursData) ? tuteursData : []);
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
       setError('Erreur lors du chargement des données');
@@ -61,60 +62,72 @@ export default function AdminAccidents() {
     }
   };
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    setError(null);
+  const handleNotifyTuteurs = async (accident) => {
+    if (!accident.bus_id) {
+      setError('Aucun bus associé à cet accident');
+      return;
+    }
     
     try {
-      // Créer l'accident
-      await accidentsAPI.create(form);
+      // Trouver tous les élèves dans le bus au moment de l'accident
+      const activeInscriptions = inscriptions.filter(i => 
+        i.bus_id === accident.bus_id && i.statut === 'Active'
+      );
+      const elevesInBus = eleves.filter(e => 
+        activeInscriptions.some(i => i.eleve_id === e.id)
+      );
       
-      // Mettre à jour le compteur d'accidents du chauffeur
-      const chauffeur = chauffeurs.find(c => c.id === parseInt(form.chauffeur_id));
-      if (chauffeur) {
-        const newCount = (chauffeur.nombre_accidents || 0) + 1;
-        await chauffeursAPI.update(form.chauffeur_id, {
-          nombre_accidents: newCount
-        });
-        
-        // Vérifier si 3 accidents ou plus
-        if (newCount >= 3) {
-          await chauffeursAPI.update(form.chauffeur_id, {
-            statut: 'Licencié'
-          });
-          
-          // Notifier le chauffeur
-          await notificationsAPI.create({
-            destinataire_id: form.chauffeur_id,
-            destinataire_type: 'chauffeur',
-            titre: 'Licenciement',
-            message: 'Suite à votre 3ème accident, vous êtes licencié avec une amende de 1000 DH conformément au règlement.',
-            type: 'alerte'
-          });
-        }
+      // Trouver les tuteurs uniques
+      const tuteursIds = [...new Set(elevesInBus.map(e => e.tuteur_id).filter(Boolean))];
+      const tuteursToNotify = tuteurs.filter(t => tuteursIds.includes(t.id));
+      
+      if (tuteursToNotify.length === 0) {
+        setError('Aucun tuteur trouvé pour les élèves de ce bus');
+        return;
       }
       
-      resetForm();
-      await loadData();
+      const bus = buses.find(b => b.id === accident.bus_id);
+      const busNumero = bus?.numero || 'Inconnu';
+      
+      // Créer un message de notification
+      let message = `Un accident a été déclaré concernant le bus ${busNumero}.\n\n`;
+      message += `Date: ${format(new Date(accident.date), 'dd/MM/yyyy', { locale: fr })}`;
+      if (accident.heure) {
+        message += ` à ${accident.heure}`;
+      }
+      message += `\nLieu: ${accident.lieu || 'Non spécifié'}\n`;
+      message += `Gravité: ${accident.gravite}\n\n`;
+      message += `Description: ${accident.description}\n`;
+      if (accident.degats) {
+        message += `Dégâts: ${accident.degats}\n`;
+      }
+      if (accident.nombre_eleves !== null && accident.nombre_eleves !== undefined) {
+        message += `Nombre d'élèves dans le bus: ${accident.nombre_eleves}\n`;
+      }
+      if (accident.nombre_blesses !== null && accident.nombre_blesses !== undefined && accident.nombre_blesses > 0) {
+        message += `Nombre de blessés: ${accident.nombre_blesses}\n`;
+      }
+      message += `\nVeuillez contacter l'école pour plus d'informations.`;
+      
+      // Envoyer les notifications
+      const notificationPromises = tuteursToNotify.map(tuteur => {
+        // Trouver l'utilisateur_id du tuteur
+        const tuteurUtilisateurId = tuteur.utilisateur_id || tuteur.id;
+        return notificationsAPI.create({
+          destinataire_id: tuteurUtilisateurId,
+          destinataire_type: 'tuteur',
+          titre: 'Accident déclaré - Bus ' + busNumero,
+          message: message,
+          type: 'alerte'
+        });
+      });
+      
+      await Promise.all(notificationPromises);
+      alert(`Notifications envoyées à ${tuteursToNotify.length} tuteur(s)`);
     } catch (err) {
-      console.error('Erreur lors de l\'enregistrement:', err);
-      setError('Erreur lors de l\'enregistrement de l\'accident');
+      console.error('Erreur lors de l\'envoi des notifications:', err);
+      setError('Erreur lors de l\'envoi des notifications aux tuteurs');
     }
-  };
-
-  const resetForm = () => {
-    setForm({
-      date: '', 
-      heure: '', 
-      bus_id: '', 
-      chauffeur_id: '', 
-      description: '', 
-      degats: '', 
-      lieu: '', 
-      gravite: '', 
-      blesses: false
-    });
-    setShowForm(false);
   };
 
   const getGraviteBadge = (gravite) => {
@@ -128,237 +141,301 @@ export default function AdminAccidents() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <AdminLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <button
-          onClick={() => navigate(createPageUrl('AdminDashboard'))}
-          className="flex items-center gap-2 text-gray-500 hover:text-amber-600 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Retour
-        </button>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
-          {error}
-        </div>
-      )}
-
-      <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl overflow-hidden"
-        >
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-red-500 to-rose-500">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <AlertCircle className="w-6 h-6" />
-              Gestion des Accidents
-            </h2>
-            <Button
-              onClick={() => setShowForm(true)}
-              className="bg-white text-red-600 hover:bg-red-50 rounded-xl"
+    <AdminLayout>
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-4">
+            <button
+              onClick={() => navigate(createPageUrl('AdminDashboard'))}
+              className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Déclarer un accident
-            </Button>
+              <ArrowLeft className="w-4 h-4" />
+              Retour au tableau de bord
+            </button>
           </div>
-
-          {showForm && (
-            <div className="p-6 bg-red-50 border-b border-red-100">
-              <form onSubmit={handleSave} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <Label>Date</Label>
-                    <Input
-                      type="date"
-                      value={form.date}
-                      onChange={(e) => setForm({ ...form, date: e.target.value })}
-                      className="mt-1 rounded-xl"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label>Heure</Label>
-                    <Input
-                      type="time"
-                      value={form.heure}
-                      onChange={(e) => setForm({ ...form, heure: e.target.value })}
-                      className="mt-1 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label>Bus</Label>
-                    <Select value={form.bus_id} onValueChange={(v) => setForm({ ...form, bus_id: v })}>
-                      <SelectTrigger className="mt-1 rounded-xl">
-                        <SelectValue placeholder="Sélectionnez" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {buses.map(b => (
-                          <SelectItem key={b.id} value={b.id.toString()}>{b.numero}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Chauffeur</Label>
-                    <Select value={form.chauffeur_id} onValueChange={(v) => setForm({ ...form, chauffeur_id: v })}>
-                      <SelectTrigger className="mt-1 rounded-xl">
-                        <SelectValue placeholder="Sélectionnez" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {chauffeurs.map(c => (
-                          <SelectItem key={c.id} value={c.id.toString()}>{c.prenom} {c.nom}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label>Lieu</Label>
-                    <Input
-                      value={form.lieu}
-                      onChange={(e) => setForm({ ...form, lieu: e.target.value })}
-                      className="mt-1 rounded-xl"
-                      placeholder="Lieu de l'accident"
-                    />
-                  </div>
-                  <div>
-                    <Label>Gravité</Label>
-                    <Select value={form.gravite} onValueChange={(v) => setForm({ ...form, gravite: v })}>
-                      <SelectTrigger className="mt-1 rounded-xl">
-                        <SelectValue placeholder="Sélectionnez" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Légère">Légère</SelectItem>
-                        <SelectItem value="Moyenne">Moyenne</SelectItem>
-                        <SelectItem value="Grave">Grave</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-end gap-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.blesses}
-                        onChange={(e) => setForm({ ...form, blesses: e.target.checked })}
-                        className="w-5 h-5 rounded"
-                      />
-                      <span>Blessés signalés</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Description</Label>
-                  <Textarea
-                    value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    className="mt-1 rounded-xl"
-                    placeholder="Description de l'accident..."
-                    rows={3}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label>Dégâts</Label>
-                  <Textarea
-                    value={form.degats}
-                    onChange={(e) => setForm({ ...form, degats: e.target.value })}
-                    className="mt-1 rounded-xl"
-                    placeholder="Description des dégâts..."
-                    rows={2}
-                    required
-                  />
-                </div>
-
-                <div className="flex gap-3 justify-end">
-                  <Button type="button" variant="outline" onClick={resetForm} className="rounded-xl">
-                    <X className="w-4 h-4 mr-2" />
-                    Annuler
-                  </Button>
-                  <Button type="submit" className="bg-red-500 hover:bg-red-600 text-white rounded-xl">
-                    <Save className="w-4 h-4 mr-2" />
-                    Enregistrer
-                  </Button>
-                </div>
-              </form>
+          
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center justify-between">
+              <span>{error}</span>
+              <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+                ×
+              </button>
             </div>
           )}
 
-          <div className="divide-y divide-gray-100">
-            {accidents.length === 0 ? (
-              <div className="p-12 text-center text-gray-400">
-                <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Aucun accident enregistré</p>
-              </div>
-            ) : (
-              accidents.map((accident) => {
-                const bus = buses.find(b => b.id === accident.bus_id);
-                const chauffeur = chauffeurs.find(c => c.id === accident.chauffeur_id);
-                
-                return (
-                  <div key={accident.id} className="p-6 hover:bg-red-50/50 transition-colors">
-                    <div className="flex flex-col lg:flex-row justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-3 mb-3">
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${getGraviteBadge(accident.gravite)}`}>
-                            {accident.gravite}
-                          </span>
-                          {accident.blesses && (
-                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
-                              Blessés
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-3xl shadow-xl overflow-hidden"
+          >
+            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-red-500 to-rose-500">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <AlertCircle className="w-6 h-6" />
+                Rapports d'Accidents
+              </h2>
+              <p className="text-red-100 mt-1">Rapports reçus des chauffeurs et responsables bus</p>
+            </div>
+
+            <div className="divide-y divide-gray-100">
+              {accidents.length === 0 ? (
+                <div className="p-12 text-center text-gray-400">
+                  <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>Aucun accident déclaré</p>
+                </div>
+              ) : (
+                accidents.map((accident) => {
+                  const bus = buses.find(b => b.id === accident.bus_id);
+                  const chauffeur = chauffeurs.find(c => c.id === accident.chauffeur_id);
+                  
+                  return (
+                    <div key={accident.id} className="p-6 hover:bg-red-50/50 transition-colors">
+                      <div className="flex flex-col lg:flex-row justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getGraviteBadge(accident.gravite)}`}>
+                              {accident.gravite}
                             </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4 text-gray-400" />
-                            {format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr })}
-                            {accident.heure && ` à ${accident.heure}`}
+                            {accident.blesses && (
+                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
+                                Blessés
+                              </span>
+                            )}
                           </div>
-                          {bus && (
+
+                          <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
                             <div className="flex items-center gap-1">
-                              <Bus className="w-4 h-4 text-amber-500" />
-                              {bus.numero}
+                              <Calendar className="w-4 h-4 text-gray-400" />
+                              {format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr })}
+                              {accident.heure && ` à ${accident.heure}`}
                             </div>
-                          )}
-                          {chauffeur && (
-                            <div className="flex items-center gap-1">
-                              <User className="w-4 h-4 text-green-500" />
-                              {chauffeur.prenom} {chauffeur.nom}
-                            </div>
-                          )}
-                          {accident.lieu && (
-                            <div className="flex items-center gap-1">
-                              <MapPin className="w-4 h-4 text-red-500" />
-                              {accident.lieu}
-                            </div>
+                            {bus && (
+                              <div className="flex items-center gap-1">
+                                <Bus className="w-4 h-4 text-amber-500" />
+                                {bus.numero}
+                              </div>
+                            )}
+                            {chauffeur && (
+                              <div className="flex items-center gap-1">
+                                <User className="w-4 h-4 text-green-500" />
+                                {chauffeur.prenom} {chauffeur.nom}
+                              </div>
+                            )}
+                            {accident.lieu && (
+                              <div className="flex items-center gap-1">
+                                <MapPin className="w-4 h-4 text-red-500" />
+                                {accident.lieu}
+                              </div>
+                            )}
+                            {accident.nombre_eleves !== null && accident.nombre_eleves !== undefined && (
+                              <div className="flex items-center gap-1">
+                                <Users className="w-4 h-4 text-blue-500" />
+                                {accident.nombre_eleves} élève(s)
+                              </div>
+                            )}
+                            {accident.nombre_blesses !== null && accident.nombre_blesses !== undefined && accident.nombre_blesses > 0 && (
+                              <div className="flex items-center gap-1 text-red-600 font-semibold">
+                                <AlertCircle className="w-4 h-4" />
+                                {accident.nombre_blesses} blessé(s)
+                              </div>
+                            )}
+                          </div>
+
+                          <h3 className="font-semibold text-gray-800 mb-2">{accident.description}</h3>
+                          {accident.degats && (
+                            <p className="text-sm text-gray-500 mb-2">
+                              <strong>Dégâts:</strong> {accident.degats}
+                            </p>
                           )}
                         </div>
-
-                        <h3 className="font-semibold text-gray-800 mb-2">{accident.description}</h3>
-                        <p className="text-sm text-gray-500">
-                          <strong>Dégâts:</strong> {accident.degats}
-                        </p>
+                        
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedAccident(accident);
+                              setShowDetailsModal(true);
+                            }}
+                            className="rounded-xl"
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            Détails
+                          </Button>
+                          {accident.bus_id && (
+                            <Button
+                              onClick={() => handleNotifyTuteurs(accident)}
+                              className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                            >
+                              <Mail className="w-4 h-4 mr-2" />
+                              Informer les tuteurs
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  );
+                })
+              )}
+            </div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Modal Détails */}
+      {showDetailsModal && selectedAccident && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-red-500 to-rose-500">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <AlertCircle className="w-6 h-6" />
+                  Détails de l'Accident
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    setSelectedAccident(null);
+                  }}
+                  className="text-white hover:text-red-100 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Date</label>
+                  <p className="text-gray-800">
+                    {format(new Date(selectedAccident.date), 'dd MMMM yyyy', { locale: fr })}
+                    {selectedAccident.heure && ` à ${selectedAccident.heure}`}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Gravité</label>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium inline-block ${getGraviteBadge(selectedAccident.gravite)}`}>
+                    {selectedAccident.gravite}
+                  </span>
+                </div>
+
+                {selectedAccident.lieu && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Lieu</label>
+                    <p className="text-gray-800">{selectedAccident.lieu}</p>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </motion.div>
+                )}
+
+                {(() => {
+                  const bus = buses.find(b => b.id === selectedAccident.bus_id);
+                  return bus ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Bus</label>
+                      <p className="text-gray-800">{bus.numero}</p>
+                    </div>
+                  ) : null;
+                })()}
+
+                {(() => {
+                  const chauffeur = chauffeurs.find(c => c.id === selectedAccident.chauffeur_id);
+                  return chauffeur ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Chauffeur</label>
+                      <p className="text-gray-800">{chauffeur.prenom} {chauffeur.nom}</p>
+                    </div>
+                  ) : null;
+                })()}
+
+                {selectedAccident.nombre_eleves !== null && selectedAccident.nombre_eleves !== undefined && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Nombre d'élèves</label>
+                    <p className="text-gray-800">{selectedAccident.nombre_eleves}</p>
+                  </div>
+                )}
+
+                {selectedAccident.nombre_blesses !== null && selectedAccident.nombre_blesses !== undefined && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Nombre de blessés</label>
+                    <p className="text-red-600 font-semibold">{selectedAccident.nombre_blesses}</p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
+                <p className="text-gray-800">{selectedAccident.description}</p>
+              </div>
+
+              {selectedAccident.degats && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Dégâts</label>
+                  <p className="text-gray-800">{selectedAccident.degats}</p>
+                </div>
+              )}
+
+              {selectedAccident.photos && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Photos
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {(() => {
+                      const photosArray = typeof selectedAccident.photos === 'string' 
+                        ? JSON.parse(selectedAccident.photos) 
+                        : selectedAccident.photos;
+                      return Array.isArray(photosArray) ? photosArray.map((photo, index) => (
+                        <div key={index} className="relative">
+                          <img 
+                            src={photo} 
+                            alt={`Photo ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-xl border border-gray-200"
+                          />
+                        </div>
+                      )) : null;
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  setSelectedAccident(null);
+                }}
+                className="rounded-xl"
+              >
+                Fermer
+              </Button>
+              {selectedAccident.bus_id && (
+                <Button
+                  onClick={() => handleNotifyTuteurs(selectedAccident)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                >
+                  <Mail className="w-4 h-4 mr-2" />
+                  Informer les tuteurs
+                </Button>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

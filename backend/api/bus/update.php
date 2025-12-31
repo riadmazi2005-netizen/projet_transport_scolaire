@@ -21,6 +21,28 @@ try {
     $id = $data['id'];
     unset($data['id']);
     
+    // Vérifier si le chauffeur est déjà affecté à un autre bus
+    if (isset($data['chauffeur_id']) && !empty($data['chauffeur_id'])) {
+        $stmt = $pdo->prepare('SELECT id FROM bus WHERE chauffeur_id = ? AND id != ?');
+        $stmt->execute([$data['chauffeur_id'], $id]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Ce chauffeur est déjà affecté à un autre bus']);
+            exit;
+        }
+    }
+    
+    // Vérifier si le responsable est déjà affecté à un autre bus
+    if (isset($data['responsable_id']) && !empty($data['responsable_id'])) {
+        $stmt = $pdo->prepare('SELECT id FROM bus WHERE responsable_id = ? AND id != ?');
+        $stmt->execute([$data['responsable_id'], $id]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Ce responsable est déjà affecté à un autre bus']);
+            exit;
+        }
+    }
+    
     $fields = [];
     $values = [];
     foreach ($data as $key => $value) {

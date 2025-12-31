@@ -19,18 +19,18 @@ if (!isset($data['id'])) {
 try {
     $pdo = getDBConnection();
     
-    // Récupérer le chauffeur pour obtenir l'utilisateur_id
-    $stmt = $pdo->prepare('SELECT utilisateur_id FROM chauffeurs WHERE id = ?');
+    // Récupérer le responsable pour obtenir l'utilisateur_id
+    $stmt = $pdo->prepare('SELECT utilisateur_id FROM responsables_bus WHERE id = ?');
     $stmt->execute([$data['id']]);
-    $chauffeur = $stmt->fetch(PDO::FETCH_ASSOC);
+    $responsable = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    if (!$chauffeur) {
+    if (!$responsable) {
         http_response_code(404);
-        echo json_encode(['success' => false, 'message' => 'Chauffeur non trouvé']);
+        echo json_encode(['success' => false, 'message' => 'Responsable non trouvé']);
         exit;
     }
     
-    $utilisateurId = $chauffeur['utilisateur_id'];
+    $utilisateurId = $responsable['utilisateur_id'];
     $id = $data['id'];
     unset($data['id']);
     
@@ -85,61 +85,48 @@ try {
         $stmt->execute($userValues);
     }
     
-    // Préparer les champs chauffeur à mettre à jour
-    $chauffeurFields = [];
-    $chauffeurValues = [];
+    // Préparer les champs responsable à mettre à jour
+    $respFields = [];
+    $respValues = [];
     
-    if (isset($data['permis'])) {
-        $chauffeurFields[] = 'numero_permis = ?';
-        $chauffeurValues[] = $data['permis'];
-        unset($data['permis']);
-    }
-    if (isset($data['salaire'])) {
-        $chauffeurFields[] = 'salaire = ?';
-        $chauffeurValues[] = $data['salaire'];
-        unset($data['salaire']);
-    }
-    if (isset($data['date_embauche'])) {
-        $chauffeurFields[] = 'date_embauche = ?';
-        $chauffeurValues[] = $data['date_embauche'];
-        unset($data['date_embauche']);
-    }
-    if (isset($data['nombre_accidents'])) {
-        $chauffeurFields[] = 'nombre_accidents = ?';
-        $chauffeurValues[] = $data['nombre_accidents'];
-        unset($data['nombre_accidents']);
+    if (isset($data['zone_responsabilite'])) {
+        $respFields[] = 'zone_responsabilite = ?';
+        $respValues[] = $data['zone_responsabilite'];
+        unset($data['zone_responsabilite']);
     }
     
-    // Mettre à jour les autres champs restants
-    foreach ($data as $key => $value) {
-        $chauffeurFields[] = "$key = ?";
-        $chauffeurValues[] = $value;
-    }
-    
-    // Mettre à jour la table chauffeurs si nécessaire
-    if (!empty($chauffeurFields)) {
-        $chauffeurValues[] = $id;
-        $sql = 'UPDATE chauffeurs SET ' . implode(', ', $chauffeurFields) . ' WHERE id = ?';
+    // Mettre à jour la table responsables_bus si nécessaire
+    if (!empty($respFields)) {
+        $respValues[] = $id;
+        $sql = 'UPDATE responsables_bus SET ' . implode(', ', $respFields) . ' WHERE id = ?';
         $stmt = $pdo->prepare($sql);
-        $stmt->execute($chauffeurValues);
+        $stmt->execute($respValues);
     }
     
-    // Récupérer le chauffeur mis à jour
+    // Récupérer le responsable mis à jour
     $stmt = $pdo->prepare('
-        SELECT c.*, u.nom, u.prenom, u.email, u.telephone, u.mot_de_passe as user_password
-        FROM chauffeurs c
-        LEFT JOIN utilisateurs u ON c.utilisateur_id = u.id
-        WHERE c.id = ?
+        SELECT 
+            r.*,
+            u.nom,
+            u.prenom,
+            u.email,
+            u.telephone,
+            u.mot_de_passe,
+            u.statut as user_statut
+        FROM responsables_bus r
+        LEFT JOIN utilisateurs u ON r.utilisateur_id = u.id
+        WHERE r.id = ?
     ');
     $stmt->execute([$id]);
-    $chauffeur = $stmt->fetch(PDO::FETCH_ASSOC);
+    $responsable = $stmt->fetch(PDO::FETCH_ASSOC);
     
     echo json_encode([
         'success' => true,
-        'data' => $chauffeur
+        'data' => $responsable
     ]);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage()]);
 }
 ?>
+

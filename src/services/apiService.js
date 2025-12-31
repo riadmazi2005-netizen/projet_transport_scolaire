@@ -271,6 +271,7 @@ export const accidentsAPI = {
   getAll: () => fetchAPI('/accidents/getAll.php'),
   getById: (id) => fetchAPI(`/accidents/getById.php?id=${id}`),
   getByChauffeur: (chauffeurId) => fetchAPI(`/accidents/getByChauffeur.php?chauffeur_id=${chauffeurId}`),
+  getByResponsable: (responsableId) => fetchAPI(`/accidents/getByResponsable.php?responsable_id=${responsableId}`),
   create: (data) => fetchAPI('/accidents/create.php', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -328,9 +329,9 @@ export const demandesAPI = {
     method: 'DELETE',
     body: JSON.stringify({ id }),
   }),
-  traiter: (id, statut, commentaire, raisonRefus) => fetchAPI('/demandes/traiter.php', {
+  traiter: (id, statut, commentaire, raisonRefus, traitePar) => fetchAPI('/demandes/traiter.php', {
     method: 'PUT',
-    body: JSON.stringify({ id, statut, commentaire, raison_refus: raisonRefus }),
+    body: JSON.stringify({ id, statut, commentaire, raison_refus: raisonRefus, traite_par: traitePar }),
   }),
   verifierCode: (demandeId, code) => fetchAPI('/demandes/verifierCode.php', {
     method: 'POST',

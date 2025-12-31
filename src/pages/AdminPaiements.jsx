@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  CreditCard, Search, Filter, CheckCircle, Calendar, User
+  CreditCard, Search, Filter, CheckCircle, Calendar, User, ArrowLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -29,19 +29,25 @@ export default function AdminPaiements() {
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
     try {
-      const [paiementsData, elevesData, tuteursData, inscriptionsData] = await Promise.all([
+      const [paiementsRes, elevesRes, tuteursRes, inscriptionsRes] = await Promise.all([
         paiementsAPI.getAll(),
         elevesAPI.getAll(),
         tuteursAPI.getAll(),
         inscriptionsAPI.getAll()
       ]);
       
+      const paiementsData = paiementsRes?.data || paiementsRes || [];
+      const elevesData = elevesRes?.data || elevesRes || [];
+      const tuteursData = tuteursRes?.data || tuteursRes || [];
+      const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
+      
       // Enrichir les paiements avec les infos élève et tuteur
-      const paiementsEnrichis = paiementsData.map(p => {
-        const inscription = inscriptionsData.find(i => i.id === p.inscription_id);
-        const eleve = inscription ? elevesData.find(e => e.id === inscription.eleve_id) : null;
-        const tuteur = eleve ? tuteursData.find(t => t.id === eleve.tuteur_id) : null;
+      const paiementsEnrichis = Array.isArray(paiementsData) ? paiementsData.map(p => {
+        const inscription = Array.isArray(inscriptionsData) ? inscriptionsData.find(i => i.id === p.inscription_id) : null;
+        const eleve = inscription && Array.isArray(elevesData) ? elevesData.find(e => e.id === inscription.eleve_id) : null;
+        const tuteur = eleve && Array.isArray(tuteursData) ? tuteursData.find(t => t.id === eleve.tuteur_id) : null;
         
         return {
           ...p,
@@ -49,16 +55,17 @@ export default function AdminPaiements() {
           tuteur,
           inscription
         };
-      });
+      }) : [];
       
-      setPaiements(paiementsEnrichis.sort((a, b) => new Date(b.date_paiement) - new Date(a.date_paiement)));
-      setEleves(elevesData);
-      setTuteurs(tuteursData);
-      setInscriptions(inscriptionsData);
+      setPaiements(paiementsEnrichis.sort((a, b) => new Date(b.date_paiement || 0) - new Date(a.date_paiement || 0)));
+      setEleves(Array.isArray(elevesData) ? elevesData : []);
+      setTuteurs(Array.isArray(tuteursData) ? tuteursData : []);
+      setInscriptions(Array.isArray(inscriptionsData) ? inscriptionsData : []);
     } catch (err) {
       console.error('Erreur lors du chargement des paiements:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const filteredPaiements = paiements.filter(p => {
@@ -109,6 +116,16 @@ export default function AdminPaiements() {
 
   return (
     <AdminLayout title="Gestion des Paiements">
+      <div className="mb-4">
+        <button
+          onClick={() => navigate(createPageUrl('AdminDashboard'))}
+          className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour au tableau de bord
+        </button>
+      </div>
+      
       {/* Summary Card */}
       <motion.div
           initial={{ opacity: 0, y: 20 }}

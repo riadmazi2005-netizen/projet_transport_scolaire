@@ -16,7 +16,8 @@ import {
   X,
   Shield,
   LogOut,
-  GraduationCap
+  GraduationCap,
+  FileText
 } from 'lucide-react';
 
 export default function AdminSidebar({ admin, notifications = [], onLogout, onNotificationClick }) {
@@ -38,10 +39,22 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
 
   const menuItems = [
     {
+      title: 'Dashboard',
+      icon: Shield,
+      link: 'AdminDashboard',
+      path: '/AdminDashboard'
+    },
+    {
       title: 'Statistiques',
       icon: BarChart3,
       link: 'AdminStats',
       path: '/AdminStats'
+    },
+    {
+      title: 'Élèves',
+      icon: GraduationCap,
+      link: 'AdminEleves',
+      path: '/AdminEleves'
     },
     {
       title: 'Inscriptions',
@@ -79,16 +92,15 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
       link: 'AdminAccidents',
       path: '/AdminAccidents'
     },
-    {
-      title: 'Demandes',
-      icon: ClipboardList,
-      link: 'AdminDemandes',
-      path: '/AdminDemandes'
-    },
   ];
 
-  const handleNavigation = (link) => {
-    navigate(createPageUrl(link));
+  const handleNavigation = (item) => {
+    // Utiliser directement le path
+    if (item.path) {
+      navigate(item.path);
+    } else {
+      navigate(createPageUrl(item.link));
+    }
     setIsMobileOpen(false);
   };
 
@@ -202,7 +214,7 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  onClick={() => handleNavigation(item.link)}
+                  onClick={() => handleNavigation(item)}
                   className={`
                     w-full flex items-center gap-3 px-4 py-3 rounded-xl
                     transition-all duration-200
@@ -233,17 +245,6 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
 
         {/* Footer */}
         <div className="p-4 border-t border-amber-200 space-y-2">
-          {!isCollapsed && (
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              onClick={() => navigate(createPageUrl('AdminDashboard'))}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-700 hover:bg-amber-100 hover:text-amber-700 transition-all"
-            >
-              <Shield className="w-5 h-5" />
-              <span className="font-medium text-sm">Dashboard</span>
-            </motion.button>
-          )}
           <motion.button
             onClick={onLogout}
             className={`

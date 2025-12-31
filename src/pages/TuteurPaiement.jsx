@@ -33,7 +33,9 @@ export default function TuteurPaiement() {
     const params = new URLSearchParams(window.location.search);
     const demandeId = params.get('demandeId');
     if (demandeId) {
-      loadDemande(demandeId, tuteurData.id);
+      // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
+      const tuteurId = tuteurData.type_id || tuteurData.id;
+      loadDemande(demandeId, tuteurId);
     }
   }, [navigate]);
 
@@ -49,8 +51,8 @@ export default function TuteurPaiement() {
         return;
       }
       
-      // Vérifier que la demande est en attente de paiement
-      if (demandeData.statut !== 'En attente de paiement') {
+      // Vérifier que la demande est en attente de paiement (peut être "Validée" ou "En attente de paiement")
+      if (demandeData.statut !== 'En attente de paiement' && demandeData.statut !== 'Validée') {
         setError('Cette demande n\'est pas en attente de paiement');
         return;
       }
@@ -78,11 +80,8 @@ export default function TuteurPaiement() {
     }
     // Calculer depuis la description si pas de montant facture
     if (demande) {
-      const desc = typeof demande.description === 'string' ? JSON.parse(demande.description) : demande.description;
-      const typeTransport = desc?.type_transport || 'Aller-Retour';
-      const abonnement = desc?.abonnement || 'Mensuel';
-      const basePrice = typeTransport === 'Aller-Retour' ? 400 : 250;
-      return abonnement === 'Annuel' ? basePrice * 10 : basePrice;
+      const infosTransport = extraireInfosTransport(demande.description);
+      return calculerMontantFacture(infosTransport.type_transport, infosTransport.abonnement);
     }
     return 0;
   };

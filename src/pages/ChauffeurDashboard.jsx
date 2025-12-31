@@ -14,9 +14,13 @@ import {
 } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Bus, Bell, LogOut, Users, AlertCircle, DollarSign,
-  Navigation, User, TrendingUp, CheckCircle, Calendar, MapPin
+  Navigation, User, CheckCircle, Calendar, MapPin, Plus, X
 } from 'lucide-react';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
@@ -37,6 +41,17 @@ export default function ChauffeurDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('bus');
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [showAccidentForm, setShowAccidentForm] = useState(false);
+  const [accidentForm, setAccidentForm] = useState({
+    date: format(new Date(), 'yyyy-MM-dd'),
+    heure: format(new Date(), 'HH:mm'),
+    lieu: '',
+    description: '',
+    degats: '',
+    gravite: 'Légère',
+    nombre_eleves: '',
+    nombre_blesses: '0'
+  });
 
   useEffect(() => {
     const session = localStorage.getItem('chauffeur_session');
@@ -251,7 +266,7 @@ export default function ChauffeurDashboard() {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {['bus', 'eleves', 'accidents', 'demandes'].map((tab) => (
+          {['bus', 'eleves', 'accidents'].map((tab) => (
             <Button
               key={tab}
               variant={activeTab === tab ? 'default' : 'outline'}
@@ -265,7 +280,6 @@ export default function ChauffeurDashboard() {
               {tab === 'bus' && 'Mon Bus & Trajet'}
               {tab === 'eleves' && 'Élèves & Absences'}
               {tab === 'accidents' && 'Mes Accidents'}
-              {tab === 'demandes' && 'Demandes'}
             </Button>
           ))}
         </div>
@@ -464,11 +478,18 @@ export default function ChauffeurDashboard() {
 
         {activeTab === 'accidents' && (
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <AlertCircle className="w-6 h-6 text-red-500" />
                 Historique des Accidents
               </h2>
+              <Button
+                onClick={() => setShowAccidentForm(true)}
+                className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Déclarer un accident
+              </Button>
             </div>
             {accidents.length === 0 ? (
               <div className="p-12 text-center">
@@ -518,12 +539,180 @@ export default function ChauffeurDashboard() {
           </div>
         )}
 
-        {activeTab === 'demandes' && (
-          <DemandeFormChauffeur 
-            chauffeur={chauffeur}
-          />
-        )}
       </div>
+
+      {/* Modal Déclaration Accident */}
+      {showAccidentForm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-red-500 to-rose-500">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <AlertCircle className="w-6 h-6" />
+                  Déclarer un Accident
+                </h2>
+                <button
+                  onClick={() => setShowAccidentForm(false)}
+                  className="text-white hover:text-red-100 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const accidentData = {
+                  date: accidentForm.date,
+                  heure: accidentForm.heure,
+                  bus_id: bus?.id || null,
+                  chauffeur_id: chauffeur?.id || null,
+                  lieu: accidentForm.lieu,
+                  description: accidentForm.description,
+                  degats: accidentForm.degats || null,
+                  gravite: accidentForm.gravite,
+                  nombre_eleves: accidentForm.nombre_eleves ? parseInt(accidentForm.nombre_eleves) : null,
+                  nombre_blesses: accidentForm.nombre_blesses ? parseInt(accidentForm.nombre_blesses) : 0,
+                  blesses: parseInt(accidentForm.nombre_blesses) > 0
+                };
+
+                await accidentsAPI.create(accidentData);
+                setShowAccidentForm(false);
+                setAccidentForm({
+                  date: format(new Date(), 'yyyy-MM-dd'),
+                  heure: format(new Date(), 'HH:mm'),
+                  lieu: '',
+                  description: '',
+                  degats: '',
+                  gravite: 'Légère',
+                  nombre_eleves: '',
+                  nombre_blesses: '0'
+                });
+                await loadData(chauffeur);
+                alert('Accident déclaré avec succès');
+              } catch (err) {
+                console.error('Erreur déclaration accident:', err);
+                alert('Erreur lors de la déclaration: ' + (err.message || 'Erreur inconnue'));
+              }
+            }} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Date *</Label>
+                  <Input
+                    type="date"
+                    value={accidentForm.date}
+                    onChange={(e) => setAccidentForm({...accidentForm, date: e.target.value})}
+                    className="mt-1 rounded-xl"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Heure *</Label>
+                  <Input
+                    type="time"
+                    value={accidentForm.heure}
+                    onChange={(e) => setAccidentForm({...accidentForm, heure: e.target.value})}
+                    className="mt-1 rounded-xl"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Lieu *</Label>
+                  <Input
+                    value={accidentForm.lieu}
+                    onChange={(e) => setAccidentForm({...accidentForm, lieu: e.target.value})}
+                    className="mt-1 rounded-xl"
+                    placeholder="Adresse de l'accident"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Gravité *</Label>
+                  <Select
+                    value={accidentForm.gravite}
+                    onValueChange={(v) => setAccidentForm({...accidentForm, gravite: v})}
+                  >
+                    <SelectTrigger className="mt-1 rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Légère">Légère</SelectItem>
+                      <SelectItem value="Moyenne">Moyenne</SelectItem>
+                      <SelectItem value="Grave">Grave</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Nombre d'élèves dans le bus</Label>
+                  <Input
+                    type="number"
+                    value={accidentForm.nombre_eleves}
+                    onChange={(e) => setAccidentForm({...accidentForm, nombre_eleves: e.target.value})}
+                    className="mt-1 rounded-xl"
+                    min="0"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <Label>Nombre de blessés</Label>
+                  <Input
+                    type="number"
+                    value={accidentForm.nombre_blesses}
+                    onChange={(e) => setAccidentForm({...accidentForm, nombre_blesses: e.target.value})}
+                    className="mt-1 rounded-xl"
+                    min="0"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Description *</Label>
+                <Textarea
+                  value={accidentForm.description}
+                  onChange={(e) => setAccidentForm({...accidentForm, description: e.target.value})}
+                  className="mt-1 rounded-xl"
+                  rows={4}
+                  placeholder="Décrivez l'accident en détail..."
+                  required
+                />
+              </div>
+              <div>
+                <Label>Dégâts</Label>
+                <Textarea
+                  value={accidentForm.degats}
+                  onChange={(e) => setAccidentForm({...accidentForm, degats: e.target.value})}
+                  className="mt-1 rounded-xl"
+                  rows={2}
+                  placeholder="Décrivez les dégâts matériels..."
+                />
+              </div>
+              <div className="flex gap-3 justify-end pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowAccidentForm(false)}
+                  className="rounded-xl"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Annuler
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                >
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  Déclarer l'accident
+                </Button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
 
       <NotificationPanel
         isOpen={showNotifications}
@@ -539,167 +728,6 @@ export default function ChauffeurDashboard() {
           }
         }}
       />
-    </div>
-  );
-}
-
-function DemandeFormChauffeur({ chauffeur }) {
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [formData, setFormData] = useState({
-    type_demande: '',
-    raisons: '',
-    salaire_demande: '',
-    date_debut_conge: '',
-    date_fin_conge: ''
-  });
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      // Créer la demande
-      await demandesAPI.create({
-        ...formData,
-        demandeur_id: chauffeur.id,
-        demandeur_type: 'chauffeur',
-        demandeur_nom: `${chauffeur.prenom} ${chauffeur.nom}`,
-        salaire_actuel: chauffeur.salaire,
-        salaire_demande: formData.type_demande === 'Augmentation' ? parseInt(formData.salaire_demande) : null,
-        statut: 'En attente'
-      });
-      
-      // Créer une notification pour tous les admins
-      // Note: Cette partie nécessite une API pour récupérer les admins
-      // Pour l'instant, on crée juste une notification générique
-      await notificationsAPI.create({
-        destinataire_id: 1, // ID admin par défaut
-        destinataire_type: 'admin',
-        titre: `Nouvelle demande de ${formData.type_demande}`,
-        message: `${chauffeur.prenom} ${chauffeur.nom} (Chauffeur) a fait une demande de ${formData.type_demande.toLowerCase()}.`,
-        type: 'info'
-      });
-      
-      setSuccess(true);
-      setFormData({
-        type_demande: '',
-        raisons: '',
-        salaire_demande: '',
-        date_debut_conge: '',
-        date_fin_conge: ''
-      });
-      
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      console.error('Erreur lors de l\'envoi de la demande:', err);
-      alert('Erreur lors de l\'envoi de la demande');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-3xl shadow-xl p-6">
-      <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-        <TrendingUp className="w-6 h-6 text-amber-500" />
-        Faire une demande
-      </h2>
-
-      {success && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2 text-green-700"
-        >
-          <CheckCircle className="w-5 h-5" />
-          Demande envoyée avec succès !
-        </motion.div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label className="block text-gray-700 font-medium mb-2">Type de demande</label>
-          <select
-            value={formData.type_demande}
-            onChange={(e) => setFormData({ ...formData, type_demande: e.target.value })}
-            className="w-full h-12 rounded-xl border border-gray-200 px-4"
-            required
-          >
-            <option value="">Sélectionnez</option>
-            <option value="Augmentation">Demande d'augmentation</option>
-            <option value="Congé">Demande de congé</option>
-            <option value="Autre">Autre demande</option>
-          </select>
-        </div>
-
-        {formData.type_demande === 'Augmentation' && (
-          <>
-            <div className="bg-amber-50 rounded-xl p-4">
-              <p className="text-sm text-gray-600">Salaire actuel</p>
-              <p className="text-2xl font-bold text-amber-600">{chauffeur.salaire} DH</p>
-            </div>
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">Salaire demandé (DH)</label>
-              <input
-                type="number"
-                value={formData.salaire_demande}
-                onChange={(e) => setFormData({ ...formData, salaire_demande: e.target.value })}
-                className="w-full h-12 rounded-xl border border-gray-200 px-4"
-                required
-              />
-            </div>
-          </>
-        )}
-
-        {formData.type_demande === 'Congé' && (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">Date début</label>
-              <input
-                type="date"
-                value={formData.date_debut_conge}
-                onChange={(e) => setFormData({ ...formData, date_debut_conge: e.target.value })}
-                className="w-full h-12 rounded-xl border border-gray-200 px-4"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">Date fin</label>
-              <input
-                type="date"
-                value={formData.date_fin_conge}
-                onChange={(e) => setFormData({ ...formData, date_fin_conge: e.target.value })}
-                className="w-full h-12 rounded-xl border border-gray-200 px-4"
-                required
-              />
-            </div>
-          </div>
-        )}
-
-        <div>
-          <label className="block text-gray-700 font-medium mb-2">Justification / Raisons</label>
-          <textarea
-            value={formData.raisons}
-            onChange={(e) => setFormData({ ...formData, raisons: e.target.value })}
-            className="w-full rounded-xl border border-gray-200 p-4 min-h-[120px]"
-            placeholder="Expliquez les raisons de votre demande..."
-            required
-          />
-        </div>
-
-        <Button
-          type="submit"
-          disabled={loading || !formData.type_demande}
-          className="w-full h-12 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl"
-        >
-          {loading ? (
-            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            'Envoyer la demande'
-          )}
-        </Button>
-      </form>
     </div>
   );
 }

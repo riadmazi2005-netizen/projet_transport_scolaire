@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from '../components/AdminLayout';
 import { 
   BarChart3, Calendar, Users, Bus, CreditCard, 
-  AlertCircle, TrendingUp, Filter
+  AlertCircle, TrendingUp, Filter, ArrowLeft
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { format, subDays, subWeeks, subMonths, subYears } from 'date-fns';
@@ -209,14 +209,26 @@ export default function AdminStats() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
     <AdminLayout title="Statistiques">
+      <div className="mb-4">
+        <button
+          onClick={() => navigate(createPageUrl('AdminDashboard'))}
+          className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour au tableau de bord
+        </button>
+      </div>
+      
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

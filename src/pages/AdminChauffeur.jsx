@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  Users, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle
+  Users, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle, ArrowLeft
 } from 'lucide-react';
 
 export default function AdminChauffeurs() {
@@ -32,8 +32,9 @@ export default function AdminChauffeurs() {
     setLoading(true);
     setError(null);
     try {
-      const data = await chauffeursAPI.getAll();
-      setChauffeurs(data);
+      const response = await chauffeursAPI.getAll();
+      const data = response?.data || response || [];
+      setChauffeurs(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
       setError('Erreur lors du chargement des chauffeurs');
@@ -47,12 +48,33 @@ export default function AdminChauffeurs() {
     setError(null);
     
     try {
-      const data = { 
-        ...form, 
-        salaire: parseInt(form.salaire), 
-        nombre_accidents: editing ? editing.nombre_accidents : 0, 
-        statut: editing ? editing.statut : 'Actif' 
-      };
+      let data;
+      
+      if (editing) {
+        // En mode édition, on peut modifier seulement le mot de passe et le salaire
+        data = {
+          salaire: parseInt(form.salaire) || 0
+        };
+        
+        // Ajouter le mot de passe seulement s'il est rempli
+        if (form.mot_de_passe) {
+          data.mot_de_passe = form.mot_de_passe;
+        }
+      } else {
+        // En mode création, envoyer toutes les données
+        data = { 
+          nom: form.nom,
+          prenom: form.prenom,
+          email: form.email,
+          telephone: form.telephone,
+          mot_de_passe: form.mot_de_passe,
+          permis: form.permis,
+          salaire: parseInt(form.salaire) || 0,
+          date_embauche: form.date_embauche,
+          nombre_accidents: 0,
+          statut: 'Actif'
+        };
+      }
       
       if (editing) {
         await chauffeursAPI.update(editing.id, data);
@@ -64,7 +86,7 @@ export default function AdminChauffeurs() {
       await loadData();
     } catch (err) {
       console.error('Erreur lors de l\'enregistrement:', err);
-      setError('Erreur lors de l\'enregistrement du chauffeur');
+      setError('Erreur lors de l\'enregistrement du chauffeur: ' + (err.message || 'Erreur inconnue'));
     }
   };
 
@@ -92,8 +114,8 @@ export default function AdminChauffeurs() {
       prenom: item.prenom || '',
       email: item.email || '',
       telephone: item.telephone || '',
-      mot_de_passe: item.mot_de_passe || '',
-      permis: item.permis || '',
+      mot_de_passe: '', // Ne pas pré-remplir le mot de passe pour la sécurité
+      permis: item.permis || item.numero_permis || '',
       salaire: item.salaire?.toString() || '',
       date_embauche: item.date_embauche || ''
     });
@@ -117,6 +139,16 @@ export default function AdminChauffeurs() {
 
   return (
     <AdminLayout title="Gestion des Chauffeurs">
+      <div className="mb-4">
+        <button
+          onClick={() => navigate(createPageUrl('AdminDashboard'))}
+          className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour au tableau de bord
+        </button>
+      </div>
+      
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
           {error}
@@ -135,7 +167,7 @@ export default function AdminChauffeurs() {
             </h2>
             <Button
               onClick={() => setShowForm(true)}
-              className="bg-white text-green-600 hover:bg-green-50 rounded-xl"
+              className="bg-green-600 hover:bg-green-700 text-white rounded-xl"
             >
               <Plus className="w-4 h-4 mr-2" />
               Ajouter
@@ -145,57 +177,72 @@ export default function AdminChauffeurs() {
           {showForm && (
             <div className="p-6 bg-green-50 border-b border-green-100">
               <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {!editing && (
+                  <>
+                    <div>
+                      <Label>Nom</Label>
+                      <Input
+                        value={form.nom}
+                        onChange={(e) => setForm({ ...form, nom: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Prénom</Label>
+                      <Input
+                        value={form.prenom}
+                        onChange={(e) => setForm({ ...form, prenom: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Téléphone</Label>
+                      <Input
+                        value={form.telephone}
+                        onChange={(e) => setForm({ ...form, telephone: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Numéro de permis</Label>
+                      <Input
+                        value={form.permis}
+                        onChange={(e) => setForm({ ...form, permis: e.target.value })}
+                        className="mt-1 rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <Label>Date d'embauche</Label>
+                      <Input
+                        type="date"
+                        value={form.date_embauche}
+                        onChange={(e) => setForm({ ...form, date_embauche: e.target.value })}
+                        className="mt-1 rounded-xl"
+                      />
+                    </div>
+                  </>
+                )}
                 <div>
-                  <Label>Nom</Label>
+                  <Label>Mot de passe {editing && '(laisser vide pour ne pas changer)'}</Label>
                   <Input
-                    value={form.nom}
-                    onChange={(e) => setForm({ ...form, nom: e.target.value })}
-                    className="mt-1 rounded-xl"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Prénom</Label>
-                  <Input
-                    value={form.prenom}
-                    onChange={(e) => setForm({ ...form, prenom: e.target.value })}
-                    className="mt-1 rounded-xl"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="mt-1 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <Label>Téléphone</Label>
-                  <Input
-                    value={form.telephone}
-                    onChange={(e) => setForm({ ...form, telephone: e.target.value })}
-                    className="mt-1 rounded-xl"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Mot de passe (pour connexion)</Label>
-                  <Input
+                    type="password"
                     value={form.mot_de_passe}
                     onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })}
                     className="mt-1 rounded-xl"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label>Numéro de permis</Label>
-                  <Input
-                    value={form.permis}
-                    onChange={(e) => setForm({ ...form, permis: e.target.value })}
-                    className="mt-1 rounded-xl"
+                    required={!editing}
                   />
                 </div>
                 <div>
@@ -206,15 +253,6 @@ export default function AdminChauffeurs() {
                     onChange={(e) => setForm({ ...form, salaire: e.target.value })}
                     className="mt-1 rounded-xl"
                     required
-                  />
-                </div>
-                <div>
-                  <Label>Date d'embauche</Label>
-                  <Input
-                    type="date"
-                    value={form.date_embauche}
-                    onChange={(e) => setForm({ ...form, date_embauche: e.target.value })}
-                    className="mt-1 rounded-xl"
                   />
                 </div>
                 <div className="md:col-span-3 flex gap-3 justify-end">
@@ -260,25 +298,30 @@ export default function AdminChauffeurs() {
                           </span>
                         )}
                       </div>
-                      <div className="mt-2 flex items-center gap-2 text-sm">
-                        <span className="text-gray-500">Mot de passe:</span>
-                        <span className="font-mono bg-gray-100 px-2 py-1 rounded">
-                          {showPassword[item.id] ? item.mot_de_passe : '••••••••'}
-                        </span>
-                        <button
-                          onClick={() => togglePasswordVisibility(item.id)}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          {showPassword[item.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
+                      <div className="mt-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Mot de passe:</label>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-gray-700 font-mono text-xs border border-gray-200 break-all max-w-md">
+                            {showPassword[item.id] ? (item.user_password || item.mot_de_passe || 'N/A') : '••••••••'}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => togglePasswordVisibility(item.id)}
+                            className="rounded-lg border-gray-300 hover:bg-gray-100 flex-shrink-0"
+                          >
+                            {showPassword[item.id] ? <EyeOff className="w-4 h-4 text-gray-700" /> : <Eye className="w-4 h-4 text-gray-700" />}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="icon" onClick={() => editItem(item)} className="rounded-xl">
-                      <Edit className="w-4 h-4" />
+                    <Button variant="outline" size="icon" onClick={() => editItem(item)} className="rounded-xl border-gray-300 hover:bg-gray-100">
+                      <Edit className="w-4 h-4 text-gray-700" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => handleDelete(item.id)} className="rounded-xl text-red-500">
+                    <Button variant="outline" size="icon" onClick={() => handleDelete(item.id)} className="rounded-xl border-red-300 text-red-500 hover:bg-red-50 hover:border-red-400">
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>

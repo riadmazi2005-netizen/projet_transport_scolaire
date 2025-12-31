@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { createPageUrl } from '../utils';
 import { demandesAPI, chauffeursAPI, responsablesAPI, notificationsAPI, elevesAPI, busAPI, inscriptionsAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
@@ -36,7 +34,10 @@ export default function AdminDemandes() {
     try {
       const response = await demandesAPI.getAll();
       const data = response?.data || response || [];
-      setDemandes(data.sort((a, b) => new Date(b.date_creation || b.date_demande || 0) - new Date(a.date_creation || a.date_demande || 0)));
+      // Filtrer pour exclure les demandes d'inscription (qui sont gérées dans AdminInscriptions)
+      // Ne garder que les demandes de chauffeurs et responsables (Augmentation, Congé, Déménagement, Autre)
+      const demandesFiltrees = data.filter(d => d.type_demande !== 'inscription');
+      setDemandes(demandesFiltrees.sort((a, b) => new Date(b.date_creation || b.date_demande || 0) - new Date(a.date_creation || a.date_demande || 0)));
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
       setError('Erreur lors du chargement des demandes');
@@ -184,52 +185,65 @@ export default function AdminDemandes() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
     <AdminLayout title="Traitement des Demandes">
+      <div className="mb-4">
+        <button
+          onClick={() => navigate(createPageUrl('AdminDashboard'))}
+          className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour au tableau de bord
+        </button>
+      </div>
+      
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
           {error}
         </div>
       )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl overflow-hidden"
-        >
-          <div className="p-6 bg-gradient-to-r from-orange-500 to-red-500">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <FileText className="w-6 h-6" />
-              Traitement des Demandes
-            </h2>
-          </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-3xl shadow-xl overflow-hidden mb-6"
+      >
+        <div className="p-6 bg-gradient-to-r from-orange-500 to-red-500">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <FileText className="w-6 h-6" />
+            Traitement des Demandes du Personnel
+          </h2>
+          <p className="text-orange-100 mt-1 text-sm">Chauffeurs et Responsables uniquement</p>
+        </div>
 
-          <div className="divide-y divide-gray-100">
-            {demandes.length === 0 ? (
-              <div className="p-12 text-center text-gray-400">
-                <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Aucune demande</p>
-              </div>
-            ) : (
-              demandes.map((demande) => (
-                <div key={demande.id} className="p-6 hover:bg-orange-50/50 transition-colors">
-                  <div className="flex flex-col lg:flex-row justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
-                          <User className="w-5 h-5 text-gray-500" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-800">{demande.demandeur_nom}</h3>
-                          <p className="text-sm text-gray-500 capitalize">{demande.demandeur_type}</p>
-                        </div>
+        <div className="divide-y divide-gray-100">
+          {demandes.length === 0 ? (
+            <div className="p-12 text-center text-gray-400">
+              <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Aucune demande</p>
+            </div>
+          ) : (
+            demandes.map((demande) => (
+              <div key={demande.id} className="p-6 hover:bg-orange-50/50 transition-colors">
+                <div className="flex flex-col lg:flex-row justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                        <User className="w-5 h-5 text-gray-500" />
                       </div>
+                      <div>
+                        <h3 className="font-bold text-gray-800">{demande.demandeur_nom}</h3>
+                        <p className="text-sm text-gray-500 capitalize">{demande.demandeur_type}</p>
+                      </div>
+                    </div>
                       
                       <div className="flex flex-wrap gap-2 mb-3">
                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${getTypeBadge(demande.type_demande)}`}>
@@ -437,9 +451,8 @@ export default function AdminDemandes() {
                 </div>
               ))
             )}
-          </div>
-        </motion.div>
-      </div>
+        </div>
+      </motion.div>
 
       {/* Modal for processing */}
       {selectedDemande && (

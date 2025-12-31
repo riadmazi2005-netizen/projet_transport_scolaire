@@ -20,6 +20,10 @@ import {
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { elevesAPI } from '../services/apiService';
 
 export default function TuteurDemandes() {
   const navigate = useNavigate();
@@ -30,6 +34,16 @@ export default function TuteurDemandes() {
   const [editingDemande, setEditingDemande] = useState(null);
   const [editFormData, setEditFormData] = useState({});
 
+  // Classes selon le niveau
+  const classesParNiveau = {
+    'Primaire': ['1AP', '2AP', '3AP', '4AP', '5AP', '6AP'],
+    'Collège': ['1AC', '2AC', '3AC'],
+    'Lycée': ['TC', '1BAC', '2BAC']
+  };
+
+  // Récupérer les classes disponibles selon le niveau sélectionné
+  const classesDisponibles = editFormData.niveau ? (classesParNiveau[editFormData.niveau] || []) : [];
+
   useEffect(() => {
     const session = localStorage.getItem('tuteur_session');
     if (!session) {
@@ -38,15 +52,20 @@ export default function TuteurDemandes() {
     }
     const tuteurData = JSON.parse(session);
     setTuteur(tuteurData);
-    loadDemandes(tuteurData.id);
+    // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
+    const tuteurId = tuteurData.type_id || tuteurData.id;
+    loadDemandes(tuteurId);
   }, [navigate]);
 
   const loadDemandes = async (tuteurId) => {
     try {
       setLoading(true);
+      // tuteurId est maintenant l'ID du tuteur dans la table tuteurs
       const response = await demandesAPI.getByTuteur(tuteurId);
       if (response.success) {
-        setDemandes(response.data || []);
+        // Filtrer uniquement les demandes d'inscription
+        const demandesInscription = (response.data || []).filter(d => d.type_demande === 'inscription');
+        setDemandes(demandesInscription);
       } else {
         setError('Erreur lors du chargement des demandes');
       }
@@ -85,20 +104,89 @@ export default function TuteurDemandes() {
     }
   };
 
-  const handleEdit = (demande) => {
+  const handleEdit = async (demande) => {
     setEditingDemande(demande.id);
+    
+    // Charger les informations complètes de l'élève
+    let eleveData = {};
+    if (demande.eleve_id) {
+      try {
+        const eleveResponse = await elevesAPI.getById(demande.eleve_id);
+        if (eleveResponse?.success && eleveResponse.data) {
+          eleveData = eleveResponse.data;
+        } else if (eleveResponse?.data) {
+          eleveData = eleveResponse.data;
+        }
+      } catch (err) {
+        console.error('Erreur lors du chargement de l\'élève:', err);
+      }
+    }
+    
+    // Extraire les données de la description JSON
+    let descriptionData = {};
+    if (demande.description) {
+      try {
+        descriptionData = typeof demande.description === 'string' 
+          ? JSON.parse(demande.description) 
+          : demande.description;
+      } catch (err) {
+        console.error('Erreur parsing description:', err);
+      }
+    }
+    
+    // Initialiser le formulaire avec toutes les données
     setEditFormData({
-      zone_geographique: demande.zone_geographique || '',
-      description: demande.description || ''
+      nom: demande.eleve_nom || eleveData.nom || '',
+      prenom: demande.eleve_prenom || eleveData.prenom || '',
+      date_naissance: demande.eleve_date_naissance || eleveData.date_naissance || '',
+      sexe: descriptionData.sexe || eleveData.sexe || '',
+      classe: demande.eleve_classe || eleveData.classe || '',
+      niveau: descriptionData.niveau || '',
+      adresse: eleveData.adresse || '',
+      zone_geographique: demande.zone_geographique || descriptionData.zone || '',
+      type_transport: descriptionData.type_transport || '',
+      abonnement: descriptionData.abonnement || '',
+      groupe: descriptionData.groupe || ''
     });
   };
 
   const handleSaveEdit = async (demandeId) => {
     try {
-      const response = await demandesAPI.update(demandeId, editFormData);
+      // Trouver la demande pour obtenir l'eleve_id
+      const demande = demandes.find(d => d.id === demandeId);
+      if (!demande || !demande.eleve_id) {
+        alert('Erreur: Élève introuvable');
+        return;
+      }
+      
+      // Mettre à jour les informations de l'élève
+      await elevesAPI.update(demande.eleve_id, {
+        nom: editFormData.nom,
+        prenom: editFormData.prenom,
+        date_naissance: editFormData.date_naissance || null,
+        classe: editFormData.classe,
+        adresse: editFormData.adresse
+      });
+      
+      // Préparer la description JSON avec les nouvelles données
+      const descriptionData = {
+        type_transport: editFormData.type_transport,
+        abonnement: editFormData.abonnement,
+        groupe: editFormData.groupe,
+        zone: editFormData.zone_geographique,
+        niveau: editFormData.niveau,
+        sexe: editFormData.sexe
+      };
+      
+      // Mettre à jour la demande
+      const response = await demandesAPI.update(demandeId, {
+        zone_geographique: editFormData.zone_geographique,
+        description: JSON.stringify(descriptionData)
+      });
+      
       if (response.success) {
         setEditingDemande(null);
-        await loadDemandes(tuteur.id);
+        await loadDemandes(tuteur.type_id || tuteur.id);
         // Notification de succès
         await notificationsAPI.create({
           destinataire_id: tuteur.id,
@@ -112,7 +200,7 @@ export default function TuteurDemandes() {
       }
     } catch (err) {
       console.error('Erreur:', err);
-      alert('Erreur lors de la modification de la demande');
+      alert('Erreur lors de la modification de la demande: ' + (err.message || 'Erreur inconnue'));
     }
   };
 
@@ -290,8 +378,8 @@ export default function TuteurDemandes() {
                         </div>
                       )}
 
-                      {/* Actions pour les demandes en attente */}
-                      {demande.statut === 'En attente' && (
+                      {/* Actions pour les demandes en attente ou en cours de traitement */}
+                      {(demande.statut === 'En attente' || demande.statut === 'En cours de traitement') && (
                         <div className="flex gap-2 mt-4">
                           <Button
                             variant="outline"
@@ -340,34 +428,219 @@ export default function TuteurDemandes() {
                   {/* Formulaire d'édition */}
                   {editingDemande === demande.id && (
                     <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                      <h4 className="font-semibold text-gray-800 mb-3">Modifier la demande</h4>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-sm font-medium text-gray-700 mb-1 block">
-                            Zone géographique
-                          </label>
-                          <select
-                            value={editFormData.zone_geographique}
-                            onChange={(e) => setEditFormData({ ...editFormData, zone_geographique: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                          >
-                            <option value="">Sélectionnez une zone</option>
-                            {['Médina', 'Hay Sinaâi', 'Hay El Fath', 'Souissi', 'Akkari', 'Manal'].map(zone => (
-                              <option key={zone} value={zone}>{zone}</option>
-                            ))}
-                          </select>
+                      <h4 className="font-semibold text-gray-800 mb-4">Modifier les informations</h4>
+                      <div className="space-y-4">
+                        {/* Nom et Prénom */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                              Nom
+                            </Label>
+                            <Input
+                              value={editFormData.nom || ''}
+                              onChange={(e) => setEditFormData({ ...editFormData, nom: e.target.value })}
+                              className="rounded-xl"
+                              placeholder="Nom de l'élève"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                              Prénom
+                            </Label>
+                            <Input
+                              value={editFormData.prenom || ''}
+                              onChange={(e) => setEditFormData({ ...editFormData, prenom: e.target.value })}
+                              className="rounded-xl"
+                              placeholder="Prénom de l'élève"
+                            />
+                          </div>
                         </div>
-                        <div className="flex gap-2">
+
+                        {/* Date de naissance et Sexe */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                              Date de naissance
+                            </Label>
+                            <Input
+                              type="date"
+                              value={editFormData.date_naissance || ''}
+                              onChange={(e) => setEditFormData({ ...editFormData, date_naissance: e.target.value })}
+                              className="rounded-xl"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                              Sexe
+                            </Label>
+                            <Select 
+                              value={editFormData.sexe || ''} 
+                              onValueChange={(v) => setEditFormData({ ...editFormData, sexe: v })}
+                            >
+                              <SelectTrigger className="rounded-xl">
+                                <SelectValue placeholder="Sélectionnez" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Masculin">Masculin</SelectItem>
+                                <SelectItem value="Féminin">Féminin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        {/* Niveau et Classe */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                              Niveau
+                            </Label>
+                            <Select 
+                              value={editFormData.niveau || ''} 
+                              onValueChange={(v) => {
+                                setEditFormData({ ...editFormData, niveau: v, classe: '' });
+                              }}
+                            >
+                              <SelectTrigger className="rounded-xl">
+                                <SelectValue placeholder="Sélectionnez" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Primaire">Primaire</SelectItem>
+                                <SelectItem value="Collège">Collège</SelectItem>
+                                <SelectItem value="Lycée">Lycée</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                              Classe
+                            </Label>
+                            <Select 
+                              value={editFormData.classe || ''} 
+                              onValueChange={(v) => setEditFormData({ ...editFormData, classe: v })}
+                              disabled={!editFormData.niveau}
+                            >
+                              <SelectTrigger className="rounded-xl">
+                                <SelectValue placeholder={editFormData.niveau ? "Sélectionnez" : "Sélectionnez d'abord le niveau"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {classesDisponibles.length > 0 ? (
+                                  classesDisponibles.map(c => (
+                                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="" disabled>Aucune classe disponible</SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        {/* Adresse */}
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                            Adresse
+                          </Label>
+                          <Input
+                            value={editFormData.adresse || ''}
+                            onChange={(e) => setEditFormData({ ...editFormData, adresse: e.target.value })}
+                            className="rounded-xl"
+                            placeholder="Adresse complète"
+                          />
+                        </div>
+
+                        {/* Zone */}
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                            Zone géographique
+                          </Label>
+                          <Select 
+                            value={editFormData.zone_geographique || ''} 
+                            onValueChange={(v) => setEditFormData({ ...editFormData, zone_geographique: v })}
+                          >
+                            <SelectTrigger className="rounded-xl">
+                              <SelectValue placeholder="Sélectionnez une zone" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Medina">Medina</SelectItem>
+                              <SelectItem value="Hay Sinaï">Hay Sinaï</SelectItem>
+                              <SelectItem value="Hay El Fath">Hay El Fath</SelectItem>
+                              <SelectItem value="Souissi">Souissi</SelectItem>
+                              <SelectItem value="Akkari">Akkari</SelectItem>
+                              <SelectItem value="Manal">Manal</SelectItem>
+                              <SelectItem value="Agdal">Agdal</SelectItem>
+                              <SelectItem value="Nahda-Takkadoum">Nahda-Takkadoum</SelectItem>
+                              <SelectItem value="Temara">Temara</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Type de transport, Abonnement, Groupe */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                              Type de transport
+                            </Label>
+                            <Select 
+                              value={editFormData.type_transport || ''} 
+                              onValueChange={(v) => setEditFormData({ ...editFormData, type_transport: v })}
+                            >
+                              <SelectTrigger className="rounded-xl">
+                                <SelectValue placeholder="Sélectionnez" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Aller">Aller uniquement</SelectItem>
+                                <SelectItem value="Retour">Retour uniquement</SelectItem>
+                                <SelectItem value="Aller-Retour">Aller-Retour</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                              Type d'abonnement
+                            </Label>
+                            <Select 
+                              value={editFormData.abonnement || ''} 
+                              onValueChange={(v) => setEditFormData({ ...editFormData, abonnement: v })}
+                            >
+                              <SelectTrigger className="rounded-xl">
+                                <SelectValue placeholder="Sélectionnez" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Mensuel">Mensuel</SelectItem>
+                                <SelectItem value="Annuel">Annuel</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700 mb-1 block">
+                              Groupe horaire
+                            </Label>
+                            <Select 
+                              value={editFormData.groupe || ''} 
+                              onValueChange={(v) => setEditFormData({ ...editFormData, groupe: v })}
+                            >
+                              <SelectTrigger className="rounded-xl">
+                                <SelectValue placeholder="Sélectionnez" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="A">Groupe A</SelectItem>
+                                <SelectItem value="B">Groupe B</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-2">
                           <Button
                             onClick={() => handleSaveEdit(demande.id)}
-                            className="flex-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white"
+                            className="flex-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl"
                           >
                             Enregistrer
                           </Button>
                           <Button
                             variant="outline"
                             onClick={() => setEditingDemande(null)}
-                            className="flex-1"
+                            className="flex-1 rounded-xl"
                           >
                             Annuler
                           </Button>

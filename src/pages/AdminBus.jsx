@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
 import {
-  Bus, Plus, Edit, Trash2, Navigation, MapPin, Save, X
+  Bus, Plus, Edit, Trash2, Navigation, MapPin, Save, X, ArrowLeft
 } from 'lucide-react';
 
 export default function AdminBus() {
@@ -27,7 +27,7 @@ export default function AdminBus() {
   const [error, setError] = useState(null);
 
   const [busForm, setBusForm] = useState({
-    numero: '', immatriculation: '', capacite: '', chauffeur_id: '', responsable_id: '', trajet_id: '', statut: 'Actif'
+    numero: '', capacite: '', chauffeur_id: '', responsable_id: '', trajet_id: '', statut: 'Actif'
   });
 
   const [trajetForm, setTrajetForm] = useState({
@@ -45,17 +45,22 @@ export default function AdminBus() {
     setLoading(true);
     setError(null);
     try {
-      const [busesData, trajetsData, chauffeursData, responsablesData] = await Promise.all([
+      const [busesRes, trajetsRes, chauffeursRes, responsablesRes] = await Promise.all([
         busAPI.getAll(),
         trajetsAPI.getAll(),
         chauffeursAPI.getAll(),
         responsablesAPI.getAll()
       ]);
       
-      setBuses(busesData);
-      setTrajets(trajetsData);
-      setChauffeurs(chauffeursData);
-      setResponsables(responsablesData);
+      const busesArray = Array.isArray(busesRes?.data) ? busesRes.data : (Array.isArray(busesRes) ? busesRes : []);
+      const trajetsArray = Array.isArray(trajetsRes?.data) ? trajetsRes.data : (Array.isArray(trajetsRes) ? trajetsRes : []);
+      const chauffeursArray = Array.isArray(chauffeursRes?.data) ? chauffeursRes.data : (Array.isArray(chauffeursRes) ? chauffeursRes : []);
+      const responsablesArray = Array.isArray(responsablesRes?.data) ? responsablesRes.data : (Array.isArray(responsablesRes) ? responsablesRes : []);
+      
+      setBuses(busesArray);
+      setTrajets(trajetsArray);
+      setChauffeurs(chauffeursArray);
+      setResponsables(responsablesArray);
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
       setError('Erreur lors du chargement des données');
@@ -69,12 +74,37 @@ export default function AdminBus() {
     setError(null);
     
     try {
+      // Vérifier si le chauffeur est déjà affecté à un autre bus
+      if (busForm.chauffeur_id) {
+        const existingBusWithChauffeur = buses.find(b => 
+          b.chauffeur_id === parseInt(busForm.chauffeur_id) && 
+          (!editingBus || b.id !== editingBus.id)
+        );
+        if (existingBusWithChauffeur) {
+          setError('Ce chauffeur est déjà affecté à un autre bus');
+          return;
+        }
+      }
+      
+      // Vérifier si le responsable est déjà affecté à un autre bus
+      if (busForm.responsable_id) {
+        const existingBusWithResponsable = buses.find(b => 
+          b.responsable_id === parseInt(busForm.responsable_id) && 
+          (!editingBus || b.id !== editingBus.id)
+        );
+        if (existingBusWithResponsable) {
+          setError('Ce responsable est déjà affecté à un autre bus');
+          return;
+        }
+      }
+      
       const data = { 
-        ...busForm, 
+        numero: busForm.numero,
         capacite: parseInt(busForm.capacite),
         chauffeur_id: busForm.chauffeur_id || null,
         responsable_id: busForm.responsable_id || null,
-        trajet_id: busForm.trajet_id || null
+        trajet_id: busForm.trajet_id || null,
+        statut: busForm.statut || 'Actif'
       };
       
       if (editingBus) {
@@ -87,7 +117,7 @@ export default function AdminBus() {
       await loadData();
     } catch (err) {
       console.error('Erreur lors de l\'enregistrement:', err);
-      setError('Erreur lors de l\'enregistrement du bus');
+      setError('Erreur lors de l\'enregistrement du bus: ' + (err.message || 'Erreur inconnue'));
     }
   };
 
@@ -140,7 +170,7 @@ export default function AdminBus() {
   };
 
   const resetBusForm = () => {
-    setBusForm({ numero: '', immatriculation: '', capacite: '', chauffeur_id: '', responsable_id: '', trajet_id: '', statut: 'Actif' });
+    setBusForm({ numero: '', capacite: '', chauffeur_id: '', responsable_id: '', trajet_id: '', statut: 'Actif' });
     setEditingBus(null);
     setShowBusForm(false);
   };
@@ -159,7 +189,6 @@ export default function AdminBus() {
   const editBus = (bus) => {
     setBusForm({
       numero: bus.numero || '',
-      immatriculation: bus.immatriculation || '',
       capacite: bus.capacite?.toString() || '',
       chauffeur_id: bus.chauffeur_id?.toString() || '',
       responsable_id: bus.responsable_id?.toString() || '',
@@ -191,6 +220,16 @@ export default function AdminBus() {
 
   return (
     <AdminLayout title="Gestion des Bus et Trajets">
+      <div className="mb-4">
+        <button
+          onClick={() => navigate(createPageUrl('AdminDashboard'))}
+          className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour au tableau de bord
+        </button>
+      </div>
+      
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
           {error}
@@ -212,7 +251,7 @@ export default function AdminBus() {
             onClick={() => setActiveTab('trajets')}
             className={`rounded-xl ${activeTab === 'trajets' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
           >
-            <Route className="w-4 h-4 mr-2" />
+            <Navigation className="w-4 h-4 mr-2" />
             Trajets ({trajets.length})
           </Button>
         </div>
@@ -252,16 +291,6 @@ export default function AdminBus() {
                     />
                   </div>
                   <div>
-                    <Label>Immatriculation</Label>
-                    <Input
-                      value={busForm.immatriculation}
-                      onChange={(e) => setBusForm({ ...busForm, immatriculation: e.target.value })}
-                      placeholder="Ex: 12345-A-1"
-                      className="mt-1 rounded-xl"
-                      required
-                    />
-                  </div>
-                  <div>
                     <Label>Capacité</Label>
                     <Input
                       type="number"
@@ -276,12 +305,20 @@ export default function AdminBus() {
                     <Label>Chauffeur</Label>
                     <Select value={busForm.chauffeur_id} onValueChange={(v) => setBusForm({ ...busForm, chauffeur_id: v })}>
                       <SelectTrigger className="mt-1 rounded-xl">
-                        <SelectValue placeholder="Sélectionnez" />
+                        <SelectValue placeholder="Sélectionnez un chauffeur" />
                       </SelectTrigger>
                       <SelectContent>
-                        {chauffeurs.map(c => (
-                          <SelectItem key={c.id} value={c.id.toString()}>{c.prenom} {c.nom}</SelectItem>
-                        ))}
+                        <SelectItem value="">Aucun</SelectItem>
+                        {chauffeurs
+                          .filter(c => {
+                            // Si on est en mode édition, permettre le chauffeur actuel
+                            if (editingBus && editingBus.chauffeur_id === c.id) return true;
+                            // Sinon, ne montrer que les chauffeurs non affectés
+                            return !buses.some(b => b.chauffeur_id === c.id);
+                          })
+                          .map(c => (
+                            <SelectItem key={c.id} value={c.id.toString()}>{c.prenom} {c.nom}</SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -289,12 +326,20 @@ export default function AdminBus() {
                     <Label>Responsable</Label>
                     <Select value={busForm.responsable_id} onValueChange={(v) => setBusForm({ ...busForm, responsable_id: v })}>
                       <SelectTrigger className="mt-1 rounded-xl">
-                        <SelectValue placeholder="Sélectionnez" />
+                        <SelectValue placeholder="Sélectionnez un responsable" />
                       </SelectTrigger>
                       <SelectContent>
-                        {responsables.map(r => (
-                          <SelectItem key={r.id} value={r.id.toString()}>{r.prenom} {r.nom}</SelectItem>
-                        ))}
+                        <SelectItem value="">Aucun</SelectItem>
+                        {responsables
+                          .filter(r => {
+                            // Si on est en mode édition, permettre le responsable actuel
+                            if (editingBus && editingBus.responsable_id === r.id) return true;
+                            // Sinon, ne montrer que les responsables non affectés
+                            return !buses.some(b => b.responsable_id === r.id);
+                          })
+                          .map(r => (
+                            <SelectItem key={r.id} value={r.id.toString()}>{r.prenom} {r.nom}</SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -302,9 +347,10 @@ export default function AdminBus() {
                     <Label>Trajet</Label>
                     <Select value={busForm.trajet_id} onValueChange={(v) => setBusForm({ ...busForm, trajet_id: v })}>
                       <SelectTrigger className="mt-1 rounded-xl">
-                        <SelectValue placeholder="Sélectionnez" />
+                        <SelectValue placeholder="Sélectionnez un trajet" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="">Aucun</SelectItem>
                         {trajets.map(t => (
                           <SelectItem key={t.id} value={t.id.toString()}>{t.nom}</SelectItem>
                         ))}
@@ -340,7 +386,6 @@ export default function AdminBus() {
                         </div>
                         <div>
                           <h3 className="text-xl font-bold text-gray-800">{bus.numero}</h3>
-                          <p className="text-gray-500">{bus.immatriculation}</p>
                           <div className="flex flex-wrap gap-2 mt-2 text-sm">
                             <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg">
                               {bus.capacite} places
@@ -389,7 +434,7 @@ export default function AdminBus() {
           >
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Route className="w-6 h-6 text-amber-500" />
+                <Navigation className="w-6 h-6 text-amber-500" />
                 Gestion des Trajets
               </h2>
               <Button
@@ -563,7 +608,7 @@ export default function AdminBus() {
               })}
               {trajets.length === 0 && (
                 <div className="p-12 text-center text-gray-400">
-                  <Route className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <Navigation className="w-12 h-12 mx-auto mb-3 opacity-50" />
                   <p>Aucun trajet enregistré</p>
                 </div>
               )}
