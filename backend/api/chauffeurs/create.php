@@ -1,0 +1,25 @@
+<?php
+require_once '../../config/headers.php';
+require_once '../../config/database.php';
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['success' => false, 'message' => 'Méthode non autorisée']); exit; }
+$data = json_decode(file_get_contents('php://input'), true);
+try {
+    $pdo = getDBConnection();
+    $stmt = $pdo->prepare('INSERT INTO chauffeurs (utilisateur_id, numero_permis, date_expiration_permis, statut) VALUES (?, ?, ?, ?)');
+    $stmt->execute([$data['utilisateur_id'], $data['numero_permis'], $data['date_expiration_permis'] ?? null, $data['statut'] ?? 'Actif']);
+    $id = $pdo->lastInsertId();
+    $stmt = $pdo->prepare('SELECT * FROM chauffeurs WHERE id = ?');
+    $stmt->execute([$id]);
+    echo json_encode(['success' => true, 'data' => $stmt->fetch()]);
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Erreur lors de la création']);
+}
+?>
+
+
+
+
+
+
+

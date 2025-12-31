@@ -1,0 +1,123 @@
+<?php
+require_once '../../config/headers.php';
+require_once '../../config/database.php';
+require_once '../../config/jwt.php';
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'message' => 'Méthode non autorisée']);
+    exit;
+}
+
+$data = json_decode(file_get_contents('php://input'), true);
+
+if (!isset($data['email']) || !isset($data['password'])) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Email et mot de passe requis']);
+    exit;
+}
+
+try {
+    $pdo = getDBConnection();
+    
+    // Récupérer l'utilisateur par email
+    $stmt = $pdo->prepare('SELECT * FROM utilisateurs WHERE email = ?');
+    $stmt->execute([$data['email']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect']);
+        exit;
+    }
+    
+    if (!password_verify($data['password'], $user['mot_de_passe'])) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect']);
+        exit;
+    }
+    
+    if ($user['statut'] !== 'Actif') {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Compte désactivé']);
+        exit;
+    }
+    
+    // Déterminer le type d'utilisateur en vérifiant dans quelle table il existe
+    $userType = null;
+    $typeId = null;
+    
+    // Vérifier si c'est un administrateur
+    $stmt = $pdo->prepare('SELECT id FROM administrateurs WHERE utilisateur_id = ?');
+    $stmt->execute([$user['id']]);
+    $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($admin) {
+        $userType = 'admin';
+        $typeId = $admin['id'];
+    } else {
+        // Vérifier si c'est un chauffeur
+        $stmt = $pdo->prepare('SELECT id FROM chauffeurs WHERE utilisateur_id = ?');
+        $stmt->execute([$user['id']]);
+        $chauffeur = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($chauffeur) {
+            $userType = 'chauffeur';
+            $typeId = $chauffeur['id'];
+        } else {
+            // Vérifier si c'est un responsable
+            $stmt = $pdo->prepare('SELECT id FROM responsables_bus WHERE utilisateur_id = ?');
+            $stmt->execute([$user['id']]);
+            $responsable = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($responsable) {
+                $userType = 'responsable';
+                $typeId = $responsable['id'];
+            } else {
+                // Vérifier si c'est un tuteur
+                $stmt = $pdo->prepare('SELECT id FROM tuteurs WHERE utilisateur_id = ?');
+                $stmt->execute([$user['id']]);
+                $tuteur = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($tuteur) {
+                    $userType = 'tuteur';
+                    $typeId = $tuteur['id'];
+                }
+            }
+        }
+    }
+    
+    if (!$userType) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Type d\'utilisateur non reconnu']);
+        exit;
+    }
+    
+    // Générer le token JWT
+    $tokenPayload = [
+        'id' => $user['id'],
+        'email' => $user['email'],
+        'role' => $userType,
+        'type_id' => $typeId,
+        'exp' => time() + (7 * 24 * 60 * 60) // 7 jours
+    ];
+    $token = generateToken($tokenPayload);
+    
+    // Retirer le mot de passe de la réponse
+    unset($user['mot_de_passe']);
+    
+    // Ajouter le type d'utilisateur à la réponse
+    $user['role'] = $userType;
+    $user['type_id'] = $typeId;
+    
+    echo json_encode([
+        'success' => true,
+        'token' => $token,
+        'user' => $user
+    ]);
+    
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Erreur lors de la connexion']);
+}
+?>
+
+
+
+
