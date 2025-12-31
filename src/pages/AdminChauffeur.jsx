@@ -6,8 +6,9 @@ import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import AdminLayout from '../components/AdminLayout';
 import { 
-  Users, ArrowLeft, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle
+  Users, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle
 } from 'lucide-react';
 
 export default function AdminChauffeurs() {
@@ -24,13 +25,8 @@ export default function AdminChauffeurs() {
   });
 
   useEffect(() => {
-    const session = localStorage.getItem('admin_session');
-    if (!session) {
-      navigate(createPageUrl('AdminLogin'));
-      return;
-    }
     loadData();
-  }, [navigate]);
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -111,34 +107,27 @@ export default function AdminChauffeurs() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <button
-          onClick={() => navigate(createPageUrl('AdminDashboard'))}
-          className="flex items-center gap-2 text-gray-500 hover:text-amber-600 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Retour
-        </button>
+    <AdminLayout title="Gestion des Chauffeurs">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
+          {error}
+        </div>
+      )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
-            {error}
-          </div>
-        )}
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl overflow-hidden"
-        >
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-3xl shadow-xl overflow-hidden"
+      >
           <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-green-500 to-emerald-500">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
               <Users className="w-6 h-6" />
@@ -303,8 +292,7 @@ export default function AdminChauffeurs() {
               </div>
             )}
           </div>
-        </motion.div>
-      </div>
-    </div>
+      </motion.div>
+    </AdminLayout>
   );
 }

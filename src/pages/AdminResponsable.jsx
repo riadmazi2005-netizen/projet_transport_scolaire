@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import AdminLayout from '../components/AdminLayout';
 import { 
-  UserCog, ArrowLeft, Plus, Edit, Trash2, Save, X, Eye, EyeOff, Bus
+  UserCog, Plus, Edit, Trash2, Save, X, Eye, EyeOff, Bus
 } from 'lucide-react';
 
 export default function AdminResponsables() {
@@ -31,13 +32,8 @@ export default function AdminResponsables() {
   });
 
   useEffect(() => {
-    const session = localStorage.getItem('admin_session');
-    if (!session) {
-      navigate(createPageUrl('AdminLogin'));
-      return;
-    }
     loadData();
-  }, [navigate]);
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -152,13 +148,13 @@ export default function AdminResponsables() {
           Retour
         </button>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
-            {error}
-          </div>
-        )}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
+          {error}
+        </div>
+      )}
 
-        <motion.div
+      <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-3xl shadow-xl overflow-hidden"
@@ -308,7 +304,6 @@ export default function AdminResponsables() {
             )}
           </div>
         </motion.div>
-      </div>
-    </div>
+    </AdminLayout>
   );
 }

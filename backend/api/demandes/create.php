@@ -49,9 +49,12 @@ try {
         $description = json_encode($descriptionData);
     }
     
+    // Récupérer la zone géographique si fournie
+    $zoneGeographique = $data['zone_geographique'] ?? null;
+    
     $stmt = $pdo->prepare('
-        INSERT INTO demandes (eleve_id, tuteur_id, type_demande, description, statut)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO demandes (eleve_id, tuteur_id, type_demande, description, zone_geographique, statut)
+        VALUES (?, ?, ?, ?, ?, ?)
     ');
     
     $stmt->execute([
@@ -59,6 +62,7 @@ try {
         $tuteurId,
         $data['type_demande'],
         $description,
+        $zoneGeographique,
         $data['statut'] ?? 'En attente'
     ]);
     

@@ -6,8 +6,9 @@ import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import AdminLayout from '../components/AdminLayout';
 import { 
-  CreditCard, ArrowLeft, Search, Filter, CheckCircle, Calendar, User
+  CreditCard, Search, Filter, CheckCircle, Calendar, User
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -24,13 +25,8 @@ export default function AdminPaiements() {
   const [dateFilter, setDateFilter] = useState('');
 
   useEffect(() => {
-    const session = localStorage.getItem('admin_session');
-    if (!session) {
-      navigate(createPageUrl('AdminLogin'));
-      return;
-    }
     loadData();
-  }, [navigate]);
+  }, []);
 
   const loadData = async () => {
     try {
@@ -103,25 +99,18 @@ export default function AdminPaiements() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <button
-          onClick={() => navigate(createPageUrl('AdminDashboard'))}
-          className="flex items-center gap-2 text-gray-500 hover:text-amber-600 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Retour
-        </button>
-
-        {/* Summary Card */}
-        <motion.div
+    <AdminLayout title="Gestion des Paiements">
+      {/* Summary Card */}
+      <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-gradient-to-r from-teal-500 to-cyan-500 rounded-3xl p-6 mb-6 text-white"
@@ -237,7 +226,6 @@ export default function AdminPaiements() {
             )}
           </div>
         </motion.div>
-      </div>
-    </div>
+    </AdminLayout>
   );
 }

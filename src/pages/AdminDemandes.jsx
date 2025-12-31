@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { demandesAPI, chauffeursAPI, responsablesAPI, notificationsAPI, elevesAPI } from '../services/apiService';
+import { demandesAPI, chauffeursAPI, responsablesAPI, notificationsAPI, elevesAPI, busAPI, inscriptionsAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import AdminLayout from '../components/AdminLayout';
 import { 
-  FileText, ArrowLeft, CheckCircle, XCircle, Calendar, User
+  FileText, CheckCircle, XCircle, Calendar, User, Bus
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -21,15 +22,13 @@ export default function AdminDemandes() {
   const [reponse, setReponse] = useState('');
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
+  const [availableBuses, setAvailableBuses] = useState([]);
+  const [selectedBusId, setSelectedBusId] = useState(null);
+  const [codeVerification, setCodeVerification] = useState(null);
 
   useEffect(() => {
-    const session = localStorage.getItem('admin_session');
-    if (!session) {
-      navigate(createPageUrl('AdminLogin'));
-      return;
-    }
     loadData();
-  }, [navigate]);
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -52,8 +51,20 @@ export default function AdminDemandes() {
     setError(null);
     
     try {
+      // Pour les demandes d'inscription, passer en "En attente de paiement" pour générer le code
+      // Pour les autres types, passer en "Approuvée" ou "En cours de traitement"
+      let nouveauStatut = 'Approuvée';
+      if (selectedDemande.type_demande === 'inscription') {
+        nouveauStatut = 'En attente de paiement';
+      } else if (selectedDemande.type_demande === 'modification' || selectedDemande.type_demande === 'desinscription') {
+        nouveauStatut = 'En cours de traitement';
+      }
+      
       // Traiter la demande
-      await demandesAPI.traiter(selectedDemande.id, 'Approuvée', reponse || 'Demande approuvée');
+      const result = await demandesAPI.traiter(selectedDemande.id, nouveauStatut, reponse || 'Demande approuvée');
+      
+      // Note: L'affectation du bus se fera APRÈS la validation du code de paiement
+      // Ici on génère juste le code et on passe en "En attente de paiement"
       
       // Si augmentation, mettre à jour le salaire
       if (selectedDemande.type_demande === 'Augmentation' && nouveauSalaire) {
@@ -94,6 +105,18 @@ export default function AdminDemandes() {
         type: 'info'
       });
       
+      // Afficher le code de vérification si généré
+      if (result?.data?.code_verification) {
+        setCodeVerification(result.data.code_verification);
+        // Ne pas fermer le modal, afficher le code
+      } else {
+        setSelectedDemande(null);
+        setNouveauSalaire('');
+        setReponse('');
+        setSelectedBusId(null);
+        setAvailableBuses([]);
+      }
+      
       setSelectedDemande(null);
       setNouveauSalaire('');
       setReponse('');
@@ -107,12 +130,15 @@ export default function AdminDemandes() {
   };
 
   const handleRefuse = async () => {
-    if (!selectedDemande || !reponse) return;
+    if (!selectedDemande || !reponse) {
+      setError('Veuillez renseigner la raison du refus');
+      return;
+    }
     setProcessing(true);
     setError(null);
     
     try {
-      await demandesAPI.traiter(selectedDemande.id, 'Rejetée', reponse);
+      await demandesAPI.traiter(selectedDemande.id, 'Refusée', '', reponse);
       
       // Envoyer notification
       await notificationsAPI.create({
@@ -145,6 +171,9 @@ export default function AdminDemandes() {
 
   const getTypeBadge = (type) => {
     const styles = {
+      'inscription': 'bg-blue-100 text-blue-700',
+      'modification': 'bg-amber-100 text-amber-700',
+      'desinscription': 'bg-red-100 text-red-700',
       'Augmentation': 'bg-purple-100 text-purple-700',
       'Congé': 'bg-blue-100 text-blue-700',
       'Déménagement': 'bg-amber-100 text-amber-700',
@@ -162,21 +191,12 @@ export default function AdminDemandes() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <button
-          onClick={() => navigate(createPageUrl('AdminDashboard'))}
-          className="flex items-center gap-2 text-gray-500 hover:text-amber-600 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Retour
-        </button>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
-            {error}
-          </div>
-        )}
+    <AdminLayout title="Traitement des Demandes">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
+          {error}
+        </div>
+      )}
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -242,6 +262,39 @@ export default function AdminDemandes() {
                         </div>
                       )}
 
+                      {demande.type_demande === 'inscription' && (
+                        <div className="bg-blue-50 rounded-xl p-4 text-sm mb-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            {demande.eleve_nom && (
+                              <>
+                                <div>
+                                  <span className="text-gray-600">Élève:</span>
+                                  <p className="font-medium">{demande.eleve_prenom} {demande.eleve_nom}</p>
+                                </div>
+                                {demande.eleve_classe && (
+                                  <div>
+                                    <span className="text-gray-600">Classe:</span>
+                                    <p className="font-medium">{demande.eleve_classe}</p>
+                                  </div>
+                                )}
+                                {demande.zone_geographique && (
+                                  <div>
+                                    <span className="text-gray-600">Zone géographique:</span>
+                                    <p className="font-medium text-blue-700">{demande.zone_geographique}</p>
+                                  </div>
+                                )}
+                                {demande.eleve_adresse && (
+                                  <div>
+                                    <span className="text-gray-600">Adresse:</span>
+                                    <p className="font-medium">{demande.eleve_adresse}</p>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {demande.type_demande === 'Déménagement' && (
                         <div className="bg-amber-50 rounded-xl p-4 text-sm mb-2">
                           <div className="grid grid-cols-2 gap-2">
@@ -285,11 +338,23 @@ export default function AdminDemandes() {
                         </p>
                       )}
 
-                      {demande.commentaire && (
+                      {demande.raison_refus && (
+                        <p className="text-sm rounded-xl p-3 mt-2 bg-red-50 text-red-700">
+                          <strong>Raison du refus:</strong> {demande.raison_refus}
+                        </p>
+                      )}
+
+                      {demande.commentaire && !demande.raison_refus && (
                         <p className={`text-sm rounded-xl p-3 mt-2 ${
-                          demande.statut === 'Approuvée' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                          demande.statut === 'Approuvée' || demande.statut === 'Validée' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
                         }`}>
                           <strong>Réponse:</strong> {demande.commentaire}
+                        </p>
+                      )}
+
+                      {demande.code_verification && demande.statut === 'En attente de paiement' && (
+                        <p className="text-sm rounded-xl p-3 mt-2 bg-blue-50 text-blue-700">
+                          <strong>Code de vérification:</strong> <span className="font-mono font-bold">{demande.code_verification}</span>
                         </p>
                       )}
 
@@ -298,17 +363,73 @@ export default function AdminDemandes() {
                       </p>
                     </div>
 
-                    {demande.statut === 'En attente' && (
+                    {(demande.statut === 'En attente' || demande.statut === 'En cours de traitement') && (
                       <div className="flex gap-2 lg:flex-col">
                         <Button
-                          onClick={() => {
+                          onClick={async () => {
                             setSelectedDemande(demande);
                             setNouveauSalaire(demande.salaire_demande?.toString() || '');
+                            setCodeVerification(null);
+                            setSelectedBusId(null);
+                            
+                            // Si c'est une demande d'inscription, charger les bus disponibles par zone
+                            if (demande.type_demande === 'inscription' && demande.zone_geographique) {
+                              try {
+                                const busesResponse = await busAPI.getByZone(demande.zone_geographique);
+                                if (busesResponse.success) {
+                                  setAvailableBuses(busesResponse.data || []);
+                                }
+                              } catch (err) {
+                                console.warn('Erreur lors du chargement des bus:', err);
+                                // Charger tous les bus en fallback
+                                try {
+                                  const allBuses = await busAPI.getAll();
+                                  setAvailableBuses(allBuses.filter(b => b.statut === 'Actif') || []);
+                                } catch (e) {
+                                  setAvailableBuses([]);
+                                }
+                              }
+                            }
                           }}
                           className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
                         >
                           <CheckCircle className="w-4 h-4 mr-2" />
                           Traiter
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Bouton pour affecter le bus aux demandes validées */}
+                    {demande.statut === 'Validée' && demande.type_demande === 'inscription' && demande.eleve_id && !demande.bus_id && (
+                      <div className="flex gap-2 lg:flex-col">
+                        <Button
+                          onClick={async () => {
+                            setSelectedDemande(demande);
+                            setCodeVerification(null);
+                            setSelectedBusId(null);
+                            
+                            // Charger les bus disponibles par zone
+                            if (demande.zone_geographique) {
+                              try {
+                                const busesResponse = await busAPI.getByZone(demande.zone_geographique);
+                                if (busesResponse.success) {
+                                  setAvailableBuses(busesResponse.data || []);
+                                }
+                              } catch (err) {
+                                console.warn('Erreur lors du chargement des bus:', err);
+                                try {
+                                  const allBuses = await busAPI.getAll();
+                                  setAvailableBuses(allBuses.filter(b => b.statut === 'Actif') || []);
+                                } catch (e) {
+                                  setAvailableBuses([]);
+                                }
+                              }
+                            }
+                          }}
+                          className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                        >
+                          <Bus className="w-4 h-4 mr-2" />
+                          Affecter un bus
                         </Button>
                       </div>
                     )}
@@ -335,7 +456,120 @@ export default function AdminDemandes() {
               <p className="text-gray-500">De: {selectedDemande.demandeur_nom}</p>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Affichage du code de vérification si généré */}
+              {codeVerification && (
+                <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4">
+                  <h3 className="font-bold text-green-800 mb-2">Code de vérification généré</h3>
+                  <div className="bg-white rounded-lg p-4 border-2 border-green-300">
+                    <p className="text-3xl font-mono font-bold text-center text-green-700 tracking-widest">
+                      {codeVerification}
+                    </p>
+                  </div>
+                  <p className="text-sm text-green-700 mt-2">
+                    Ce code a été envoyé au tuteur dans la notification avec la facture.
+                  </p>
+                </div>
+              )}
+
+              {/* Informations pour les demandes d'inscription */}
+              {selectedDemande.type_demande === 'inscription' && (
+                <div className="bg-blue-50 rounded-xl p-4">
+                  <h3 className="font-semibold text-gray-800 mb-3">Informations de l'élève</h3>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    {selectedDemande.eleve_nom && (
+                      <>
+                        <div>
+                          <span className="text-gray-600">Nom complet:</span>
+                          <p className="font-medium">{selectedDemande.eleve_prenom} {selectedDemande.eleve_nom}</p>
+                        </div>
+                        {selectedDemande.eleve_classe && (
+                          <div>
+                            <span className="text-gray-600">Classe:</span>
+                            <p className="font-medium">{selectedDemande.eleve_classe}</p>
+                          </div>
+                        )}
+                        {selectedDemande.zone_geographique && (
+                          <div className="col-span-2">
+                            <span className="text-gray-600">Zone géographique:</span>
+                            <p className="font-medium text-blue-700">{selectedDemande.zone_geographique}</p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Bus disponibles pour cette zone */}
+                  {availableBuses.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-semibold text-gray-800 mb-2">
+                        {selectedDemande.statut === 'Validée' 
+                          ? 'Sélectionner un bus pour affecter l\'élève:' 
+                          : 'Bus disponibles pour cette zone:'}
+                      </h4>
+                      {selectedDemande.statut !== 'Validée' && (
+                        <p className="text-xs text-gray-500 mb-2">
+                          L'affectation du bus se fera après la validation du paiement par le tuteur.
+                        </p>
+                      )}
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {availableBuses.map((bus) => (
+                          <div
+                            key={bus.id}
+                            className={`p-3 rounded-lg border-2 transition-all ${
+                              selectedDemande.statut === 'Validée'
+                                ? `cursor-pointer ${
+                                    selectedBusId === bus.id
+                                      ? 'border-blue-500 bg-blue-100'
+                                      : 'border-gray-200 hover:border-blue-300 bg-white'
+                                  }`
+                                : 'border-gray-200 bg-gray-50'
+                            }`}
+                            onClick={() => {
+                              if (selectedDemande.statut === 'Validée') {
+                                setSelectedBusId(bus.id);
+                              }
+                            }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="font-semibold text-gray-800">{bus.numero}</p>
+                                <p className="text-xs text-gray-500">{bus.marque} {bus.modele}</p>
+                                {bus.trajet_nom && (
+                                  <p className="text-xs text-gray-400">Trajet: {bus.trajet_nom}</p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-medium text-gray-600">
+                                  {bus.places_restantes} places
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {bus.eleves_inscrits}/{bus.capacite}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {selectedBusId && selectedDemande.statut === 'Validée' && (
+                        <p className="text-sm text-blue-600 mt-2">
+                          ✓ Bus sélectionné: {availableBuses.find(b => b.id === selectedBusId)?.numero}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {availableBuses.length === 0 && (
+                    <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <p className="text-sm text-yellow-700">
+                        {selectedDemande.statut === 'Validée'
+                          ? 'Aucun bus disponible pour cette zone. Veuillez créer ou modifier un bus pour cette zone.'
+                          : 'Aucun bus disponible pour cette zone. Vous pouvez valider la demande et affecter un bus après le paiement.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {selectedDemande.type_demande === 'Augmentation' && (
                 <div className="bg-purple-50 rounded-xl p-4">
                   <div className="flex justify-between mb-3">
@@ -392,33 +626,57 @@ export default function AdminDemandes() {
                 </div>
               )}
 
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">
-                  Réponse / Message (obligatoire pour refus)
-                </label>
-                <Textarea
-                  value={reponse}
-                  onChange={(e) => setReponse(e.target.value)}
-                  className="rounded-xl"
-                  placeholder="Votre réponse..."
-                  rows={3}
-                />
-              </div>
+              {/* Réponse/Message - seulement si pas une affectation de bus */}
+              {selectedDemande.statut !== 'Validée' && (
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">
+                    Réponse / Message {selectedDemande.type_demande === 'inscription' ? '(optionnel)' : '(obligatoire pour refus)'}
+                  </label>
+                  <Textarea
+                    value={reponse}
+                    onChange={(e) => setReponse(e.target.value)}
+                    className="rounded-xl"
+                    placeholder="Votre réponse..."
+                    rows={3}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSelectedDemande(null);
-                  setNouveauSalaire('');
-                  setReponse('');
-                }}
-                className="rounded-xl"
-                disabled={processing}
-              >
-                Annuler
-              </Button>
+              {codeVerification ? (
+                <Button
+                  onClick={() => {
+                    setSelectedDemande(null);
+                    setNouveauSalaire('');
+                    setReponse('');
+                    setCodeVerification(null);
+                    setSelectedBusId(null);
+                    setAvailableBuses([]);
+                    loadData();
+                  }}
+                  className="rounded-xl bg-green-500 hover:bg-green-600 text-white"
+                >
+                  Fermer
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedDemande(null);
+                      setNouveauSalaire('');
+                      setReponse('');
+                      setSelectedBusId(null);
+                      setAvailableBuses([]);
+                    }}
+                    className="rounded-xl"
+                    disabled={processing}
+                  >
+                    Annuler
+                  </Button>
+                </>
+              )}
               <Button
                 onClick={handleRefuse}
                 disabled={processing || !reponse}
@@ -445,6 +703,6 @@ export default function AdminDemandes() {
           </motion.div>
         </div>
       )}
-    </div>
+    </AdminLayout>
   );
 }

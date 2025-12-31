@@ -151,6 +151,7 @@ CREATE TABLE notifications (
 );
 
 -- Table demandes (référence maintenant tuteurs au lieu de utilisateurs)
+-- Structure complète avec toutes les améliorations (code de vérification, zone géographique, etc.)
 CREATE TABLE demandes (
     id INT PRIMARY KEY AUTO_INCREMENT,
     eleve_id INT,
@@ -165,13 +166,25 @@ CREATE TABLE demandes (
         'Autre'
     ) NOT NULL,
     description TEXT,
-    statut ENUM('En attente', 'Approuvée', 'Rejetée') DEFAULT 'En attente',
+    zone_geographique VARCHAR(50) NULL,
+    code_verification VARCHAR(10) UNIQUE NULL,
+    raison_refus TEXT NULL,
+    montant_facture DECIMAL(10,2) NULL,
+    statut ENUM(
+        'En attente', 
+        'En cours de traitement', 
+        'En attente de paiement', 
+        'Validée', 
+        'Refusée'
+    ) DEFAULT 'En attente',
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_traitement TIMESTAMP NULL,
     traite_par INT,
     FOREIGN KEY (eleve_id) REFERENCES eleves(id) ON DELETE CASCADE,
     FOREIGN KEY (tuteur_id) REFERENCES tuteurs(id) ON DELETE CASCADE,
-    FOREIGN KEY (traite_par) REFERENCES administrateurs(id) ON DELETE SET NULL
+    FOREIGN KEY (traite_par) REFERENCES administrateurs(id) ON DELETE SET NULL,
+    INDEX idx_demandes_zone (zone_geographique),
+    INDEX idx_demandes_statut (statut)
 );
 
 -- Table inscriptions
@@ -253,7 +266,6 @@ CREATE INDEX idx_bus_trajet ON bus(trajet_id);
 CREATE INDEX idx_accidents_bus ON accidents(bus_id);
 CREATE INDEX idx_accidents_chauffeur ON accidents(chauffeur_id);
 CREATE INDEX idx_notifications_destinataire ON notifications(destinataire_id, destinataire_type);
-CREATE INDEX idx_demandes_statut ON demandes(statut);
 CREATE INDEX idx_inscriptions_bus ON inscriptions(bus_id);
 CREATE INDEX idx_paiements_inscription ON paiements(inscription_id);
 CREATE INDEX idx_presences_eleve ON presences(eleve_id);

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
+import AdminSidebar from '../components/AdminSidebar';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -223,51 +224,51 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl p-6 mb-8"
-        >
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <Shield className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50">
+      <AdminSidebar
+        admin={admin}
+        notifications={notifications}
+        onLogout={handleLogout}
+        onNotificationClick={() => setShowNotifications(true)}
+      />
+      
+      <div className="lg:ml-[280px] min-h-screen p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-3xl shadow-xl p-6 mb-8"
+          >
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Shield className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800">
+                    Tableau de bord
+                  </h1>
+                  <p className="text-gray-500">Bienvenue, {admin?.prenom} {admin?.nom}</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">
-                  Administration
-                </h1>
-                <p className="text-gray-500">{admin?.email || admin?.nom}</p>
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowNotifications(true)}
-                className="relative rounded-xl"
-              >
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
               
-              <Button 
-                variant="ghost" 
-                onClick={handleLogout}
-                className="text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl"
-              >
-                <LogOut className="w-5 h-5" />
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowNotifications(true)}
+                  className="relative rounded-xl"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
 
         {/* Error Message */}
         {error && (
@@ -373,6 +374,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         </motion.div>
+        </div>
       </div>
 
       <NotificationPanel

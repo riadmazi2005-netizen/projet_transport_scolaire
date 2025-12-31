@@ -6,8 +6,9 @@ import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import AdminLayout from '../components/AdminLayout';
 import { 
-  ClipboardList, ArrowLeft, Search, CheckCircle, XCircle, 
+  ClipboardList, Search, CheckCircle, XCircle, 
   Eye, User, Bus, MapPin, Filter, Calendar
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -35,13 +36,8 @@ export default function AdminInscriptions() {
   });
 
   useEffect(() => {
-    const session = localStorage.getItem('admin_session');
-    if (!session) {
-      navigate(createPageUrl('AdminLogin'));
-      return;
-    }
     loadData();
-  }, [navigate]);
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -278,37 +274,31 @@ export default function AdminInscriptions() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <button
-          onClick={() => navigate(createPageUrl('AdminDashboard'))}
-          className="flex items-center gap-2 text-gray-500 hover:text-amber-600 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Retour au tableau de bord
-        </button>
+    <AdminLayout title="Gestion des Inscriptions">
 
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
-              <XCircle className="w-5 h-5" />
-            </button>
-          </div>
-        )}
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl overflow-hidden"
-        >
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-3xl shadow-xl overflow-hidden mb-6"
+      >
           <div className="p-6 bg-gradient-to-r from-blue-500 to-cyan-500">
             <h1 className="text-2xl font-bold text-white flex items-center gap-3">
               <ClipboardList className="w-7 h-7" />
@@ -613,6 +603,6 @@ export default function AdminInscriptions() {
           </motion.div>
         </div>
       )}
-    </div>
+    </AdminLayout>
   );
 }

@@ -6,8 +6,9 @@ import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import AdminLayout from '../components/AdminLayout';
 import { 
-  BarChart3, ArrowLeft, Calendar, Users, Bus, CreditCard, 
+  BarChart3, Calendar, Users, Bus, CreditCard, 
   AlertCircle, TrendingUp, Filter
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -35,13 +36,8 @@ export default function AdminStats() {
   const COLORS = ['#F59E0B', '#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#EC4899'];
 
   useEffect(() => {
-    const session = localStorage.getItem('admin_session');
-    if (!session) {
-      navigate(createPageUrl('AdminLogin'));
-      return;
-    }
     loadData();
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     // Set dates based on preset
@@ -220,21 +216,12 @@ export default function AdminStats() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <button
-          onClick={() => navigate(createPageUrl('AdminDashboard'))}
-          className="flex items-center gap-2 text-gray-500 hover:text-amber-600 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Retour
-        </button>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          {/* Header with filters */}
+    <AdminLayout title="Statistiques">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        {/* Header with filters */}
           <div className="bg-white rounded-3xl shadow-xl p-6 mb-6">
             <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2 mb-6">
               <BarChart3 className="w-7 h-7 text-indigo-500" />
@@ -474,7 +461,6 @@ export default function AdminStats() {
             )}
           </div>
         </motion.div>
-      </div>
-    </div>
+    </AdminLayout>
   );
 }

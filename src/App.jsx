@@ -15,6 +15,7 @@ import TuteurProfile from './pages/TuteurProfile';
 import TuteurInscription from './pages/TuteurInscription';
 import TuteurPaiement from './pages/TuteurPaiement';
 import TuteurEleveDetails from './pages/TuteurEleveDetails';
+import TuteurDemandes from './pages/TuteurDemandes';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminBus from './pages/AdminBus';
@@ -50,6 +51,7 @@ function App() {
         <Route path="/TuteurInscription" element={<TuteurInscription />} />
         <Route path="/TuteurPaiement" element={<TuteurPaiement />} />
         <Route path="/TuteurEleveDetails" element={<TuteurEleveDetails />} />
+        <Route path="/TuteurDemandes" element={<TuteurDemandes />} />
 
         {/* Admin Routes */}
         <Route path="/AdminLogin" element={<AdminLogin />} />

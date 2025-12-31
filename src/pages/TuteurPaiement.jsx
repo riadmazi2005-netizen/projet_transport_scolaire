@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, paiementsAPI, notificationsAPI } from '../services/apiService';
+import { elevesAPI, paiementsAPI, notificationsAPI, demandesAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ export default function TuteurPaiement() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [demande, setDemande] = useState(null);
   const [eleve, setEleve] = useState(null);
   const [tuteur, setTuteur] = useState(null);
   const [codeValidation, setCodeValidation] = useState('');
@@ -26,97 +27,105 @@ export default function TuteurPaiement() {
       navigate(createPageUrl('TuteurLogin'));
       return;
     }
-    setTuteur(JSON.parse(session));
+    const tuteurData = JSON.parse(session);
+    setTuteur(tuteurData);
     
     const params = new URLSearchParams(window.location.search);
-    const eleveId = params.get('eleveId');
-    if (eleveId) {
-      loadEleve(eleveId);
+    const demandeId = params.get('demandeId');
+    if (demandeId) {
+      loadDemande(demandeId, tuteurData.id);
     }
   }, [navigate]);
 
-  const loadEleve = async (eleveId) => {
+  const loadDemande = async (demandeId, tuteurId) => {
     try {
-      const eleveData = await elevesAPI.getById(eleveId);
-      setEleve(eleveData);
+      // Charger toutes les demandes du tuteur
+      const response = await demandesAPI.getByTuteur(tuteurId);
+      const demandes = response?.data || [];
+      const demandeData = demandes.find(d => d.id === parseInt(demandeId));
+      
+      if (!demandeData) {
+        setError('Demande non trouvée');
+        return;
+      }
+      
+      // Vérifier que la demande est en attente de paiement
+      if (demandeData.statut !== 'En attente de paiement') {
+        setError('Cette demande n\'est pas en attente de paiement');
+        return;
+      }
+      
+      setDemande(demandeData);
+      
+      // Charger les informations de l'élève si disponible
+      if (demandeData.eleve_id) {
+        try {
+          const eleveData = await elevesAPI.getById(demandeData.eleve_id);
+          setEleve(eleveData);
+        } catch (err) {
+          console.warn('Impossible de charger l\'élève:', err);
+        }
+      }
     } catch (err) {
-      console.error('Erreur lors du chargement de l\'élève:', err);
-      setError('Impossible de charger les informations de l\'élève');
+      console.error('Erreur lors du chargement de la demande:', err);
+      setError('Impossible de charger les informations de la demande');
     }
   };
 
   const calculateAmount = () => {
-    if (!eleve) return 0;
-    const basePrice = eleve.type_transport === 'Aller-Retour' ? 400 : 250;
-    return eleve.abonnement === 'Annuel' ? basePrice * 10 : basePrice;
+    if (demande?.montant_facture) {
+      return parseFloat(demande.montant_facture);
+    }
+    // Calculer depuis la description si pas de montant facture
+    if (demande) {
+      const desc = typeof demande.description === 'string' ? JSON.parse(demande.description) : demande.description;
+      const typeTransport = desc?.type_transport || 'Aller-Retour';
+      const abonnement = desc?.abonnement || 'Mensuel';
+      const basePrice = typeTransport === 'Aller-Retour' ? 400 : 250;
+      return abonnement === 'Annuel' ? basePrice * 10 : basePrice;
+    }
+    return 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     
-    // Simple code validation (in real app, this would be server-side)
-    if (codeValidation.length < 4) {
-      setError('Code de validation invalide');
+    if (!codeValidation || codeValidation.length < 4) {
+      setError('Veuillez saisir le code de vérification');
+      return;
+    }
+    
+    if (!demande) {
+      setError('Demande non trouvée');
       return;
     }
     
     setLoading(true);
     
     try {
-      const currentDate = new Date();
-      const mois = currentDate.getMonth() + 1;
-      const annee = currentDate.getFullYear();
+      // Vérifier le code de vérification via l'API
+      const verifyResponse = await demandesAPI.verifierCode(demande.id, codeValidation);
       
-      // Create payment record
-      await paiementsAPI.create({
-        eleve_id: eleve.id,
-        tuteur_id: tuteur.id,
-        montant: calculateAmount(),
-        mois: mois,
-        annee: annee,
-        date_paiement: currentDate.toISOString().split('T')[0],
-        mode_paiement: 'Virement',
-        statut: 'Payé'
-      });
+      if (!verifyResponse.success) {
+        setError(verifyResponse.message || 'Code de vérification incorrect');
+        setLoading(false);
+        return;
+      }
       
-      // Update eleve status
-      await elevesAPI.update(eleve.id, {
-        statut: 'Actif'
-      });
-      
-      // Notify tuteur
-      await notificationsAPI.create({
-        destinataire_id: tuteur.id,
-        destinataire_type: 'tuteur',
-        titre: 'Paiement confirmé',
-        message: `Votre paiement de ${calculateAmount()} DH pour ${eleve.prenom} a été confirmé. L'affectation au bus sera effectuée par l'administration.`,
-        type: 'info',
-        date: new Date().toISOString()
-      });
-      
-      // Notify admin (assuming admin has ID 1 or fetch from users table with role='admin')
-      await notificationsAPI.create({
-        destinataire_id: 1, // You may need to fetch actual admin ID
-        destinataire_type: 'admin',
-        titre: 'Paiement reçu',
-        message: `Le paiement pour ${eleve.prenom} ${eleve.nom} a été validé. Montant: ${calculateAmount()} DH`,
-        type: 'info',
-        date: new Date().toISOString()
-      });
-      
+      // Code correct - le backend a déjà mis à jour le statut et envoyé les notifications
       setSuccess(true);
       setTimeout(() => {
         navigate(createPageUrl('TuteurDashboard'));
       }, 2000);
     } catch (err) {
-      console.error('Erreur lors du paiement:', err);
-      setError('Erreur lors du paiement. Veuillez réessayer.');
+      console.error('Erreur lors de la vérification:', err);
+      setError(err.message || 'Erreur lors de la vérification du code. Veuillez réessayer.');
     }
     setLoading(false);
   };
 
-  if (!eleve) {
+  if (!demande) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
@@ -160,52 +169,58 @@ export default function TuteurPaiement() {
             </div>
           ) : (
             <div className="p-6">
-              {/* Eleve Info */}
-              <div className="bg-gray-50 rounded-2xl p-6 mb-6">
+              {/* Facture */}
+              <div className="bg-amber-50 rounded-2xl p-6 mb-6 border border-amber-100">
                 <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <GraduationCap className="w-5 h-5 text-amber-500" />
-                  Informations de l'élève
+                  Facture
                 </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">Nom complet:</span>
-                    <p className="font-medium">{eleve.nom} {eleve.prenom}</p>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Élève:</span>
+                    <span className="font-medium">{demande.eleve_prenom} {demande.eleve_nom}</span>
                   </div>
-                  <div>
-                    <span className="text-gray-500">Classe:</span>
-                    <p className="font-medium">{eleve.classe}</p>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Classe:</span>
+                    <span className="font-medium">{demande.eleve_classe || 'Non spécifiée'}</span>
                   </div>
-                  <div>
-                    <span className="text-gray-500">Zone:</span>
-                    <p className="font-medium">{eleve.zone || 'Non définie'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Statut:</span>
-                    <p className="font-medium">{eleve.statut}</p>
+                  {demande.zone_geographique && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Zone:</span>
+                      <span className="font-medium">{demande.zone_geographique}</span>
+                    </div>
+                  )}
+                  {(() => {
+                    const desc = typeof demande.description === 'string' ? JSON.parse(demande.description) : demande.description;
+                    return (
+                      <>
+                        {desc?.type_transport && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Type de transport:</span>
+                            <span className="font-medium">{desc.type_transport}</span>
+                          </div>
+                        )}
+                        {desc?.abonnement && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Abonnement:</span>
+                            <span className="font-medium">{desc.abonnement}</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <div className="border-t border-amber-200 pt-3 flex justify-between">
+                    <span className="text-lg font-semibold text-gray-800">Montant total:</span>
+                    <span className="text-2xl font-bold text-amber-600">{calculateAmount().toFixed(2)} DH</span>
                   </div>
                 </div>
               </div>
 
-              {/* Payment Info */}
-              <div className="bg-amber-50 rounded-2xl p-6 mb-6 border border-amber-100">
-                <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <Bus className="w-5 h-5 text-amber-500" />
-                  Détails du paiement
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Type de transport:</span>
-                    <span className="font-medium">{eleve.type_transport || 'Aller-Retour'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Abonnement:</span>
-                    <span className="font-medium">{eleve.abonnement || 'Mensuel'}</span>
-                  </div>
-                  <div className="border-t border-amber-200 pt-3 flex justify-between">
-                    <span className="text-lg font-semibold text-gray-800">Total à payer:</span>
-                    <span className="text-2xl font-bold text-amber-600">{calculateAmount()} DH</span>
-                  </div>
-                </div>
+              {/* Instructions */}
+              <div className="bg-blue-50 rounded-2xl p-4 mb-6 border border-blue-100">
+                <p className="text-sm text-blue-800">
+                  <strong>Instructions:</strong> Veuillez consulter l'école pour effectuer le paiement et récupérer le code de vérification à saisir ci-dessous.
+                </p>
               </div>
 
               {error && (

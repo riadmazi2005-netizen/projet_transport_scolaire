@@ -224,6 +224,7 @@ export const busAPI = {
     body: JSON.stringify({ id }),
   }),
   getEleves: (id) => fetchAPI(`/bus/eleves.php?bus_id=${id}`),
+  getByZone: (zone) => fetchAPI(`/bus/getByZone.php?zone=${encodeURIComponent(zone)}`),
 };
 
 // ============================================
@@ -313,13 +314,27 @@ export const demandesAPI = {
   getAll: () => fetchAPI('/demandes/getAll.php'),
   getByUser: (userId, userType) => 
     fetchAPI(`/demandes/getByUser.php?user_id=${userId}&user_type=${userType}`),
+  getByTuteur: (tuteurId) => 
+    fetchAPI(`/demandes/getByTuteur.php?tuteur_id=${tuteurId}`),
   create: (data) => fetchAPI('/demandes/create.php', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
-  traiter: (id, statut, commentaire) => fetchAPI('/demandes/traiter.php', {
+  update: (id, data) => fetchAPI('/demandes/update.php', {
     method: 'PUT',
-    body: JSON.stringify({ id, statut, commentaire }),
+    body: JSON.stringify({ id, ...data }),
+  }),
+  delete: (id) => fetchAPI('/demandes/delete.php', {
+    method: 'DELETE',
+    body: JSON.stringify({ id }),
+  }),
+  traiter: (id, statut, commentaire, raisonRefus) => fetchAPI('/demandes/traiter.php', {
+    method: 'PUT',
+    body: JSON.stringify({ id, statut, commentaire, raison_refus: raisonRefus }),
+  }),
+  verifierCode: (demandeId, code) => fetchAPI('/demandes/verifierCode.php', {
+    method: 'POST',
+    body: JSON.stringify({ demande_id: demandeId, code_verification: code }),
   }),
 };
 

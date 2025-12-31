@@ -45,8 +45,17 @@ export default function TuteurInscription() {
     groupe: ''
   });
 
-  const zones = ['agdal', '(takaddoum-haynahda)', 'hay riad', 'temara', 'medina', 'hay el fath', 'hay lmohit', 'yaakoub al mansour'];
-  const classes = ['1AP', '2AP', '3AP', '4AP', '5AP', '6AP', '1AC', '2AC', '3AC', 'TC', '1BAC', '2BAC'];
+  const zones = ['Medina', 'Hay Sinaï', 'Hay El Fath', 'Souissi', 'Akkari', 'Manal', 'Agdal', 'Nahda-Takkadoum', 'Temara'];
+  
+  // Classes selon le niveau
+  const classesParNiveau = {
+    'Primaire': ['1AP', '2AP', '3AP', '4AP', '5AP', '6AP'],
+    'Collège': ['1AC', '2AC', '3AC'],
+    'Lycée': ['TC', '1BAC', '2BAC']
+  };
+  
+  // Récupérer les classes disponibles selon le niveau sélectionné
+  const classesDisponibles = formData.niveau ? (classesParNiveau[formData.niveau] || []) : [];
 
   useEffect(() => {
     const session = localStorage.getItem('tuteur_session');
@@ -67,11 +76,24 @@ export default function TuteurInscription() {
     setError('');
     
     try {
+      // Validation des champs requis
+      if (!formData.nom || !formData.prenom || !formData.classe || !formData.zone || !formData.adresse) {
+        setError('Veuillez remplir tous les champs obligatoires');
+        setLoading(false);
+        return;
+      }
+      
+      if (!formData.type_transport || !formData.abonnement || !formData.groupe) {
+        setError('Veuillez remplir tous les champs de transport');
+        setLoading(false);
+        return;
+      }
+      
       // Prepare eleve data for database
       const eleveData = {
         nom: formData.nom,
         prenom: formData.prenom,
-        date_naissance: formData.date_naissance,
+        date_naissance: formData.date_naissance || null,
         adresse: formData.adresse,
         telephone_parent: tuteur.telephone,
         email_parent: tuteur.email,
@@ -83,8 +105,10 @@ export default function TuteurInscription() {
       // Create eleve
       const eleveResponse = await elevesAPI.create(eleveData);
       
-      if (!eleveResponse.success || !eleveResponse.data) {
-        throw new Error('Erreur lors de la création de l\'élève');
+      if (!eleveResponse || !eleveResponse.success || !eleveResponse.data) {
+        const errorMsg = eleveResponse?.message || 'Erreur lors de la création de l\'élève';
+        console.error('Erreur création élève:', eleveResponse);
+        throw new Error(errorMsg);
       }
       
       const newEleve = eleveResponse.data;
@@ -99,29 +123,38 @@ export default function TuteurInscription() {
         eleve_id: newEleve.id,
         tuteur_id: tuteur.id,
         type_demande: 'inscription',
+        zone_geographique: formData.zone,
         description: JSON.stringify({
           type_transport: formData.type_transport,
           abonnement: formData.abonnement,
           groupe: formData.groupe,
           zone: formData.zone,
           niveau: formData.niveau,
-          lien_parente: lienParenteFinal
+          lien_parente: lienParenteFinal,
+          sexe: formData.sexe
         }),
         statut: 'En attente'
       });
       
-      if (!demandeResponse.success) {
-        throw new Error('Erreur lors de la création de la demande');
+      if (!demandeResponse || !demandeResponse.success) {
+        const errorMsg = demandeResponse?.message || 'Erreur lors de la création de la demande';
+        console.error('Erreur création demande:', demandeResponse);
+        throw new Error(errorMsg);
       }
       
       // Create notification for tuteur
-      await notificationsAPI.create({
-        destinataire_id: tuteur.id,
-        destinataire_type: 'tuteur',
-        titre: 'Inscription envoyée',
-        message: `L'inscription de ${formData.prenom} ${formData.nom} a été envoyée et est en attente de validation.`,
-        type: 'info'
-      });
+      try {
+        await notificationsAPI.create({
+          destinataire_id: tuteur.id,
+          destinataire_type: 'tuteur',
+          titre: 'Inscription envoyée',
+          message: `L'inscription de ${formData.prenom} ${formData.nom} a été envoyée et est en attente de validation.`,
+          type: 'info'
+        });
+      } catch (notifError) {
+        console.warn('Erreur notification tuteur:', notifError);
+        // On continue même si la notification échoue
+      }
       
       // Récupérer tous les admins pour leur envoyer une notification
       try {
@@ -144,12 +177,16 @@ export default function TuteurInscription() {
         console.warn('Impossible de récupérer les admins pour la notification:', adminError);
       }
       
-      navigate(createPageUrl('TuteurDashboard'));
+      // Rediriger vers le dashboard après un court délai pour permettre l'affichage du succès
+      setTimeout(() => {
+        navigate(createPageUrl('TuteurDashboard'));
+      }, 500);
     } catch (err) {
       console.error('Erreur lors de l\'inscription:', err);
-      setError('Erreur lors de l\'envoi de l\'inscription. Veuillez réessayer.');
+      const errorMessage = err.message || err.response?.message || 'Erreur lors de l\'envoi de l\'inscription. Veuillez réessayer.';
+      setError(errorMessage);
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const steps = [
@@ -387,7 +424,11 @@ export default function TuteurInscription() {
                     <Label className="text-gray-700 font-medium">Niveau</Label>
                     <Select 
                       value={formData.niveau} 
-                      onValueChange={(v) => handleChange('niveau', v)}
+                      onValueChange={(v) => {
+                        handleChange('niveau', v);
+                        // Réinitialiser la classe quand on change de niveau
+                        handleChange('classe', '');
+                      }}
                     >
                       <SelectTrigger className="mt-1 h-12 rounded-xl">
                         <SelectValue placeholder="Sélectionnez" />
@@ -404,16 +445,24 @@ export default function TuteurInscription() {
                     <Select 
                       value={formData.classe} 
                       onValueChange={(v) => handleChange('classe', v)}
+                      disabled={!formData.niveau}
                     >
                       <SelectTrigger className="mt-1 h-12 rounded-xl">
-                        <SelectValue placeholder="Sélectionnez" />
+                        <SelectValue placeholder={formData.niveau ? "Sélectionnez" : "Sélectionnez d'abord le niveau"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {classes.map(c => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
+                        {classesDisponibles.length > 0 ? (
+                          classesDisponibles.map(c => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="" disabled>Aucune classe disponible</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
+                    {formData.niveau && classesDisponibles.length === 0 && (
+                      <p className="text-sm text-red-500 mt-1">Niveau non reconnu</p>
+                    )}
                   </div>
                 </div>
 
@@ -463,7 +512,7 @@ export default function TuteurInscription() {
                   <Button
                     type="button"
                     onClick={() => setCurrentStep(3)}
-                    disabled={!formData.nom || !formData.prenom || !formData.classe || !formData.zone || !formData.adresse}
+                    disabled={!formData.nom || !formData.prenom || !formData.niveau || !formData.classe || !formData.zone || !formData.adresse}
                     className="flex-1 h-12 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl"
                   >
                     Continuer

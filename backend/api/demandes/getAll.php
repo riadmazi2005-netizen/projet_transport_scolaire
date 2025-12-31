@@ -11,9 +11,12 @@ try {
                u.email as tuteur_email,
                e.nom as eleve_nom,
                e.prenom as eleve_prenom,
-               e.adresse as eleve_adresse
+               e.adresse as eleve_adresse,
+               e.classe as eleve_classe,
+               e.statut as eleve_statut
         FROM demandes d
-        LEFT JOIN utilisateurs u ON d.tuteur_id = u.id
+        LEFT JOIN tuteurs t ON d.tuteur_id = t.id
+        LEFT JOIN utilisateurs u ON t.utilisateur_id = u.id
         LEFT JOIN eleves e ON d.eleve_id = e.id
         ORDER BY d.date_creation DESC
     ');

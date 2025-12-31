@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { 
   Users, Bell, UserPlus, Edit, LogOut, GraduationCap, 
   Bus, CreditCard, Clock, CheckCircle, AlertCircle, Eye, XCircle,
-  TrendingUp, MapPin, Calendar
+  TrendingUp, MapPin, Calendar, FileText
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -209,12 +209,18 @@ export default function TuteurDashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="mb-8"
+          className="mb-8 flex gap-4 flex-wrap"
         >
           <Link to={createPageUrl('TuteurInscription')}>
             <Button className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl h-14 px-8 shadow-lg hover:shadow-xl transition-all">
               <UserPlus className="w-5 h-5 mr-2" />
               Inscrire un nouvel élève
+            </Button>
+          </Link>
+          <Link to={createPageUrl('TuteurDemandes')}>
+            <Button variant="outline" className="rounded-xl h-14 px-8 shadow-lg hover:shadow-xl transition-all">
+              <FileText className="w-5 h-5 mr-2" />
+              Mes Demandes
             </Button>
           </Link>
         </motion.div>
