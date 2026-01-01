@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Bus, Bell, LogOut, Users, AlertCircle, DollarSign,
-  Navigation, User, CheckCircle, Calendar, MapPin, Plus, X
+  Navigation, User, CheckCircle, Calendar, MapPin, Plus, X, Search
 } from 'lucide-react';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
@@ -42,6 +42,8 @@ export default function ChauffeurDashboard() {
   const [activeTab, setActiveTab] = useState('bus');
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [showAccidentForm, setShowAccidentForm] = useState(false);
+  const [searchEleve, setSearchEleve] = useState('');
+  const [filterGroupe, setFilterGroupe] = useState('tous');
   const [accidentForm, setAccidentForm] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     heure: format(new Date(), 'HH:mm'),
@@ -67,11 +69,24 @@ export default function ChauffeurDashboard() {
 
   const loadData = async (chauffeurData) => {
     try {
-      // Récupérer tous les bus
-      const allBuses = await busAPI.getAll();
+      // Charger les données complètes du chauffeur depuis l'API
+      let chauffeurComplet = chauffeurData;
+      if (chauffeurData.type_id) {
+        try {
+          const chauffeurResponse = await chauffeursAPI.getById(chauffeurData.type_id);
+          chauffeurComplet = chauffeurResponse?.data || chauffeurResponse || chauffeurData;
+          setChauffeur(chauffeurComplet);
+        } catch (err) {
+          console.warn('Erreur chargement données chauffeur:', err);
+        }
+      }
       
-      // Trouver le bus assigné à ce chauffeur
-      const chauffeurBus = allBuses.find(b => b.chauffeur_id === chauffeurData.id);
+      // Récupérer tous les bus
+      // Utiliser type_id (ID dans la table chauffeurs) au lieu de id (ID utilisateur)
+      const allBusesResponse = await busAPI.getAll();
+      const allBuses = allBusesResponse?.data || allBusesResponse || [];
+      const chauffeurId = chauffeurData.type_id || chauffeurData.id;
+      const chauffeurBus = allBuses.find(b => b.chauffeur_id === chauffeurId);
       
       if (chauffeurBus) {
         setBus(chauffeurBus);
@@ -79,7 +94,8 @@ export default function ChauffeurDashboard() {
         // Charger le trajet
         if (chauffeurBus.trajet_id) {
           try {
-            const trajetData = await trajetsAPI.getById(chauffeurBus.trajet_id);
+            const trajetResponse = await trajetsAPI.getById(chauffeurBus.trajet_id);
+            const trajetData = trajetResponse?.data || trajetResponse;
             setTrajet(trajetData);
           } catch (err) {
             console.error('Erreur chargement trajet:', err);
@@ -89,7 +105,8 @@ export default function ChauffeurDashboard() {
         // Charger le responsable
         if (chauffeurBus.responsable_id) {
           try {
-            const responsableData = await responsablesAPI.getById(chauffeurBus.responsable_id);
+            const responsableResponse = await responsablesAPI.getById(chauffeurBus.responsable_id);
+            const responsableData = responsableResponse?.data || responsableResponse;
             setResponsable(responsableData);
           } catch (err) {
             console.error('Erreur chargement responsable:', err);
@@ -98,7 +115,8 @@ export default function ChauffeurDashboard() {
         
         // Charger les élèves du bus
         try {
-          const elevesData = await elevesAPI.getByBus(chauffeurBus.id);
+          const elevesResponse = await elevesAPI.getByBus(chauffeurBus.id);
+          const elevesData = elevesResponse?.data || elevesResponse || [];
           setEleves(elevesData);
         } catch (err) {
           console.error('Erreur chargement élèves:', err);
@@ -107,8 +125,8 @@ export default function ChauffeurDashboard() {
       
       // Charger les accidents du chauffeur
       try {
-        const accidentsData = await accidentsAPI.getByChauffeur(chauffeurData.id);
-        setAccidents(accidentsData);
+        const accidentsData = await accidentsAPI.getByChauffeur(chauffeurId);
+        setAccidents(accidentsData?.data || accidentsData || []);
       } catch (err) {
         console.error('Erreur chargement accidents:', err);
       }
@@ -116,14 +134,14 @@ export default function ChauffeurDashboard() {
       // Charger les présences (pour la date sélectionnée)
       try {
         const presencesData = await presencesAPI.getByDate(selectedDate);
-        setPresences(presencesData);
+        setPresences(presencesData?.data || presencesData || []);
       } catch (err) {
         console.error('Erreur chargement présences:', err);
       }
       
       // Charger les notifications
       try {
-        const notificationsResponse = await notificationsAPI.getByUser(chauffeurData.id, 'chauffeur');
+        const notificationsResponse = await notificationsAPI.getByUser(chauffeurId, 'chauffeur');
         const notificationsData = notificationsResponse?.data || notificationsResponse || [];
         setNotifications(notificationsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)));
       } catch (err) {
@@ -278,7 +296,7 @@ export default function ChauffeurDashboard() {
               }`}
             >
               {tab === 'bus' && 'Mon Bus & Trajet'}
-              {tab === 'eleves' && 'Élèves & Absences'}
+              {tab === 'eleves' && 'Mes Élèves'}
               {tab === 'accidents' && 'Mes Accidents'}
             </Button>
           ))}
@@ -403,75 +421,104 @@ export default function ChauffeurDashboard() {
         {activeTab === 'eleves' && (
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
             <div className="p-6 border-b border-gray-100">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                  <Users className="w-6 h-6 text-amber-500" />
-                  Élèves et Présences
-                </h2>
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-gray-400" />
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="h-10 rounded-xl border border-gray-200 px-3"
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Users className="w-6 h-6 text-amber-500" />
+                Mes Élèves
+              </h2>
+              
+              {/* Barre de recherche et filtre */}
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Rechercher un élève..."
+                    value={searchEleve}
+                    onChange={(e) => setSearchEleve(e.target.value)}
+                    className="pl-10 rounded-xl border-gray-200"
                   />
                 </div>
+                
+                <Select value={filterGroupe} onValueChange={setFilterGroupe}>
+                  <SelectTrigger className="rounded-xl border-gray-200">
+                    <SelectValue placeholder="Tous les groupes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tous">Tous les groupes</SelectItem>
+                    <SelectItem value="A">Groupe A</SelectItem>
+                    <SelectItem value="B">Groupe B</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+            
             <div className="divide-y divide-gray-100">
-              {eleves.map((eleve) => {
-                const presence = getPresenceForDate(eleve.id, selectedDate);
-                return (
-                  <div key={eleve.id} className="p-4 hover:bg-amber-50/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                          eleve.sexe === 'Masculin' ? 'bg-blue-100' : 'bg-pink-100'
+              {(() => {
+                const filteredEleves = eleves.filter(eleve => {
+                  // Filtre par recherche
+                  const searchMatch = searchEleve === '' || 
+                    eleve.nom.toLowerCase().includes(searchEleve.toLowerCase()) ||
+                    eleve.prenom.toLowerCase().includes(searchEleve.toLowerCase());
+                  
+                  // Filtre par groupe
+                  const eleveGroupe = eleve.groupe || 'A';
+                  const groupeMatch = filterGroupe === 'tous' || eleveGroupe === filterGroupe;
+                  
+                  return searchMatch && groupeMatch;
+                });
+                
+                if (filteredEleves.length === 0) {
+                  return (
+                    <div className="p-12 text-center text-gray-400">
+                      <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>Aucun élève trouvé</p>
+                    </div>
+                  );
+                }
+                
+                return filteredEleves.map((eleve) => {
+                  return (
+                    <div key={eleve.id} className="p-4 hover:bg-amber-50/50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                            eleve.sexe === 'Masculin' ? 'bg-blue-100' : 'bg-pink-100'
+                          }`}>
+                            <User className={`w-6 h-6 ${
+                              eleve.sexe === 'Masculin' ? 'text-blue-500' : 'text-pink-500'
+                            }`} />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-800">{eleve.nom} {eleve.prenom}</h3>
+                            {eleve.telephone_parent && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                📞 {eleve.telephone_parent}
+                              </p>
+                            )}
+                            {eleve.email_parent && (
+                              <p className="text-xs text-gray-600">
+                                ✉️ {eleve.email_parent}
+                              </p>
+                            )}
+                            {eleve.adresse && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                📍 {eleve.adresse}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          eleve.statut === 'Actif' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-gray-100 text-gray-700'
                         }`}>
-                          <User className={`w-6 h-6 ${
-                            eleve.sexe === 'Masculin' ? 'text-blue-500' : 'text-pink-500'
-                          }`} />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-800">{eleve.nom} {eleve.prenom}</h3>
-                          <p className="text-sm text-gray-500">
-                            {eleve.classe} • Groupe {eleve.groupe || 'A'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-4">
-                        <div className="text-center">
-                          <p className="text-xs text-gray-400 mb-1">Matin</p>
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                            presence?.present_matin 
-                              ? 'bg-green-100 text-green-600' 
-                              : 'bg-red-100 text-red-500'
-                          }`}>
-                            {presence?.present_matin ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-gray-400 mb-1">Soir</p>
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                            presence?.present_soir 
-                              ? 'bg-green-100 text-green-600' 
-                              : 'bg-red-100 text-red-500'
-                          }`}>
-                            {presence?.present_soir ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                          </div>
-                        </div>
+                          {eleve.statut}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-              {eleves.length === 0 && (
-                <div className="p-12 text-center text-gray-400">
-                  <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucun élève affecté</p>
-                </div>
-              )}
+                  );
+                });
+              })()}
             </div>
           </div>
         )}
@@ -571,7 +618,7 @@ export default function ChauffeurDashboard() {
                   date: accidentForm.date,
                   heure: accidentForm.heure,
                   bus_id: bus?.id || null,
-                  chauffeur_id: chauffeur?.id || null,
+                  chauffeur_id: chauffeur?.id || chauffeur?.type_id || null,
                   lieu: accidentForm.lieu,
                   description: accidentForm.description,
                   degats: accidentForm.degats || null,

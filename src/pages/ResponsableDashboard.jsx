@@ -56,9 +56,24 @@ export default function ResponsableDashboard() {
 
   const loadData = async (responsableData) => {
     try {
+      // Charger les données complètes du responsable depuis l'API
+      let responsableComplet = responsableData;
+      if (responsableData.type_id) {
+        try {
+          const responsableResponse = await responsablesAPI.getById(responsableData.type_id);
+          responsableComplet = responsableResponse?.data || responsableResponse || responsableData;
+          setResponsable(responsableComplet);
+        } catch (err) {
+          console.warn('Erreur chargement données responsable:', err);
+        }
+      }
+      
       // Charger tous les bus assignés à ce responsable
-      const allBuses = await busAPI.getAll();
-      const myBuses = allBuses.filter(b => b.responsable_id === responsableData.id);
+      // Utiliser type_id (ID dans la table responsables_bus) au lieu de id (ID utilisateur)
+      const allBusesResponse = await busAPI.getAll();
+      const allBuses = allBusesResponse?.data || allBusesResponse || [];
+      const responsableId = responsableData.type_id || responsableData.id;
+      const myBuses = allBuses.filter(b => b.responsable_id === responsableId);
       setBuses(myBuses);
       
       // Si le responsable a des bus
@@ -68,7 +83,8 @@ export default function ResponsableDashboard() {
         // Charger le chauffeur du bus principal
         if (mainBus.chauffeur_id) {
           try {
-            const chauffeurData = await chauffeursAPI.getById(mainBus.chauffeur_id);
+            const chauffeurResponse = await chauffeursAPI.getById(mainBus.chauffeur_id);
+            const chauffeurData = chauffeurResponse?.data || chauffeurResponse;
             setChauffeur(chauffeurData);
           } catch (err) {
             console.warn('Chauffeur non trouvé:', err);
@@ -76,11 +92,13 @@ export default function ResponsableDashboard() {
         }
         
         // Charger tous les élèves assignés aux bus du responsable
-        const allInscriptions = await inscriptionsAPI.getAll();
+        const allInscriptionsResponse = await inscriptionsAPI.getAll();
+        const allInscriptions = allInscriptionsResponse?.data || allInscriptionsResponse || [];
         const busIds = myBuses.map(b => b.id);
         const myInscriptions = allInscriptions.filter(i => busIds.includes(i.bus_id));
         
-        const allEleves = await elevesAPI.getAll();
+        const allElevesResponse = await elevesAPI.getAll();
+        const allEleves = allElevesResponse?.data || allElevesResponse || [];
         const myEleves = allEleves.filter(e => 
           myInscriptions.some(i => i.eleve_id === e.id)
         );
@@ -89,7 +107,8 @@ export default function ResponsableDashboard() {
       
       // Charger les présences
       try {
-        const presencesData = await presencesAPI.getByDate(selectedDate);
+        const presencesResponse = await presencesAPI.getByDate(selectedDate);
+        const presencesData = presencesResponse?.data || presencesResponse || [];
         setPresences(presencesData);
       } catch (err) {
         console.warn('Présences non disponibles:', err);
@@ -97,13 +116,13 @@ export default function ResponsableDashboard() {
       }
       
       // Charger les notifications
-      const notificationsResponse = await notificationsAPI.getByUser(responsableData.id, 'responsable');
+      const notificationsResponse = await notificationsAPI.getByUser(responsableId, 'responsable');
       const notificationsData = notificationsResponse?.data || notificationsResponse || [];
       setNotifications(notificationsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)));
       
       // Charger les accidents déclarés par ce responsable
       try {
-        const accidentsResponse = await accidentsAPI.getByResponsable(responsableData.id);
+        const accidentsResponse = await accidentsAPI.getByResponsable(responsableId);
         const accidentsData = accidentsResponse?.data || accidentsResponse || [];
         setAccidents(Array.isArray(accidentsData) ? accidentsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)) : []);
       } catch (err) {
@@ -267,9 +286,9 @@ export default function ResponsableDashboard() {
             color={totalAccidents >= 3 ? 'red' : 'green'}
           />
           <StatCard 
-            title="Notifications" 
-            value={unreadCount} 
-            icon={Bell} 
+            title="Mon Salaire" 
+            value={`${responsable?.salaire || 0} DH`} 
+            icon={DollarSign} 
             color="purple"
           />
         </div>
@@ -528,7 +547,7 @@ export default function ResponsableDashboard() {
                   date: accidentForm.date,
                   heure: accidentForm.heure,
                   bus_id: mainBus?.id || null,
-                  responsable_id: responsable?.id || null,
+                  responsable_id: responsable?.id || responsable?.type_id || null,
                   lieu: accidentForm.lieu,
                   description: accidentForm.description,
                   degats: accidentForm.degats || null,

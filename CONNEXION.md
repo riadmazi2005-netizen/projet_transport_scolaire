@@ -74,7 +74,114 @@ http://localhost/backend/update_test_passwords.php
 
 ---
 
+## 🔍 Diagnostic du compte administrateur
+
+### Script de diagnostic automatique
+
+Si vous rencontrez des problèmes de connexion avec le compte administrateur (`admin@transport.ma`), utilisez ce script de diagnostic :
+
+```
+http://localhost/backend/check_admin_account.php
+```
+
+**Ce script vérifie :**
+- ✅ Si le compte existe dans la table `utilisateurs`
+- ✅ Si le statut est "Actif"
+- ✅ Si le mot de passe est correct (format bcrypt ou clair)
+- ✅ Si l'entrée existe dans la table `administrateurs`
+
+**Pour corriger automatiquement les problèmes détectés :**
+```
+http://localhost/backend/check_admin_account.php?fix=true
+```
+
+**Exemple de réponse du diagnostic :**
+```json
+{
+  "email": "admin@transport.ma",
+  "password_test": "test123",
+  "checks": {
+    "user_exists": true,
+    "user_active": true,
+    "password_format": "bcrypt",
+    "password_valid": true,
+    "admin_entry_exists": true
+  },
+  "all_checks_pass": true,
+  "message": "Tous les checks sont passés! Le compte admin est correctement configuré."
+}
+```
+
+**Si des problèmes sont détectés :**
+```json
+{
+  "checks": {
+    "user_exists": false,
+    "password_valid": false
+  },
+  "issues": [
+    "Le compte utilisateur n'existe pas dans la table utilisateurs",
+    "Le mot de passe ne correspond pas"
+  ],
+  "fixes": [
+    "Créer le compte utilisateur",
+    "Mettre à jour le mot de passe avec le hash bcrypt correct"
+  ],
+  "message": "Des problèmes ont été détectés. Ajoutez ?fix=true à l'URL pour les corriger automatiquement."
+}
+```
+
+---
+
 ## 🔧 Problèmes de connexion
+
+### Problème : "Email ou mot de passe incorrect" pour le compte administrateur
+
+**Solution rapide :** Utilisez le script de diagnostic :
+```
+http://localhost/backend/check_admin_account.php?fix=true
+```
+
+**Vérification manuelle :**
+
+1. **Vérifier que le compte existe :**
+```sql
+SELECT u.id, u.email, u.statut, a.id as admin_id
+FROM utilisateurs u
+LEFT JOIN administrateurs a ON a.utilisateur_id = u.id
+WHERE u.email = 'admin@transport.ma';
+```
+
+2. **Vérifier le format du mot de passe :**
+```sql
+SELECT email, 
+       CASE 
+           WHEN mot_de_passe LIKE '$2y$%' THEN 'bcrypt'
+           ELSE 'plain'
+       END as password_format,
+       statut
+FROM utilisateurs 
+WHERE email = 'admin@transport.ma';
+```
+
+3. **Si le compte n'existe pas ou le mot de passe est incorrect :**
+   - Exécutez : `http://localhost/backend/create_and_update_test_accounts.php`
+   - Ou utilisez : `http://localhost/backend/check_admin_account.php?fix=true`
+
+4. **Si l'entrée dans administrateurs manque :**
+```sql
+-- Vérifier si l'entrée existe
+SELECT * FROM administrateurs a
+JOIN utilisateurs u ON a.utilisateur_id = u.id
+WHERE u.email = 'admin@transport.ma';
+
+-- Si aucun résultat, créer l'entrée
+INSERT INTO administrateurs (utilisateur_id)
+SELECT id FROM utilisateurs WHERE email = 'admin@transport.ma'
+AND NOT EXISTS (
+    SELECT 1 FROM administrateurs WHERE utilisateur_id = (SELECT id FROM utilisateurs WHERE email = 'admin@transport.ma')
+);
+```
 
 ### Problème : Impossible d'accéder aux espaces Chauffeur et Responsable
 
