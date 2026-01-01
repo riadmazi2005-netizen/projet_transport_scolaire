@@ -342,17 +342,21 @@ export default function AdminBus() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Aucun</SelectItem>
-                        {chauffeurs.map(c => {
-                          const isAssigned = buses.some(b => b.chauffeur_id === c.id && (!editingBus || b.id !== editingBus.id));
-                          const currentBus = editingBus && editingBus.chauffeur_id === c.id ? editingBus : null;
-                          return (
-                            <SelectItem key={c.id} value={c.id.toString()}>
-                              {c.prenom} {c.nom}
-                              {isAssigned && !currentBus && ' (déjà affecté)'}
-                              {currentBus && ` (bus ${currentBus.numero})`}
-                            </SelectItem>
-                          );
-                        })}
+                        {chauffeurs
+                          .filter(c => {
+                            // Filtrer : ne garder que les chauffeurs non affectés (sauf celui du bus en cours d'édition)
+                            const isAssigned = buses.some(b => b.chauffeur_id === c.id && (!editingBus || b.id !== editingBus.id));
+                            return !isAssigned || (editingBus && editingBus.chauffeur_id === c.id);
+                          })
+                          .map(c => {
+                            const currentBus = editingBus && editingBus.chauffeur_id === c.id ? editingBus : null;
+                            return (
+                              <SelectItem key={c.id} value={c.id.toString()}>
+                                {c.prenom} {c.nom}
+                                {currentBus && ` (bus ${currentBus.numero})`}
+                              </SelectItem>
+                            );
+                          })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -364,11 +368,21 @@ export default function AdminBus() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Aucun</SelectItem>
-                        {responsables.map(r => (
-                          <SelectItem key={r.id} value={r.id.toString()}>
-                            {r.prenom} {r.nom}
-                          </SelectItem>
-                        ))}
+                        {responsables
+                          .filter(r => {
+                            // Filtrer : ne garder que les responsables non affectés (sauf celui du bus en cours d'édition)
+                            const isAssigned = buses.some(b => b.responsable_id === r.id && (!editingBus || b.id !== editingBus.id));
+                            return !isAssigned || (editingBus && editingBus.responsable_id === r.id);
+                          })
+                          .map(r => {
+                            const currentBus = editingBus && editingBus.responsable_id === r.id ? editingBus : null;
+                            return (
+                              <SelectItem key={r.id} value={r.id.toString()}>
+                                {r.prenom} {r.nom}
+                                {currentBus && ` (bus ${currentBus.numero})`}
+                              </SelectItem>
+                            );
+                          })}
                       </SelectContent>
                     </Select>
                   </div>

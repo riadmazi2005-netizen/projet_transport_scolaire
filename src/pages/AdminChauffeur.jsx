@@ -360,7 +360,7 @@ export default function AdminChauffeurs() {
                         <label className="block text-sm font-medium text-gray-600 mb-1">Mot de passe:</label>
                         <div className="flex items-center gap-2">
                           <div className="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-gray-700 font-mono text-xs border border-gray-200 break-all max-w-md">
-                            {showPassword[item.id] ? (item.user_password || item.mot_de_passe || 'N/A') : '••••••••'}
+                            {showPassword[item.id] ? (item.mot_de_passe_plain || item.user_password || item.mot_de_passe || 'N/A') : '••••••••'}
                           </div>
                           <Button
                             type="button"

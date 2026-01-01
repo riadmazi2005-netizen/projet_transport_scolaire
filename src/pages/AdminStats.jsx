@@ -140,21 +140,20 @@ export default function AdminStats() {
   const garcons = data.eleves.filter(e => e.sexe === 'Masculin' || e.sexe === 'M').length;
   const filles = data.eleves.filter(e => e.sexe === 'Féminin' || e.sexe === 'F').length;
 
-  // Level distribution - Le champ 'niveau' n'existe pas dans le SQL
-  // Vous pouvez l'extraire de 'classe' ou ajouter un champ 'niveau'
+  // Level distribution - Utiliser les vraies classes du système
   const primaire = data.eleves.filter(e => {
-    const classe = e.classe?.toLowerCase() || '';
-    return classe.includes('cp') || classe.includes('ce') || classe.includes('cm');
+    const classe = e.classe || '';
+    return ['1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].includes(classe);
   }).length;
   
   const college = data.eleves.filter(e => {
-    const classe = e.classe?.toLowerCase() || '';
-    return classe.includes('6') || classe.includes('5') || classe.includes('4') || classe.includes('3');
+    const classe = e.classe || '';
+    return ['1AC', '2AC', '3AC'].includes(classe);
   }).length;
   
   const lycee = data.eleves.filter(e => {
-    const classe = e.classe?.toLowerCase() || '';
-    return classe.includes('2nd') || classe.includes('1ère') || classe.includes('terminale');
+    const classe = e.classe || '';
+    return ['TC', '1BAC', '2BAC'].includes(classe);
   }).length;
 
   // Most absent students

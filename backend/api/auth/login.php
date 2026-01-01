@@ -11,23 +11,24 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $data = json_decode(file_get_contents('php://input'), true);
 
-if (!isset($data['email']) || !isset($data['password'])) {
+if ((!isset($data['email']) && !isset($data['telephone'])) || !isset($data['password'])) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Email et mot de passe requis']);
+    echo json_encode(['success' => false, 'message' => 'Email/téléphone et mot de passe requis']);
     exit;
 }
 
 try {
     $pdo = getDBConnection();
     
-    // Récupérer l'utilisateur par email
-    $stmt = $pdo->prepare('SELECT * FROM utilisateurs WHERE email = ?');
-    $stmt->execute([$data['email']]);
+    // Récupérer l'utilisateur par email ou téléphone
+    $identifier = $data['email'] ?? $data['telephone'];
+    $stmt = $pdo->prepare('SELECT * FROM utilisateurs WHERE email = ? OR telephone = ?');
+    $stmt->execute([$identifier, $identifier]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$user) {
         http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect']);
+        echo json_encode(['success' => false, 'message' => 'Email/téléphone ou mot de passe incorrect']);
         exit;
     }
     
@@ -43,7 +44,7 @@ try {
     
     if (!$passwordValid) {
         http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect']);
+        echo json_encode(['success' => false, 'message' => 'Email/téléphone ou mot de passe incorrect']);
         exit;
     }
     

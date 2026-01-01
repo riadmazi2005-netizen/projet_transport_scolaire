@@ -19,6 +19,16 @@ $stmt = $pdo->query('
 ');
 $accidents = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Décoder les champs JSON pour chaque accident
+foreach ($accidents as &$accident) {
+    if ($accident['photos']) {
+        $accident['photos'] = json_decode($accident['photos'], true);
+    }
+    if ($accident['eleves_concernees']) {
+        $accident['eleves_concernees'] = json_decode($accident['eleves_concernees'], true);
+    }
+}
+
 echo json_encode([
     'success' => true,
     'data' => $accidents

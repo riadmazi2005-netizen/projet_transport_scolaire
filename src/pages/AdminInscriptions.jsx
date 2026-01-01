@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from '../components/AdminLayout';
 import { 
   ClipboardList, Search, CheckCircle, XCircle, 
-  Eye, User, Bus, MapPin, Filter, Calendar, ArrowLeft, FileText
+  Eye, User, Bus, MapPin, Filter, Calendar, ArrowLeft, FileText, Copy, Check
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -35,6 +35,7 @@ export default function AdminInscriptions() {
     date_debut: format(new Date(), 'yyyy-MM-dd'),
     date_fin: format(new Date(new Date().setMonth(new Date().getMonth() + 10)), 'yyyy-MM-dd')
   });
+  const [copiedCode, setCopiedCode] = useState(null);
 
   useEffect(() => {
     // Charger les données de l'admin depuis la session
@@ -361,6 +362,22 @@ export default function AdminInscriptions() {
         return;
       }
       
+      // Mettre à jour le statut de la demande en "Inscrit" si elle existe
+      if (selectedEleve.demande_inscription?.id) {
+        try {
+          await demandesAPI.traiter(
+            selectedEleve.demande_inscription.id,
+            'Inscrit',
+            'Élève affecté à un bus',
+            null,
+            adminUser?.type_id
+          );
+        } catch (err) {
+          console.warn('Erreur lors de la mise à jour du statut de la demande:', err);
+          // On continue même si la mise à jour du statut échoue
+        }
+      }
+      
       if (selectedEleve.inscription && selectedEleve.inscription.id) {
         // Mettre à jour l'inscription existante
         const updateResponse = await inscriptionsAPI.update(selectedEleve.inscription.id, {
@@ -439,6 +456,7 @@ export default function AdminInscriptions() {
       'En attente': 'bg-yellow-100 text-yellow-700',
       'En cours de traitement': 'bg-blue-100 text-blue-700',
       'En attente de paiement': 'bg-orange-100 text-orange-700',
+      'Payée': 'bg-green-100 text-green-700',
       'Validée': 'bg-green-100 text-green-700',
       'Inscrit': 'bg-emerald-100 text-emerald-700',
       'Refusée': 'bg-red-100 text-red-700',
@@ -447,6 +465,16 @@ export default function AdminInscriptions() {
       'Terminée': 'bg-gray-100 text-gray-700'
     };
     return styles[statut] || 'bg-gray-100 text-gray-700';
+  };
+
+  const handleCopyCode = async (code, eleveId) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(eleveId);
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch (err) {
+      console.error('Erreur lors de la copie:', err);
+    }
   };
 
   if (loading) {
@@ -577,6 +605,30 @@ export default function AdminInscriptions() {
                             {eleve.inscription.montant_mensuel} DH/mois
                           </p>
                         )}
+                        {/* Afficher le code de vérification pour les élèves validés */}
+                        {eleve.demande_inscription?.code_verification && 
+                         (eleve.statut_demande === 'En attente de paiement' || 
+                          eleve.statut_demande === 'Payée' ||
+                          eleve.statut_demande === 'Validée' || 
+                          eleve.statut_demande === 'Inscrit') && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-xs font-medium text-gray-600">Code de vérification:</span>
+                            <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-lg border border-amber-200">
+                              <span className="font-mono font-bold text-sm">{eleve.demande_inscription.code_verification}</span>
+                              <button
+                                onClick={() => handleCopyCode(eleve.demande_inscription.code_verification, eleve.id)}
+                                className="p-1 hover:bg-amber-200 rounded transition-colors"
+                                title="Copier le code"
+                              >
+                                {copiedCode === eleve.id ? (
+                                  <Check className="w-3 h-3 text-green-600" />
+                                ) : (
+                                  <Copy className="w-3 h-3 text-amber-700" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -639,7 +691,7 @@ export default function AdminInscriptions() {
                         </>
                       )}
 
-                      {(eleve.statut_demande === 'Validée' || eleve.statut_demande === 'Inscrit') && !eleve.inscription?.bus_id && (
+                      {(eleve.statut_demande === 'Payée' || eleve.statut_demande === 'Validée' || eleve.statut_demande === 'Inscrit') && !eleve.inscription?.bus_id && (
                         <Button
                           onClick={() => handleVerifyZone(eleve)}
                           className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
@@ -803,6 +855,45 @@ export default function AdminInscriptions() {
                         <div>
                           <label className="block text-sm font-medium text-gray-600 mb-1">Date de la demande</label>
                           <p className="text-gray-800">{format(new Date(selectedEleve.demande_inscription.date_creation), 'dd/MM/yyyy à HH:mm', { locale: fr })}</p>
+                        </div>
+                      )}
+                      {/* Afficher le code de vérification si disponible */}
+                      {selectedEleve.demande_inscription.code_verification && 
+                       (selectedEleve.statut_demande === 'En attente de paiement' || 
+                        selectedEleve.statut_demande === 'Payée' ||
+                        selectedEleve.statut_demande === 'Validée' || 
+                        selectedEleve.statut_demande === 'Inscrit') && (
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Code de vérification du paiement</label>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 px-4 py-3 bg-amber-50 border-2 border-amber-200 rounded-xl">
+                              <p className="text-xs text-gray-600 mb-1">Code à donner au tuteur pour valider le paiement:</p>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-xl text-amber-800">{selectedEleve.demande_inscription.code_verification}</span>
+                                <button
+                                  onClick={() => handleCopyCode(selectedEleve.demande_inscription.code_verification, selectedEleve.id)}
+                                  className="p-2 hover:bg-amber-100 rounded-lg transition-colors"
+                                  title="Copier le code"
+                                >
+                                  {copiedCode === selectedEleve.id ? (
+                                    <Check className="w-5 h-5 text-green-600" />
+                                  ) : (
+                                    <Copy className="w-5 h-5 text-amber-700" />
+                                  )}
+                                </button>
+                              </div>
+                              {copiedCode === selectedEleve.id && (
+                                <p className="text-xs text-green-600 mt-1">✓ Code copié dans le presse-papiers</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {/* Afficher le montant de la facture si disponible */}
+                      {selectedEleve.demande_inscription.montant_facture && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Montant de la facture</label>
+                          <p className="text-gray-800 font-semibold">{parseFloat(selectedEleve.demande_inscription.montant_facture).toLocaleString('fr-FR')} DH</p>
                         </div>
                       )}
                     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { paiementsAPI, elevesAPI, tuteursAPI, inscriptionsAPI } from '../services/apiService';
+import { paiementsAPI, elevesAPI, tuteursAPI, inscriptionsAPI, demandesAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,29 +31,43 @@ export default function AdminPaiements() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [paiementsRes, elevesRes, tuteursRes, inscriptionsRes] = await Promise.all([
+      const [paiementsRes, elevesRes, tuteursRes, inscriptionsRes, demandesRes] = await Promise.all([
         paiementsAPI.getAll(),
         elevesAPI.getAll(),
         tuteursAPI.getAll(),
-        inscriptionsAPI.getAll()
+        inscriptionsAPI.getAll(),
+        demandesAPI.getAll()
       ]);
       
       const paiementsData = paiementsRes?.data || paiementsRes || [];
       const elevesData = elevesRes?.data || elevesRes || [];
       const tuteursData = tuteursRes?.data || tuteursRes || [];
       const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
+      const demandesData = demandesRes?.data || demandesRes || [];
       
-      // Enrichir les paiements avec les infos élève et tuteur
+      // Enrichir les paiements avec les infos élève, tuteur et demande
       const paiementsEnrichis = Array.isArray(paiementsData) ? paiementsData.map(p => {
         const inscription = Array.isArray(inscriptionsData) ? inscriptionsData.find(i => i.id === p.inscription_id) : null;
         const eleve = inscription && Array.isArray(elevesData) ? elevesData.find(e => e.id === inscription.eleve_id) : null;
         const tuteur = eleve && Array.isArray(tuteursData) ? tuteursData.find(t => t.id === eleve.tuteur_id) : null;
         
+        // Trouver la demande liée à cet élève (demande de type inscription qui est payée)
+        const demande = eleve && Array.isArray(demandesData) ? demandesData.find(d => 
+          d.eleve_id === eleve.id && 
+          d.type_demande === 'inscription' && 
+          (d.statut === 'Payée' || d.statut === 'Validée' || d.statut === 'Inscrit')
+        ) : null;
+        
+        // Utiliser montant_facture de la demande si disponible, sinon utiliser le montant du paiement
+        const montantAfficher = demande?.montant_facture ? parseFloat(demande.montant_facture) : parseFloat(p.montant);
+        
         return {
           ...p,
+          montant: montantAfficher, // Remplacer le montant par montant_facture de la demande
           eleve,
           tuteur,
-          inscription
+          inscription,
+          demande
         };
       }) : [];
       
@@ -69,14 +83,15 @@ export default function AdminPaiements() {
   };
 
   const filteredPaiements = paiements.filter(p => {
-    const matchSearch = 
+    const matchSearch = searchTerm === '' ||
       p.eleve?.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.eleve?.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.tuteur?.nom?.toLowerCase().includes(searchTerm.toLowerCase());
+      p.tuteur?.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.tuteur?.prenom?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchStatus = statusFilter === 'all' || p.statut === statusFilter;
     
-    const matchDate = !dateFilter || p.date_paiement === dateFilter;
+    const matchDate = !dateFilter || p.date_paiement?.startsWith(dateFilter);
     
     return matchSearch && matchStatus && matchDate;
   });
@@ -225,7 +240,7 @@ export default function AdminPaiements() {
 
                       <div className="text-right">
                         <p className="text-2xl font-bold text-gray-800">
-                          {parseFloat(paiement.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DH
+                          {(typeof paiement.montant === 'number' ? paiement.montant : parseFloat(paiement.montant || 0)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
                         </p>
                         <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(paiement.statut)}`}>
                           {paiement.statut === 'Payé' && <CheckCircle className="w-3 h-3 inline mr-1" />}

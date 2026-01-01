@@ -331,7 +331,7 @@ export default function AdminResponsables() {
               {responsables.map((item) => {
                 const isPasswordVisible = showPassword[item.id] || false;
                 // Le mot de passe est en clair dans la BD, on affiche le mot de passe réel si visible
-                const passwordValue = item.user_password || item.mot_de_passe || 'N/A';
+                const passwordValue = item.mot_de_passe_plain || item.user_password || item.mot_de_passe || 'N/A';
                 const passwordDisplay = isPasswordVisible ? passwordValue : '••••••••';
                 
                 return (

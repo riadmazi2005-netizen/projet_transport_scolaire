@@ -68,7 +68,10 @@ try {
     }
     if (isset($data['mot_de_passe']) && !empty($data['mot_de_passe'])) {
         $userFields[] = 'mot_de_passe = ?';
-        $userValues[] = $data['mot_de_passe']; // Mot de passe en clair (non hashé)
+        $userFields[] = 'mot_de_passe_plain = ?';
+        $hashedPassword = password_hash($data['mot_de_passe'], PASSWORD_DEFAULT);
+        $userValues[] = $hashedPassword;
+        $userValues[] = $data['mot_de_passe'];
         unset($data['mot_de_passe']);
     }
     if (isset($data['statut'])) {
@@ -89,38 +92,34 @@ try {
     $chauffeurFields = [];
     $chauffeurValues = [];
     
-    // Ignorer numero_permis (supprimé de l'interface)
-    if (isset($data['permis']) || isset($data['numero_permis'])) {
-        unset($data['permis']);
+    // Gérer numero_permis et date_expiration_permis
+    if (isset($data['numero_permis'])) {
+        $chauffeurFields[] = 'numero_permis = ?';
+        $chauffeurValues[] = $data['numero_permis'];
         unset($data['numero_permis']);
     }
-    
-    // Vérifier si la colonne salaire existe avant de l'utiliser
-    $checkSalaire = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'salaire'");
-    if ($checkSalaire->rowCount() > 0 && isset($data['salaire'])) {
-        $chauffeurFields[] = 'salaire = ?';
-        $chauffeurValues[] = $data['salaire'];
-        unset($data['salaire']);
-    } elseif (isset($data['salaire'])) {
-        unset($data['salaire']);
-    }
-    
-    // Vérifier si la colonne date_embauche existe avant de l'utiliser
-    $checkDateEmbauche = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'date_embauche'");
-    if ($checkDateEmbauche->rowCount() > 0 && isset($data['date_embauche'])) {
-        $chauffeurFields[] = 'date_embauche = ?';
-        $chauffeurValues[] = $data['date_embauche'];
-        unset($data['date_embauche']);
-    } elseif (isset($data['date_embauche'])) {
-        unset($data['date_embauche']);
+    if (isset($data['date_expiration_permis'])) {
+        $chauffeurFields[] = 'date_expiration_permis = ?';
+        $chauffeurValues[] = $data['date_expiration_permis'];
+        unset($data['date_expiration_permis']);
     }
     if (isset($data['nombre_accidents'])) {
         $chauffeurFields[] = 'nombre_accidents = ?';
         $chauffeurValues[] = $data['nombre_accidents'];
         unset($data['nombre_accidents']);
     }
+    if (isset($data['statut'])) {
+        $chauffeurFields[] = 'statut = ?';
+        $chauffeurValues[] = $data['statut'];
+        unset($data['statut']);
+    }
+    if (isset($data['salaire'])) {
+        $chauffeurFields[] = 'salaire = ?';
+        $chauffeurValues[] = floatval($data['salaire']);
+        unset($data['salaire']);
+    }
     
-    // Mettre à jour les autres champs restants
+    // Mettre à jour les autres champs restants (ne devrait plus rien rester normalement)
     foreach ($data as $key => $value) {
         $chauffeurFields[] = "$key = ?";
         $chauffeurValues[] = $value;
@@ -136,7 +135,7 @@ try {
     
     // Récupérer le chauffeur mis à jour
     $stmt = $pdo->prepare('
-        SELECT c.*, u.nom, u.prenom, u.email, u.telephone, u.mot_de_passe as user_password
+        SELECT c.*, u.nom, u.prenom, u.email, u.telephone, u.mot_de_passe as user_password, u.mot_de_passe_plain
         FROM chauffeurs c
         LEFT JOIN utilisateurs u ON c.utilisateur_id = u.id
         WHERE c.id = ?

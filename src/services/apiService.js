@@ -79,10 +79,17 @@ const fetchAPI = async (endpoint, options = {}) => {
 
 export const authAPI = {
   // Connexion (le type d'utilisateur est déterminé automatiquement par le backend)
-  login: async (email, password) => {
+  // Accepte email ou téléphone
+  login: async (emailOrPhone, password) => {
+    // Détecter si c'est un email ou un téléphone
+    const isEmail = emailOrPhone.includes('@');
+    const data = isEmail 
+      ? { email: emailOrPhone, password }
+      : { telephone: emailOrPhone, password };
+    
     return fetchAPI('/auth/login.php', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(data),
     });
   },
 
@@ -279,6 +286,10 @@ export const accidentsAPI = {
   update: (id, data) => fetchAPI('/accidents/update.php', {
     method: 'PUT',
     body: JSON.stringify({ id, ...data }),
+  }),
+  validate: (id) => fetchAPI('/accidents/validate.php', {
+    method: 'PUT',
+    body: JSON.stringify({ id }),
   }),
   delete: (id) => fetchAPI('/accidents/delete.php', {
     method: 'DELETE',

@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage
+  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -62,6 +62,17 @@ export default function AdminAccidents() {
     }
   };
 
+  const handleValidate = async (accidentId) => {
+    try {
+      await accidentsAPI.validate(accidentId);
+      await loadData();
+      alert('Rapport validé avec succès');
+    } catch (err) {
+      console.error('Erreur lors de la validation:', err);
+      setError('Erreur lors de la validation du rapport');
+    }
+  };
+
   const handleNotifyTuteurs = async (accident) => {
     if (!accident.bus_id) {
       setError('Aucun bus associé à cet accident');
@@ -107,6 +118,18 @@ export default function AdminAccidents() {
       if (accident.nombre_blesses !== null && accident.nombre_blesses !== undefined && accident.nombre_blesses > 0) {
         message += `Nombre de blessés: ${accident.nombre_blesses}\n`;
       }
+      
+      // Ajouter les noms des élèves concernés si disponibles
+      if (accident.eleves_concernees && Array.isArray(accident.eleves_concernees) && accident.eleves_concernees.length > 0) {
+        message += `\nÉlèves présents dans le bus:\n`;
+        accident.eleves_concernees.forEach((eleve, index) => {
+          const nomComplet = typeof eleve === 'object' && eleve.nom 
+            ? `${eleve.prenom} ${eleve.nom}` 
+            : eleve;
+          message += `- ${nomComplet}\n`;
+        });
+      }
+      
       message += `\nVeuillez contacter l'école pour plus d'informations.`;
       
       // Envoyer les notifications
@@ -204,6 +227,16 @@ export default function AdminAccidents() {
                             <span className={`px-3 py-1 rounded-full text-sm font-medium ${getGraviteBadge(accident.gravite)}`}>
                               {accident.gravite}
                             </span>
+                            {accident.statut === 'En attente' && (
+                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-700">
+                                En attente
+                              </span>
+                            )}
+                            {accident.statut === 'Validé' && (
+                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
+                                Validé
+                              </span>
+                            )}
                             {accident.blesses && (
                               <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
                                 Blessés
@@ -269,6 +302,15 @@ export default function AdminAccidents() {
                             <Eye className="w-4 h-4 mr-2" />
                             Détails
                           </Button>
+                          {accident.statut === 'En attente' && (
+                            <Button
+                              onClick={() => handleValidate(accident.id)}
+                              className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Valider
+                            </Button>
+                          )}
                           {accident.bus_id && (
                             <Button
                               onClick={() => handleNotifyTuteurs(accident)}
@@ -393,6 +435,24 @@ export default function AdminAccidents() {
                 </div>
               )}
 
+              {selectedAccident.eleves_concernees && Array.isArray(selectedAccident.eleves_concernees) && selectedAccident.eleves_concernees.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Élèves présents dans le bus
+                  </label>
+                  <div className="bg-blue-50 rounded-xl p-4">
+                    <ul className="space-y-2">
+                      {selectedAccident.eleves_concernees.map((eleve, index) => (
+                        <li key={index} className="text-gray-800">
+                          {typeof eleve === 'object' && eleve.nom ? `${eleve.prenom} ${eleve.nom}` : eleve}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
               {selectedAccident.photos && (
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
@@ -430,6 +490,19 @@ export default function AdminAccidents() {
               >
                 Fermer
               </Button>
+              {selectedAccident.statut === 'En attente' && (
+                <Button
+                  onClick={() => {
+                    handleValidate(selectedAccident.id);
+                    setShowDetailsModal(false);
+                    setSelectedAccident(null);
+                  }}
+                  className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Valider
+                </Button>
+              )}
               {selectedAccident.bus_id && (
                 <Button
                   onClick={() => handleNotifyTuteurs(selectedAccident)}

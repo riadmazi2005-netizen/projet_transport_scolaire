@@ -44,12 +44,14 @@ try {
         }
     }
     
+    $elevesConcernees = isset($data['eleves_concernees']) ? json_encode($data['eleves_concernees']) : null;
+    
     $stmt = $pdo->prepare('
         INSERT INTO accidents (
             date, heure, bus_id, chauffeur_id, description, degats, lieu, gravite, blesses,
-            nombre_eleves, nombre_blesses, photos
+            nombre_eleves, nombre_blesses, photos, eleves_concernees, statut
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ');
     
     $stmt->execute([
@@ -64,7 +66,9 @@ try {
         $blesses ? 1 : 0,
         $nombre_eleves,
         $nombre_blesses,
-        $photos
+        $photos,
+        $elevesConcernees,
+        'En attente' // Statut par défaut
     ]);
     
     $accidentId = $pdo->lastInsertId();
@@ -180,6 +184,11 @@ try {
     // Décoder les photos si présentes
     if ($accident['photos']) {
         $accident['photos'] = json_decode($accident['photos'], true);
+    }
+    
+    // Décoder les élèves concernés si présents
+    if ($accident['eleves_concernees']) {
+        $accident['eleves_concernees'] = json_decode($accident['eleves_concernees'], true);
     }
     
     echo json_encode([

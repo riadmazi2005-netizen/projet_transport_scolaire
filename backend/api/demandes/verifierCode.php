@@ -60,10 +60,10 @@ try {
         exit;
     }
     
-    // Code correct - mettre à jour le statut de la demande en "Inscrit" et de l'élève en "Actif"
+    // Code correct - mettre à jour le statut de la demande en "Payée" et de l'élève en "Actif"
     $stmt = $pdo->prepare('
         UPDATE demandes 
-        SET statut = "Inscrit",
+        SET statut = "Payée",
             date_traitement = NOW()
         WHERE id = ?
     ');
@@ -124,7 +124,7 @@ try {
         'data' => [
             'demande_id' => $demande['id'],
             'eleve_id' => $demande['eleve_id'],
-            'statut' => 'Inscrit'
+            'statut' => 'Payée'
         ]
     ]);
 } catch (PDOException $e) {

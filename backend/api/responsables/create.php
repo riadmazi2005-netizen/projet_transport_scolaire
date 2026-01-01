@@ -22,34 +22,46 @@ try {
         exit;
     }
     
-    // Stocker le mot de passe en clair (non hashé)
+    // Hasher le mot de passe
     $motDePasse = $data['mot_de_passe'] ?? '';
+    if (!empty($motDePasse)) {
+        $hashedPassword = password_hash($motDePasse, PASSWORD_DEFAULT);
+    } else {
+        // Générer un mot de passe par défaut si non fourni
+        $hashedPassword = password_hash('password123', PASSWORD_DEFAULT);
+    }
+    
+    $motDePassePlain = !empty($motDePasse) ? $motDePasse : 'password123';
     
     // Créer l'utilisateur
     $stmt = $pdo->prepare('
-        INSERT INTO utilisateurs (nom, prenom, email, telephone, mot_de_passe, statut)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO utilisateurs (nom, prenom, email, telephone, mot_de_passe, mot_de_passe_plain, statut)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ');
     $stmt->execute([
         $data['nom'],
         $data['prenom'],
         $data['email'],
         $data['telephone'] ?? null,
-        $motDePasse, // Mot de passe en clair
+        $hashedPassword,
+        $motDePassePlain,
         $data['statut'] ?? 'Actif'
     ]);
     
     $utilisateurId = $pdo->lastInsertId();
     
     // Créer le responsable
+    $salaire = isset($data['salaire']) ? floatval($data['salaire']) : 0;
+    
     $stmt = $pdo->prepare('
-        INSERT INTO responsables_bus (utilisateur_id, zone_responsabilite, statut)
-        VALUES (?, ?, ?)
+        INSERT INTO responsables_bus (utilisateur_id, zone_responsabilite, statut, salaire)
+        VALUES (?, ?, ?, ?)
     ');
     $stmt->execute([
         $utilisateurId,
         $data['zone_responsabilite'] ?? null,
-        $data['statut'] ?? 'Actif'
+        $data['statut'] ?? 'Actif',
+        $salaire
     ]);
     
     $responsableId = $pdo->lastInsertId();
@@ -63,6 +75,7 @@ try {
             u.email,
             u.telephone,
             u.mot_de_passe,
+            u.mot_de_passe_plain,
             u.statut as user_statut
         FROM responsables_bus r
         LEFT JOIN utilisateurs u ON r.utilisateur_id = u.id

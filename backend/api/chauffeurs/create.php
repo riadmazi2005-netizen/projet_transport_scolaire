@@ -27,19 +27,28 @@ try {
     // Créer l'utilisateur si les données sont fournies
     $utilisateurId = null;
     if (isset($data['nom']) && isset($data['prenom']) && isset($data['email'])) {
-        // Stocker le mot de passe en clair (non hashé)
+        // Hasher le mot de passe
         $motDePasse = $data['mot_de_passe'] ?? '';
+        if (!empty($motDePasse)) {
+            $hashedPassword = password_hash($motDePasse, PASSWORD_DEFAULT);
+        } else {
+            // Générer un mot de passe par défaut si non fourni
+            $hashedPassword = password_hash('password123', PASSWORD_DEFAULT);
+        }
+        
+        $motDePassePlain = !empty($motDePasse) ? $motDePasse : 'password123';
         
         $stmt = $pdo->prepare('
-            INSERT INTO utilisateurs (nom, prenom, email, telephone, mot_de_passe, statut)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO utilisateurs (nom, prenom, email, telephone, mot_de_passe, mot_de_passe_plain, statut)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         ');
         $stmt->execute([
             $data['nom'],
             $data['prenom'],
             $data['email'],
             $data['telephone'] ?? null,
-            $motDePasse, // Mot de passe en clair
+            $hashedPassword,
+            $motDePassePlain,
             $data['statut'] ?? 'Actif'
         ]);
         
@@ -52,42 +61,29 @@ try {
         exit;
     }
     
-    // Créer le chauffeur
-    // Note: Si les colonnes salaire et date_embauche existent, on les ajoute
-    $columns = ['utilisateur_id'];
-    $values = [$utilisateurId];
-    $placeholders = ['?'];
+    // Créer le chauffeur (numero_permis est requis dans le schéma)
+    $numeroPermis = $data['numero_permis'] ?? 'CH-' . date('Ymd') . '-' . rand(1000, 9999);
+    $dateExpirationPermis = $data['date_expiration_permis'] ?? date('Y-m-d', strtotime('+2 years'));
+    $salaire = isset($data['salaire']) ? floatval($data['salaire']) : 0;
     
-    // Vérifier si la colonne salaire existe et l'ajouter si nécessaire
-    $checkSalaire = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'salaire'");
-    if ($checkSalaire->rowCount() > 0 && isset($data['salaire'])) {
-        $columns[] = 'salaire';
-        $values[] = $data['salaire'];
-        $placeholders[] = '?';
-    }
-    
-    // Vérifier si la colonne date_embauche existe et l'ajouter si nécessaire
-    $checkDateEmbauche = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'date_embauche'");
-    if ($checkDateEmbauche->rowCount() > 0 && isset($data['date_embauche']) && !empty($data['date_embauche'])) {
-        $columns[] = 'date_embauche';
-        $values[] = $data['date_embauche'];
-        $placeholders[] = '?';
-    }
-    
-    // Ajouter statut
-    $columns[] = 'statut';
-    $values[] = $data['statut'] ?? 'Actif';
-    $placeholders[] = '?';
-    
-    $sql = 'INSERT INTO chauffeurs (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($values);
+    $stmt = $pdo->prepare('
+        INSERT INTO chauffeurs (utilisateur_id, numero_permis, date_expiration_permis, nombre_accidents, statut, salaire)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ');
+    $stmt->execute([
+        $utilisateurId,
+        $numeroPermis,
+        $dateExpirationPermis,
+        $data['nombre_accidents'] ?? 0,
+        $data['statut'] ?? 'Actif',
+        $salaire
+    ]);
     
     $chauffeurId = $pdo->lastInsertId();
     
     // Récupérer le chauffeur créé avec les infos utilisateur
     $stmt = $pdo->prepare('
-        SELECT c.*, u.nom, u.prenom, u.email, u.telephone, u.mot_de_passe as user_password
+        SELECT c.*, u.nom, u.prenom, u.email, u.telephone, u.mot_de_passe as user_password, u.mot_de_passe_plain
         FROM chauffeurs c
         LEFT JOIN utilisateurs u ON c.utilisateur_id = u.id
         WHERE c.id = ?

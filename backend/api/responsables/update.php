@@ -68,7 +68,10 @@ try {
     }
     if (isset($data['mot_de_passe']) && !empty($data['mot_de_passe'])) {
         $userFields[] = 'mot_de_passe = ?';
-        $userValues[] = $data['mot_de_passe']; // Mot de passe en clair (non hashé)
+        $userFields[] = 'mot_de_passe_plain = ?';
+        $hashedPassword = password_hash($data['mot_de_passe'], PASSWORD_DEFAULT);
+        $userValues[] = $hashedPassword;
+        $userValues[] = $data['mot_de_passe'];
         unset($data['mot_de_passe']);
     }
     if (isset($data['statut'])) {
@@ -89,16 +92,9 @@ try {
     $respFields = [];
     $respValues = [];
     
-    // Vérifier si la colonne salaire existe avant de l'utiliser
-    try {
-        $checkSalaire = $pdo->query("SHOW COLUMNS FROM responsables_bus LIKE 'salaire'");
-        if ($checkSalaire->rowCount() > 0 && isset($data['salaire'])) {
-            $respFields[] = 'salaire = ?';
-            $respValues[] = $data['salaire'];
-            unset($data['salaire']);
-        }
-    } catch (Exception $e) {
-        // Colonne n'existe pas, on ignore
+    if (isset($data['salaire'])) {
+        $respFields[] = 'salaire = ?';
+        $respValues[] = floatval($data['salaire']);
         unset($data['salaire']);
     }
     
@@ -106,6 +102,11 @@ try {
         $respFields[] = 'zone_responsabilite = ?';
         $respValues[] = $data['zone_responsabilite'];
         unset($data['zone_responsabilite']);
+    }
+    if (isset($data['statut'])) {
+        $respFields[] = 'statut = ?';
+        $respValues[] = $data['statut'];
+        unset($data['statut']);
     }
     
     // Mettre à jour la table responsables_bus si nécessaire
@@ -125,6 +126,7 @@ try {
             u.email,
             u.telephone,
             u.mot_de_passe as user_password,
+            u.mot_de_passe_plain,
             u.statut as user_statut
         FROM responsables_bus r
         LEFT JOIN utilisateurs u ON r.utilisateur_id = u.id

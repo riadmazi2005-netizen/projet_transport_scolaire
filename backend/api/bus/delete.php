@@ -18,6 +18,17 @@ if (!isset($data['id'])) {
 
 try {
     $pdo = getDBConnection();
+    
+    // Vérifier que le bus existe
+    $stmt = $pdo->prepare('SELECT id FROM bus WHERE id = ?');
+    $stmt->execute([$data['id']]);
+    if (!$stmt->fetch()) {
+        http_response_code(404);
+        echo json_encode(['success' => false, 'message' => 'Bus non trouvé']);
+        exit;
+    }
+    
+    // Supprimer le bus
     $stmt = $pdo->prepare('DELETE FROM bus WHERE id = ?');
     $stmt->execute([$data['id']]);
     
@@ -27,7 +38,7 @@ try {
     ]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Erreur lors de la suppression']);
+    echo json_encode(['success' => false, 'message' => 'Erreur lors de la suppression: ' . $e->getMessage()]);
 }
 ?>
 

@@ -25,6 +25,7 @@ import AdminEleves from './pages/AdminEleves';
 import AdminInscriptions from './pages/AdminInscriptions';
 import AdminStats from './pages/AdminStats';
 import AdminPaiements from './pages/AdminPaiements';
+import AdminProfile from './pages/AdminProfile';
 
 function App() {
   return (
@@ -62,6 +63,7 @@ function App() {
         <Route path="/AdminInscriptions" element={<AdminInscriptions />} />
         <Route path="/AdminStats" element={<AdminStats />} />
         <Route path="/AdminPaiements" element={<AdminPaiements />} />
+        <Route path="/AdminProfile" element={<AdminProfile />} />
 
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />

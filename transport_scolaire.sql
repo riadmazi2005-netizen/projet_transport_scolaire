@@ -174,7 +174,9 @@ CREATE TABLE demandes (
         'En attente', 
         'En cours de traitement', 
         'En attente de paiement', 
+        'Payée',
         'Validée', 
+        'Inscrit',
         'Refusée'
     ) DEFAULT 'En attente',
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
