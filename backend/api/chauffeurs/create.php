@@ -53,17 +53,35 @@ try {
     }
     
     // Créer le chauffeur
-    $stmt = $pdo->prepare('
-        INSERT INTO chauffeurs (utilisateur_id, numero_permis, salaire, date_embauche, statut)
-        VALUES (?, ?, ?, ?, ?)
-    ');
-    $stmt->execute([
-        $utilisateurId,
-        $data['permis'] ?? null,
-        $data['salaire'] ?? null,
-        $data['date_embauche'] ?? null,
-        $data['statut'] ?? 'Actif'
-    ]);
+    // Note: Si les colonnes salaire et date_embauche existent, on les ajoute
+    $columns = ['utilisateur_id'];
+    $values = [$utilisateurId];
+    $placeholders = ['?'];
+    
+    // Vérifier si la colonne salaire existe et l'ajouter si nécessaire
+    $checkSalaire = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'salaire'");
+    if ($checkSalaire->rowCount() > 0 && isset($data['salaire'])) {
+        $columns[] = 'salaire';
+        $values[] = $data['salaire'];
+        $placeholders[] = '?';
+    }
+    
+    // Vérifier si la colonne date_embauche existe et l'ajouter si nécessaire
+    $checkDateEmbauche = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'date_embauche'");
+    if ($checkDateEmbauche->rowCount() > 0 && isset($data['date_embauche']) && !empty($data['date_embauche'])) {
+        $columns[] = 'date_embauche';
+        $values[] = $data['date_embauche'];
+        $placeholders[] = '?';
+    }
+    
+    // Ajouter statut
+    $columns[] = 'statut';
+    $values[] = $data['statut'] ?? 'Actif';
+    $placeholders[] = '?';
+    
+    $sql = 'INSERT INTO chauffeurs (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($values);
     
     $chauffeurId = $pdo->lastInsertId();
     

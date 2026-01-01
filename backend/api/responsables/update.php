@@ -89,6 +89,19 @@ try {
     $respFields = [];
     $respValues = [];
     
+    // Vérifier si la colonne salaire existe avant de l'utiliser
+    try {
+        $checkSalaire = $pdo->query("SHOW COLUMNS FROM responsables_bus LIKE 'salaire'");
+        if ($checkSalaire->rowCount() > 0 && isset($data['salaire'])) {
+            $respFields[] = 'salaire = ?';
+            $respValues[] = $data['salaire'];
+            unset($data['salaire']);
+        }
+    } catch (Exception $e) {
+        // Colonne n'existe pas, on ignore
+        unset($data['salaire']);
+    }
+    
     if (isset($data['zone_responsabilite'])) {
         $respFields[] = 'zone_responsabilite = ?';
         $respValues[] = $data['zone_responsabilite'];
@@ -111,7 +124,7 @@ try {
             u.prenom,
             u.email,
             u.telephone,
-            u.mot_de_passe,
+            u.mot_de_passe as user_password,
             u.statut as user_statut
         FROM responsables_bus r
         LEFT JOIN utilisateurs u ON r.utilisateur_id = u.id

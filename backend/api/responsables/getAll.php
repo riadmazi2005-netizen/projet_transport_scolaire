@@ -10,7 +10,7 @@ $stmt = $pdo->query('
         u.prenom,
         u.email,
         u.telephone,
-        u.mot_de_passe,
+        u.mot_de_passe as user_password,
         u.statut as user_statut
     FROM responsables_bus r
     LEFT JOIN utilisateurs u ON r.utilisateur_id = u.id

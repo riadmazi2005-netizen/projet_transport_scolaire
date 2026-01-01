@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  GraduationCap, Search, User, ArrowLeft, Filter, Bus, MapPin, Phone, Calendar
+  GraduationCap, Search, User, ArrowLeft, Filter, Bus, MapPin, Phone, Calendar, Key
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from 'date-fns';
@@ -63,10 +63,14 @@ export default function AdminEleves() {
       // Filtrer uniquement les demandes d'inscription
       const demandesInscription = Array.isArray(demandesArray) ? demandesArray.filter(d => d.type_demande === 'inscription') : [];
       
-      // Filtrer uniquement les élèves qui ont une inscription active (statut = 'Active')
+      // Filtrer les élèves qui ont une inscription active OU une demande avec statut "Inscrit"
       const elevesInscrits = Array.isArray(elevesArray) ? elevesArray.filter(e => {
         const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut === 'Active') : null;
-        return inscription !== null;
+        const demandeInscription = Array.isArray(demandesInscription) ? demandesInscription
+          .filter(d => d.eleve_id === e.id)
+          .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
+        // Inclure si inscription active OU demande avec statut "Inscrit"
+        return inscription !== null || demandeInscription?.statut === 'Inscrit';
       }) : [];
       
       // Enrichir les élèves avec toutes les informations
@@ -80,6 +84,9 @@ export default function AdminEleves() {
           .filter(d => d.eleve_id === e.id)
           .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
         
+        // Déterminer le statut à afficher : "Inscrit" si la demande est "Inscrit", sinon utiliser le statut de l'inscription
+        const statutAffiche = demandeInscription?.statut === 'Inscrit' ? 'Inscrit' : (inscription?.statut || e.statut);
+        
         return {
           ...e,
           tuteur,
@@ -87,6 +94,7 @@ export default function AdminEleves() {
           bus,
           trajet,
           demande_inscription: demandeInscription,
+          statut_affichage: statutAffiche,
           type_transport: demandeInscription?.type_transport || inscription?.type_transport || 'Non spécifié',
           type_abonnement: demandeInscription?.abonnement || inscription?.type_abonnement || 'Non spécifié',
           groupe: demandeInscription?.groupe || inscription?.groupe || e.groupe || 'Non spécifié'
@@ -125,7 +133,8 @@ export default function AdminEleves() {
       'Suspendue': 'bg-orange-100 text-orange-700',
       'Terminée': 'bg-gray-100 text-gray-700',
       'Actif': 'bg-green-100 text-green-700',
-      'Inactif': 'bg-yellow-100 text-yellow-700'
+      'Inactif': 'bg-yellow-100 text-yellow-700',
+      'Inscrit': 'bg-emerald-100 text-emerald-700'
     };
     return styles[statut] || 'bg-gray-100 text-gray-700';
   };
@@ -306,13 +315,24 @@ export default function AdminEleves() {
                             <span>{format(new Date(eleve.inscription.date_debut), 'dd/MM/yyyy')}</span>
                           </div>
                         )}
+
+                        {/* Code de vérification */}
+                        {eleve.demande_inscription?.code_verification && (
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Key className="w-4 h-4 text-teal-500" />
+                            <span className="font-medium">Code de vérification:</span>
+                            <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-md font-mono font-semibold">
+                              {eleve.demande_inscription.code_verification}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex flex-col items-end gap-2">
-                    <span className={`px-4 py-2 rounded-xl text-sm font-medium ${getStatusBadge(eleve.inscription?.statut || eleve.statut)}`}>
-                      {eleve.inscription?.statut || eleve.statut}
+                    <span className={`px-4 py-2 rounded-xl text-sm font-medium ${getStatusBadge(eleve.statut_affichage || eleve.inscription?.statut || eleve.statut)}`}>
+                      {eleve.statut_affichage || eleve.inscription?.statut || eleve.statut}
                     </span>
                     {eleve.inscription?.montant_mensuel && (
                       <span className="text-sm text-gray-600 font-semibold">

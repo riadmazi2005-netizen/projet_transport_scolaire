@@ -416,10 +416,6 @@ export default function ResponsableDashboard() {
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Permis</span>
-                      <span className="font-medium">{chauffeur.numero_permis}</span>
-                    </div>
                     <div className="flex justify-between py-2">
                       <span className="text-gray-500">Accidents</span>
                       <span className={`font-bold ${

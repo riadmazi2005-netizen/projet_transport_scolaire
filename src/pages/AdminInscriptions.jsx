@@ -301,30 +301,52 @@ export default function AdminInscriptions() {
     }
   };
 
-  const handleVerifyZone = (eleve) => {
+  const handleVerifyZone = async (eleve) => {
     setSelectedEleve(eleve);
+    setError(null);
     
-    // Calculer les places restantes pour chaque bus
-    const busesWithCapacity = buses.map(bus => {
-      // Compter les inscriptions actives pour ce bus
-      const elevesInBus = inscriptions.filter(i => 
-        i.bus_id === bus.id && (i.statut === 'Active' || i.statut === 'Suspendue')
-      ).length;
+    try {
+      let busesWithCapacity = [];
       
-      const trajet = trajets.find(t => t.id === bus.trajet_id);
+      // Récupérer la zone géographique de l'élève depuis la demande d'inscription
+      const zone = eleve.demande_inscription?.zone_geographique || eleve.zone;
       
-      return {
-        ...bus,
-        trajet,
-        placesRestantes: bus.capacite - elevesInBus,
-        elevesInscrits: elevesInBus
-      };
-    }).filter(bus => 
-      bus.statut === 'Actif' && bus.placesRestantes > 0
-    );
-    
-    setAvailableBuses(busesWithCapacity);
-    setShowVerifyModal(true);
+      if (!zone) {
+        setError('Aucune zone géographique définie pour cet élève');
+        return;
+      }
+      
+      // Charger uniquement les bus qui concernent la zone de l'élève
+      try {
+        const busesResponse = await busAPI.getByZone(zone);
+        if (busesResponse.success && busesResponse.data && busesResponse.data.length > 0) {
+          busesWithCapacity = busesResponse.data.map(bus => {
+            const trajet = trajets.find(t => t.id === bus.trajet_id);
+            return {
+              ...bus,
+              trajet,
+              placesRestantes: bus.places_restantes || 0,
+              elevesInscrits: bus.eleves_inscrits || 0
+            };
+          });
+        }
+      } catch (err) {
+        console.error('Erreur lors du chargement des bus par zone:', err);
+        setError('Erreur lors du chargement des bus disponibles pour cette zone');
+        return;
+      }
+      
+      if (busesWithCapacity.length === 0) {
+        setError(`Aucun bus disponible pour la zone "${zone}"`);
+        return;
+      }
+      
+      setAvailableBuses(busesWithCapacity);
+      setShowVerifyModal(true);
+    } catch (err) {
+      console.error('Erreur lors de la préparation de l\'affectation:', err);
+      setError('Erreur lors du chargement des bus disponibles');
+    }
   };
 
   const handleAffectBus = async (busId) => {
@@ -334,13 +356,21 @@ export default function AdminInscriptions() {
     
     try {
       const bus = buses.find(b => b.id === busId);
+      if (!bus) {
+        setError('Bus non trouvé');
+        return;
+      }
       
-      if (selectedEleve.inscription) {
+      if (selectedEleve.inscription && selectedEleve.inscription.id) {
         // Mettre à jour l'inscription existante
-        await inscriptionsAPI.update(selectedEleve.inscription.id, {
+        const updateResponse = await inscriptionsAPI.update(selectedEleve.inscription.id, {
           bus_id: busId,
           statut: 'Active'
         });
+        
+        if (!updateResponse || !updateResponse.success) {
+          throw new Error(updateResponse?.message || 'Erreur lors de la mise à jour de l\'inscription');
+        }
       } else {
         // Créer une nouvelle inscription avec montant calculé depuis la demande
         let montantMensuel = 500; // valeur par défaut
@@ -355,22 +385,31 @@ export default function AdminInscriptions() {
           bus_id: busId,
           date_debut: format(new Date(), 'yyyy-MM-dd'),
           date_fin: format(new Date(new Date().setMonth(new Date().getMonth() + 10)), 'yyyy-MM-dd'),
-          montant_mensuel: montantMensuel
+          montant_mensuel: montantMensuel,
+          statut: 'Active'
         };
         
-        await inscriptionsAPI.create(inscriptionData);
+        const createResponse = await inscriptionsAPI.create(inscriptionData);
+        if (!createResponse || !createResponse.success) {
+          throw new Error(createResponse?.message || 'Erreur lors de la création de l\'inscription');
+        }
       }
       
       // Notifier le tuteur
       if (selectedEleve.tuteur_id) {
-        await notificationsAPI.create({
-          destinataire_id: selectedEleve.tuteur_id,
-          destinataire_type: 'tuteur',
-          titre: 'Affectation au bus',
-          message: `${selectedEleve.prenom} ${selectedEleve.nom} a été affecté(e) au bus ${bus.numero}.`,
-          type: 'info',
-          date: new Date().toISOString()
-        });
+        try {
+          await notificationsAPI.create({
+            destinataire_id: selectedEleve.tuteur_id,
+            destinataire_type: 'tuteur',
+            titre: 'Affectation au bus',
+            message: `${selectedEleve.prenom} ${selectedEleve.nom} a été affecté(e) au bus ${bus.numero}.`,
+            type: 'info',
+            date: new Date().toISOString()
+          });
+        } catch (notifError) {
+          console.warn('Erreur lors de l\'envoi de la notification:', notifError);
+          // On continue même si la notification échoue
+        }
       }
       
       setShowVerifyModal(false);
@@ -378,7 +417,7 @@ export default function AdminInscriptions() {
       await loadData();
     } catch (err) {
       console.error('Erreur lors de l\'affectation:', err);
-      setError('Erreur lors de l\'affectation au bus: ' + err.message);
+      setError('Erreur lors de l\'affectation au bus: ' + (err.message || 'Erreur inconnue'));
     }
   };
 
@@ -401,6 +440,7 @@ export default function AdminInscriptions() {
       'En cours de traitement': 'bg-blue-100 text-blue-700',
       'En attente de paiement': 'bg-orange-100 text-orange-700',
       'Validée': 'bg-green-100 text-green-700',
+      'Inscrit': 'bg-emerald-100 text-emerald-700',
       'Refusée': 'bg-red-100 text-red-700',
       'Active': 'bg-emerald-100 text-emerald-700',
       'Suspendue': 'bg-orange-100 text-orange-700',
@@ -476,6 +516,7 @@ export default function AdminInscriptions() {
                   <SelectItem value="En cours de traitement">En cours de traitement</SelectItem>
                   <SelectItem value="En attente de paiement">En attente de paiement</SelectItem>
                   <SelectItem value="Validée">Validée</SelectItem>
+                  <SelectItem value="Inscrit">Inscrit</SelectItem>
                   <SelectItem value="Refusée">Refusée</SelectItem>
                 </SelectContent>
               </Select>
@@ -598,7 +639,7 @@ export default function AdminInscriptions() {
                         </>
                       )}
 
-                      {eleve.statut_demande === 'Validée' && eleve.inscription && !eleve.inscription.bus_id && (
+                      {(eleve.statut_demande === 'Validée' || eleve.statut_demande === 'Inscrit') && !eleve.inscription?.bus_id && (
                         <Button
                           onClick={() => handleVerifyZone(eleve)}
                           className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
@@ -861,15 +902,25 @@ export default function AdminInscriptions() {
               <h2 className="text-xl font-bold text-gray-800">
                 Affectation de bus
               </h2>
-              <p className="text-gray-500">
-                Élève: {selectedEleve.prenom} {selectedEleve.nom}
-              </p>
-              {selectedEleve.adresse && (
-                <p className="text-sm text-gray-400 flex items-center gap-1 mt-1">
-                  <MapPin className="w-3 h-3" />
-                  {selectedEleve.adresse}
+              <div className="mt-2 space-y-1">
+                <p className="text-gray-700">
+                  <span className="font-medium">Nom:</span> {selectedEleve.nom}
                 </p>
-              )}
+                <p className="text-gray-700">
+                  <span className="font-medium">Prénom:</span> {selectedEleve.prenom}
+                </p>
+                {selectedEleve.demande_inscription?.zone_geographique && (
+                  <p className="text-gray-700">
+                    <span className="font-medium">Zone:</span> {selectedEleve.demande_inscription.zone_geographique}
+                  </p>
+                )}
+                {selectedEleve.adresse && (
+                  <p className="text-gray-700 flex items-center gap-1">
+                    <MapPin className="w-4 h-4" />
+                    <span className="font-medium">Adresse:</span> {selectedEleve.adresse}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="p-6">
@@ -892,7 +943,6 @@ export default function AdminInscriptions() {
                       <div className="flex justify-between items-center">
                         <div className="flex-1">
                           <h3 className="font-bold text-gray-800 text-lg">{bus.numero}</h3>
-                          <p className="text-sm text-gray-500">{bus.marque} {bus.modele}</p>
                           <p className="text-sm text-gray-400">Trajet: {bus.trajet?.nom || 'Non assigné'}</p>
                           <p className="text-xs text-gray-400 mt-1">
                             Capacité: {bus.elevesInscrits}/{bus.capacite}

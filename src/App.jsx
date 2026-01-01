@@ -23,7 +23,6 @@ import AdminChauffeur from './pages/AdminChauffeur';
 import AdminResponsable from './pages/AdminResponsable';
 import AdminEleves from './pages/AdminEleves';
 import AdminInscriptions from './pages/AdminInscriptions';
-import AdminAccidents from './pages/AdminAccidents';
 import AdminStats from './pages/AdminStats';
 import AdminPaiements from './pages/AdminPaiements';
 
@@ -61,7 +60,6 @@ function App() {
         <Route path="/AdminChauffeurs" element={<AdminChauffeur />} />
         <Route path="/AdminResponsables" element={<AdminResponsable />} />
         <Route path="/AdminInscriptions" element={<AdminInscriptions />} />
-        <Route path="/AdminAccidents" element={<AdminAccidents />} />
         <Route path="/AdminStats" element={<AdminStats />} />
         <Route path="/AdminPaiements" element={<AdminPaiements />} />
 

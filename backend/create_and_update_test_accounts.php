@@ -71,8 +71,10 @@ try {
             if (!$typeEntry) {
                 if ($type === 'chauffeur') {
                     // Pour les chauffeurs, on doit fournir un numéro de permis
+                    // Calculer la date d'expiration (2 ans à partir d'aujourd'hui) en PHP
+                    $dateExpiration = date('Y-m-d', strtotime('+2 years'));
                     $stmt = $pdo->prepare("INSERT INTO $tableName (utilisateur_id, numero_permis, date_expiration_permis, statut) VALUES (?, ?, ?, ?)");
-                    $stmt->execute([$userId, 'CH-TEST-' . $userId, DATE_ADD(CURDATE(), INTERVAL 2 YEAR), 'Actif']);
+                    $stmt->execute([$userId, 'CH-TEST-' . $userId, $dateExpiration, 'Actif']);
                 } elseif ($type === 'responsable') {
                     // Pour les responsables, on doit fournir une zone
                     $stmt = $pdo->prepare("INSERT INTO $tableName (utilisateur_id, zone_responsabilite, statut) VALUES (?, ?, ?)");

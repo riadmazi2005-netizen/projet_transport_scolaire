@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { chauffeursAPI } from '../services/apiService';
+import { chauffeursAPI, busAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  Users, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle, ArrowLeft
+  Users, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle, ArrowLeft, Bus
 } from 'lucide-react';
 
 export default function AdminChauffeurs() {
@@ -21,7 +21,7 @@ export default function AdminChauffeurs() {
   const [error, setError] = useState(null);
 
   const [form, setForm] = useState({
-    nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', permis: '', salaire: '', date_embauche: ''
+    nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: ''
   });
 
   useEffect(() => {
@@ -32,9 +32,24 @@ export default function AdminChauffeurs() {
     setLoading(true);
     setError(null);
     try {
-      const response = await chauffeursAPI.getAll();
-      const data = response?.data || response || [];
-      setChauffeurs(Array.isArray(data) ? data : []);
+      const [chauffeursRes, busesRes] = await Promise.all([
+        chauffeursAPI.getAll(),
+        busAPI.getAll()
+      ]);
+      
+      const chauffeursData = chauffeursRes?.data || chauffeursRes || [];
+      const busesData = busesRes?.data || busesRes || [];
+      
+      // Enrichir les chauffeurs avec l'info du bus assigné (un seul bus maximum)
+      const chauffeursEnrichis = Array.isArray(chauffeursData) ? chauffeursData.map(c => {
+        const busAssigne = Array.isArray(busesData) ? busesData.find(b => b.chauffeur_id === c.id) : null;
+        return {
+          ...c,
+          bus: busAssigne
+        };
+      }) : [];
+      
+      setChauffeurs(chauffeursEnrichis);
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
       setError('Erreur lors du chargement des chauffeurs');
@@ -51,26 +66,31 @@ export default function AdminChauffeurs() {
       let data;
       
       if (editing) {
-        // En mode édition, on peut modifier seulement le mot de passe et le salaire
+        // En mode édition, on peut modifier email, téléphone, mot de passe et salaire
         data = {
-          salaire: parseInt(form.salaire) || 0
+          email: form.email,
+          telephone: form.telephone
         };
         
         // Ajouter le mot de passe seulement s'il est rempli
         if (form.mot_de_passe) {
           data.mot_de_passe = form.mot_de_passe;
         }
+        
+        // Ajouter le salaire si fourni
+        if (form.salaire !== '' && form.salaire !== null && form.salaire !== undefined) {
+          data.salaire = parseFloat(form.salaire) || 0;
+        }
       } else {
-        // En mode création, envoyer toutes les données
+        // En mode création, envoyer toutes les données (sans permis)
         data = { 
           nom: form.nom,
           prenom: form.prenom,
           email: form.email,
           telephone: form.telephone,
           mot_de_passe: form.mot_de_passe,
-          permis: form.permis,
           salaire: parseInt(form.salaire) || 0,
-          date_embauche: form.date_embauche,
+          date_embauche: form.date_embauche || null,
           nombre_accidents: 0,
           statut: 'Actif'
         };
@@ -103,7 +123,7 @@ export default function AdminChauffeurs() {
   };
 
   const resetForm = () => {
-    setForm({ nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', permis: '', salaire: '', date_embauche: '' });
+    setForm({ nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: '' });
     setEditing(null);
     setShowForm(false);
   };
@@ -115,9 +135,7 @@ export default function AdminChauffeurs() {
       email: item.email || '',
       telephone: item.telephone || '',
       mot_de_passe: '', // Ne pas pré-remplir le mot de passe pour la sécurité
-      permis: item.permis || item.numero_permis || '',
-      salaire: item.salaire?.toString() || '',
-      date_embauche: item.date_embauche || ''
+      salaire: item.salaire !== null && item.salaire !== undefined ? item.salaire.toString() : ''
     });
     setEditing(item);
     setShowForm(true);
@@ -167,7 +185,7 @@ export default function AdminChauffeurs() {
             </h2>
             <Button
               onClick={() => setShowForm(true)}
-              className="bg-green-600 hover:bg-green-700 text-white rounded-xl"
+              className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
             >
               <Plus className="w-4 h-4 mr-2" />
               Ajouter
@@ -217,14 +235,6 @@ export default function AdminChauffeurs() {
                       />
                     </div>
                     <div>
-                      <Label>Numéro de permis</Label>
-                      <Input
-                        value={form.permis}
-                        onChange={(e) => setForm({ ...form, permis: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                    <div>
                       <Label>Date d'embauche</Label>
                       <Input
                         type="date"
@@ -233,28 +243,70 @@ export default function AdminChauffeurs() {
                         className="mt-1 rounded-xl"
                       />
                     </div>
+                    <div>
+                      <Label>Mot de passe</Label>
+                      <Input
+                        type="password"
+                        value={form.mot_de_passe}
+                        onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Salaire (DH)</Label>
+                      <Input
+                        type="number"
+                        value={form.salaire}
+                        onChange={(e) => setForm({ ...form, salaire: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
                   </>
                 )}
-                <div>
-                  <Label>Mot de passe {editing && '(laisser vide pour ne pas changer)'}</Label>
-                  <Input
-                    type="password"
-                    value={form.mot_de_passe}
-                    onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })}
-                    className="mt-1 rounded-xl"
-                    required={!editing}
-                  />
-                </div>
-                <div>
-                  <Label>Salaire (DH)</Label>
-                  <Input
-                    type="number"
-                    value={form.salaire}
-                    onChange={(e) => setForm({ ...form, salaire: e.target.value })}
-                    className="mt-1 rounded-xl"
-                    required
-                  />
-                </div>
+                {editing && (
+                  <>
+                    <div>
+                      <Label>Email</Label>
+                      <Input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Téléphone</Label>
+                      <Input
+                        value={form.telephone}
+                        onChange={(e) => setForm({ ...form, telephone: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Salaire (DH)</Label>
+                      <Input
+                        type="number"
+                        value={form.salaire}
+                        onChange={(e) => setForm({ ...form, salaire: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Mot de passe (laisser vide pour ne pas changer)</Label>
+                      <Input
+                        type="password"
+                        value={form.mot_de_passe}
+                        onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })}
+                        className="mt-1 rounded-xl"
+                      />
+                    </div>
+                  </>
+                )}
                 <div className="md:col-span-3 flex gap-3 justify-end">
                   <Button type="button" variant="outline" onClick={resetForm} className="rounded-xl">
                     <X className="w-4 h-4 mr-2" />
@@ -282,8 +334,14 @@ export default function AdminChauffeurs() {
                       <p className="text-gray-500">{item.telephone}</p>
                       <div className="flex flex-wrap gap-2 mt-2 text-sm">
                         <span className="px-2 py-1 bg-green-100 text-green-700 rounded-lg">
-                          {item.salaire} DH
+                          {item.salaire !== null && item.salaire !== undefined ? parseFloat(item.salaire).toLocaleString('fr-FR') : '0'} DH
                         </span>
+                        {item.bus && (
+                          <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg flex items-center gap-1">
+                            <Bus className="w-3 h-3" />
+                            {item.bus.numero}
+                          </span>
+                        )}
                         <span className={`px-2 py-1 rounded-lg ${
                           item.nombre_accidents >= 3 
                             ? 'bg-red-100 text-red-700' 

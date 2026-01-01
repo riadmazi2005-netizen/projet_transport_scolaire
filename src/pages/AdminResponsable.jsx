@@ -28,7 +28,7 @@ export default function AdminResponsables() {
     email: '', 
     telephone: '', 
     mot_de_passe: '', 
-    zone_responsabilite: ''
+    salaire: ''
   });
 
   useEffect(() => {
@@ -47,12 +47,12 @@ export default function AdminResponsables() {
       const responsablesData = responsablesRes?.data || responsablesRes || [];
       const busesData = busesRes?.data || busesRes || [];
       
-      // Enrichir les responsables avec les infos des bus assignés
+      // Enrichir les responsables avec l'info du bus assigné (un seul bus maximum)
       const responsablesEnrichis = Array.isArray(responsablesData) ? responsablesData.map(r => {
-        const busAssignes = Array.isArray(busesData) ? busesData.filter(b => b.responsable_id === r.id) : [];
+        const busAssigne = Array.isArray(busesData) ? busesData.find(b => b.responsable_id === r.id) : null;
         return {
           ...r,
-          buses: busAssignes
+          bus: busAssigne
         };
       }) : [];
       
@@ -73,13 +73,20 @@ export default function AdminResponsables() {
       let data;
       
       if (editing) {
-        // En mode édition, on peut modifier seulement le mot de passe
-        // (pas de salaire pour les responsables)
-        data = {};
+        // En mode édition, on peut modifier email, téléphone, mot de passe et salaire
+        data = {
+          email: form.email,
+          telephone: form.telephone
+        };
         
         // Ajouter le mot de passe seulement s'il est rempli
         if (form.mot_de_passe) {
           data.mot_de_passe = form.mot_de_passe;
+        }
+        
+        // Ajouter le salaire si fourni
+        if (form.salaire !== '' && form.salaire !== null && form.salaire !== undefined) {
+          data.salaire = parseFloat(form.salaire) || 0;
         }
       } else {
         // En mode création, envoyer toutes les données
@@ -89,7 +96,7 @@ export default function AdminResponsables() {
           email: form.email,
           telephone: form.telephone,
           mot_de_passe: form.mot_de_passe,
-          zone_responsabilite: form.zone_responsabilite,
+          salaire: parseFloat(form.salaire) || 0,
           role: 'responsable',
           statut: 'Actif'
         };
@@ -122,13 +129,13 @@ export default function AdminResponsables() {
   };
 
   const resetForm = () => {
-    setForm({ 
+    setForm({
       nom: '', 
       prenom: '', 
       email: '', 
       telephone: '', 
       mot_de_passe: '', 
-      zone_responsabilite: ''
+      salaire: ''
     });
     setEditing(null);
     setShowForm(false);
@@ -141,7 +148,7 @@ export default function AdminResponsables() {
       email: item.email || '',
       telephone: item.telephone || '',
       mot_de_passe: '', // Ne pas pré-remplir le mot de passe pour la sécurité
-      zone_responsabilite: item.zone_responsabilite || ''
+      salaire: item.salaire !== null && item.salaire !== undefined ? item.salaire.toString() : ''
     });
     setEditing(item);
     setShowForm(true);
@@ -191,7 +198,7 @@ export default function AdminResponsables() {
               </h2>
               <Button
                 onClick={() => setShowForm(true)}
-                className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl"
+                className="bg-purple-500 hover:bg-purple-600 text-white rounded-xl"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Ajouter
@@ -241,26 +248,71 @@ export default function AdminResponsables() {
                         />
                       </div>
                       <div>
-                        <Label>Zone de responsabilité</Label>
+                        <Label>Salaire (DH)</Label>
                         <Input
-                          value={form.zone_responsabilite}
-                          onChange={(e) => setForm({ ...form, zone_responsabilite: e.target.value })}
-                          placeholder="Ex: Zone Centre"
+                          type="number"
+                          value={form.salaire}
+                          onChange={(e) => setForm({ ...form, salaire: e.target.value })}
+                          className="mt-1 rounded-xl"
+                          required
+                        />
+                      </div>
+                    </>
+                  )}
+                  {!editing && (
+                    <div>
+                      <Label>Mot de passe</Label>
+                      <Input
+                        type="password"
+                        value={form.mot_de_passe}
+                        onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })}
+                        className="mt-1 rounded-xl"
+                        required
+                      />
+                    </div>
+                  )}
+                  {editing && (
+                    <>
+                      <div>
+                        <Label>Email</Label>
+                        <Input
+                          type="email"
+                          value={form.email}
+                          onChange={(e) => setForm({ ...form, email: e.target.value })}
+                          className="mt-1 rounded-xl"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label>Téléphone</Label>
+                        <Input
+                          value={form.telephone}
+                          onChange={(e) => setForm({ ...form, telephone: e.target.value })}
+                          className="mt-1 rounded-xl"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label>Salaire (DH)</Label>
+                        <Input
+                          type="number"
+                          value={form.salaire}
+                          onChange={(e) => setForm({ ...form, salaire: e.target.value })}
+                          className="mt-1 rounded-xl"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label>Mot de passe (laisser vide pour ne pas changer)</Label>
+                        <Input
+                          type="password"
+                          value={form.mot_de_passe}
+                          onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })}
                           className="mt-1 rounded-xl"
                         />
                       </div>
                     </>
                   )}
-                  <div>
-                    <Label>Mot de passe {editing && '(laisser vide pour ne pas changer)'}</Label>
-                    <Input
-                      type="password"
-                      value={form.mot_de_passe}
-                      onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })}
-                      className="mt-1 rounded-xl"
-                      required={!editing}
-                    />
-                  </div>
                   <div className="md:col-span-3 flex gap-3 justify-end">
                     <Button type="button" variant="outline" onClick={resetForm} className="rounded-xl">
                       <X className="w-4 h-4 mr-2" />
@@ -278,8 +330,8 @@ export default function AdminResponsables() {
             <div className="divide-y divide-gray-100">
               {responsables.map((item) => {
                 const isPasswordVisible = showPassword[item.id] || false;
-                // Le mot de passe est hashé dans la BD, on affiche le hash si visible
-                const passwordValue = item.mot_de_passe || item.user_password || 'N/A';
+                // Le mot de passe est en clair dans la BD, on affiche le mot de passe réel si visible
+                const passwordValue = item.user_password || item.mot_de_passe || 'N/A';
                 const passwordDisplay = isPasswordVisible ? passwordValue : '••••••••';
                 
                 return (
@@ -293,15 +345,18 @@ export default function AdminResponsables() {
                           <h3 className="text-lg font-bold text-gray-800">{item.prenom} {item.nom}</h3>
                           <p className="text-gray-500">{item.telephone}</p>
                           <div className="flex flex-wrap gap-2 mt-3 text-sm">
-                            {item.zone_responsabilite && (
+                            <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg">
+                              #{item.id}
+                            </span>
+                            {item.salaire !== null && item.salaire !== undefined && (
                               <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg">
-                                {item.zone_responsabilite}
+                                {parseFloat(item.salaire).toLocaleString('fr-FR')} DH
                               </span>
                             )}
-                            {item.buses && item.buses.length > 0 && (
+                            {item.bus && (
                               <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg flex items-center gap-1">
                                 <Bus className="w-3 h-3" />
-                                {item.buses.map(b => b.numero).join(', ')}
+                                {item.bus.numero}
                               </span>
                             )}
                           </div>

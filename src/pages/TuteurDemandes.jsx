@@ -213,6 +213,7 @@ export default function TuteurDemandes() {
       case 'En attente de paiement':
         return <CreditCard className="w-5 h-5 text-orange-500" />;
       case 'Validée':
+      case 'Inscrit':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'Refusée':
         return <XCircle className="w-5 h-5 text-red-500" />;
@@ -230,6 +231,7 @@ export default function TuteurDemandes() {
       case 'En attente de paiement':
         return 'bg-orange-50 border-orange-200 text-orange-800';
       case 'Validée':
+      case 'Inscrit':
         return 'bg-green-50 border-green-200 text-green-800';
       case 'Refusée':
         return 'bg-red-50 border-red-200 text-red-800';
@@ -292,7 +294,7 @@ export default function TuteurDemandes() {
 
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-            {['En attente', 'En cours de traitement', 'En attente de paiement', 'Validée', 'Refusée'].map(statut => {
+            {['En attente', 'En cours de traitement', 'En attente de paiement', 'Inscrit', 'Refusée'].map(statut => {
               const count = demandes.filter(d => d.statut === statut).length;
               return (
                 <Card key={statut} className="p-4 text-center">
@@ -413,8 +415,8 @@ export default function TuteurDemandes() {
                         </Button>
                       )}
 
-                      {/* Lien vers le suivi si validée */}
-                      {demande.statut === 'Validée' && demande.eleve_id && (
+                      {/* Lien vers le suivi si inscrit */}
+                      {(demande.statut === 'Validée' || demande.statut === 'Inscrit') && demande.eleve_id && (
                         <Button
                           onClick={() => navigate(createPageUrl('TuteurEleveDetails'), { state: { eleveId: demande.eleve_id } })}
                           className="mt-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"

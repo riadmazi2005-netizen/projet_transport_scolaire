@@ -354,7 +354,14 @@ export default function AdminAccidents() {
                   return chauffeur ? (
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">Chauffeur</label>
-                      <p className="text-gray-800">{chauffeur.prenom} {chauffeur.nom}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-gray-800">{chauffeur.prenom} {chauffeur.nom}</p>
+                        {chauffeur.salaire !== null && chauffeur.salaire !== undefined && (
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-sm">
+                            {chauffeur.salaire || 0} DH
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ) : null;
                 })()}

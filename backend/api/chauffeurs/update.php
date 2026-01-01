@@ -89,19 +89,29 @@ try {
     $chauffeurFields = [];
     $chauffeurValues = [];
     
-    if (isset($data['permis'])) {
-        $chauffeurFields[] = 'numero_permis = ?';
-        $chauffeurValues[] = $data['permis'];
+    // Ignorer numero_permis (supprimé de l'interface)
+    if (isset($data['permis']) || isset($data['numero_permis'])) {
         unset($data['permis']);
+        unset($data['numero_permis']);
     }
-    if (isset($data['salaire'])) {
+    
+    // Vérifier si la colonne salaire existe avant de l'utiliser
+    $checkSalaire = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'salaire'");
+    if ($checkSalaire->rowCount() > 0 && isset($data['salaire'])) {
         $chauffeurFields[] = 'salaire = ?';
         $chauffeurValues[] = $data['salaire'];
         unset($data['salaire']);
+    } elseif (isset($data['salaire'])) {
+        unset($data['salaire']);
     }
-    if (isset($data['date_embauche'])) {
+    
+    // Vérifier si la colonne date_embauche existe avant de l'utiliser
+    $checkDateEmbauche = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'date_embauche'");
+    if ($checkDateEmbauche->rowCount() > 0 && isset($data['date_embauche'])) {
         $chauffeurFields[] = 'date_embauche = ?';
         $chauffeurValues[] = $data['date_embauche'];
+        unset($data['date_embauche']);
+    } elseif (isset($data['date_embauche'])) {
         unset($data['date_embauche']);
     }
     if (isset($data['nombre_accidents'])) {

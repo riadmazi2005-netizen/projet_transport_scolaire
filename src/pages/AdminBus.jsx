@@ -31,11 +31,13 @@ export default function AdminBus() {
   });
 
   const [trajetForm, setTrajetForm] = useState({
-    nom: '', zones: '', heure_depart_matin_a: '07:30', heure_arrivee_matin_a: '08:00',
+    nom: '', zones: [], heure_depart_matin_a: '07:30', heure_arrivee_matin_a: '08:00',
     heure_depart_soir_a: '17:00', heure_arrivee_soir_a: '17:30',
     heure_depart_matin_b: '08:00', heure_arrivee_matin_b: '08:30',
     heure_depart_soir_b: '17:30', heure_arrivee_soir_b: '18:00'
   });
+
+  const zones = ['Medina', 'Hay Sinaï', 'Hay El Fath', 'Souissi', 'Akkari', 'Manal', 'Agdal', 'Nahda-Takkadoum', 'Temara'];
 
   useEffect(() => {
     loadData();
@@ -81,7 +83,7 @@ export default function AdminBus() {
           (!editingBus || b.id !== editingBus.id)
         );
         if (existingBusWithChauffeur) {
-          setError('Ce chauffeur est déjà affecté à un autre bus');
+          setError(`Ce chauffeur est déjà affecté au bus ${existingBusWithChauffeur.numero}. Veuillez d'abord retirer son affectation de ce bus avant de l'affecter à un autre bus.`);
           return;
         }
       }
@@ -93,7 +95,7 @@ export default function AdminBus() {
           (!editingBus || b.id !== editingBus.id)
         );
         if (existingBusWithResponsable) {
-          setError('Ce responsable est déjà affecté à un autre bus');
+          setError(`Ce responsable est déjà affecté au bus ${existingBusWithResponsable.numero}. Veuillez d'abord retirer son affectation de ce bus avant de l'affecter à un autre bus.`);
           return;
         }
       }
@@ -126,9 +128,19 @@ export default function AdminBus() {
     setError(null);
     
     try {
+      if (trajetForm.zones.length === 0) {
+        setError('Veuillez sélectionner au moins une zone');
+        return;
+      }
+      
+      if (trajetForm.zones.length > 2) {
+        setError('Vous ne pouvez sélectionner au maximum que 2 zones');
+        return;
+      }
+      
       const data = {
         ...trajetForm,
-        zones: trajetForm.zones.split(',').map(z => z.trim())
+        zones: trajetForm.zones // Envoyer directement le tableau
       };
       
       if (editingTrajet) {
@@ -177,7 +189,7 @@ export default function AdminBus() {
 
   const resetTrajetForm = () => {
     setTrajetForm({
-      nom: '', zones: '', heure_depart_matin_a: '07:30', heure_arrivee_matin_a: '08:00',
+      nom: '', zones: [], heure_depart_matin_a: '07:30', heure_arrivee_matin_a: '08:00',
       heure_depart_soir_a: '17:00', heure_arrivee_soir_a: '17:30',
       heure_depart_matin_b: '08:00', heure_arrivee_matin_b: '08:30',
       heure_depart_soir_b: '17:30', heure_arrivee_soir_b: '18:00'
@@ -200,12 +212,33 @@ export default function AdminBus() {
   };
 
   const editTrajet = (trajet) => {
+    // Convertir les zones en tableau si c'est une chaîne séparée par des virgules
+    let zonesArray = [];
+    if (Array.isArray(trajet.zones)) {
+      zonesArray = trajet.zones;
+    } else if (typeof trajet.zones === 'string' && trajet.zones.trim()) {
+      zonesArray = trajet.zones.split(',').map(z => z.trim()).filter(z => z);
+    }
+    
     setTrajetForm({
       ...trajet,
-      zones: Array.isArray(trajet.zones) ? trajet.zones.join(', ') : trajet.zones
+      zones: zonesArray
     });
     setEditingTrajet(trajet);
     setShowTrajetForm(true);
+  };
+
+  const handleZoneSelect = (zone) => {
+    setError(null); // Réinitialiser l'erreur
+    if (trajetForm.zones.includes(zone)) {
+      // Retirer la zone si déjà sélectionnée
+      setTrajetForm({ ...trajetForm, zones: trajetForm.zones.filter(z => z !== zone) });
+    } else {
+      // Ajouter la zone si moins de 2 zones sont sélectionnées
+      if (trajetForm.zones.length < 2) {
+        setTrajetForm({ ...trajetForm, zones: [...trajetForm.zones, zone] });
+      }
+    }
   };
 
   if (loading) {
@@ -309,16 +342,17 @@ export default function AdminBus() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Aucun</SelectItem>
-                        {chauffeurs
-                          .filter(c => {
-                            // Si on est en mode édition, permettre le chauffeur actuel
-                            if (editingBus && editingBus.chauffeur_id === c.id) return true;
-                            // Sinon, ne montrer que les chauffeurs non affectés
-                            return !buses.some(b => b.chauffeur_id === c.id);
-                          })
-                          .map(c => (
-                            <SelectItem key={c.id} value={c.id.toString()}>{c.prenom} {c.nom}</SelectItem>
-                          ))}
+                        {chauffeurs.map(c => {
+                          const isAssigned = buses.some(b => b.chauffeur_id === c.id && (!editingBus || b.id !== editingBus.id));
+                          const currentBus = editingBus && editingBus.chauffeur_id === c.id ? editingBus : null;
+                          return (
+                            <SelectItem key={c.id} value={c.id.toString()}>
+                              {c.prenom} {c.nom}
+                              {isAssigned && !currentBus && ' (déjà affecté)'}
+                              {currentBus && ` (bus ${currentBus.numero})`}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -330,16 +364,11 @@ export default function AdminBus() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Aucun</SelectItem>
-                        {responsables
-                          .filter(r => {
-                            // Si on est en mode édition, permettre le responsable actuel
-                            if (editingBus && editingBus.responsable_id === r.id) return true;
-                            // Sinon, ne montrer que les responsables non affectés
-                            return !buses.some(b => b.responsable_id === r.id);
-                          })
-                          .map(r => (
-                            <SelectItem key={r.id} value={r.id.toString()}>{r.prenom} {r.nom}</SelectItem>
-                          ))}
+                        {responsables.map(r => (
+                          <SelectItem key={r.id} value={r.id.toString()}>
+                            {r.prenom} {r.nom}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -395,8 +424,13 @@ export default function AdminBus() {
                                 {chauffeur.prenom} {chauffeur.nom}
                               </span>
                             )}
-                            {trajet && (
+                            {responsable && (
                               <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg">
+                                Resp: {responsable.prenom} {responsable.nom}
+                              </span>
+                            )}
+                            {trajet && (
+                              <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg">
                                 {trajet.nom}
                               </span>
                             )}
@@ -461,14 +495,58 @@ export default function AdminBus() {
                       />
                     </div>
                     <div>
-                      <Label>Zones desservies (séparées par des virgules)</Label>
-                      <Input
-                        value={trajetForm.zones}
-                        onChange={(e) => setTrajetForm({ ...trajetForm, zones: e.target.value })}
-                        placeholder="Ex: Zone 1, Zone 2, Zone 3"
-                        className="mt-1 rounded-xl"
-                        required
-                      />
+                      <Label className="text-gray-700 font-medium flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-amber-500" />
+                        Zones desservies (max 2)
+                      </Label>
+                      <div className="mt-2 space-y-2">
+                        {/* Zones sélectionnées */}
+                        {trajetForm.zones.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {trajetForm.zones.map((zone, index) => (
+                              <span
+                                key={index}
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm"
+                              >
+                                {zone}
+                                <button
+                                  type="button"
+                                  onClick={() => handleZoneSelect(zone)}
+                                  className="ml-1 hover:text-amber-900"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Menu de sélection */}
+                        <Select
+                          value=""
+                          onValueChange={(value) => {
+                            if (value && value !== '') {
+                              handleZoneSelect(value);
+                            }
+                          }}
+                          disabled={trajetForm.zones.length >= 2}
+                        >
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue placeholder={trajetForm.zones.length >= 2 ? "Maximum 2 zones sélectionnées" : "Sélectionnez une zone"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {zones
+                              .filter(zone => !trajetForm.zones.includes(zone))
+                              .map(zone => (
+                                <SelectItem key={zone} value={zone}>
+                                  {zone}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-gray-500">
+                          {trajetForm.zones.length}/2 zones sélectionnées
+                        </p>
+                      </div>
                     </div>
                   </div>
 

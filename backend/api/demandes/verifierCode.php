@@ -60,19 +60,25 @@ try {
         exit;
     }
     
-    // Code correct - mettre à jour le statut de la demande et de l'élève
+    // Code correct - mettre à jour le statut de la demande en "Inscrit" et de l'élève en "Actif"
     $stmt = $pdo->prepare('
         UPDATE demandes 
-        SET statut = "Validée",
+        SET statut = "Inscrit",
             date_traitement = NOW()
         WHERE id = ?
     ');
     $stmt->execute([$data['demande_id']]);
     
-    // Activer l'élève
+    // Activer l'élève (mettre le statut à "Actif")
     if ($demande['eleve_id']) {
         $stmt = $pdo->prepare('UPDATE eleves SET statut = "Actif" WHERE id = ?');
         $stmt->execute([$demande['eleve_id']]);
+        
+        // Vérifier que la mise à jour a bien été effectuée
+        if ($stmt->rowCount() === 0) {
+            // L'élève n'existe pas, créer un log d'erreur mais continuer quand même
+            error_log("Erreur: L'élève avec l'ID {$demande['eleve_id']} n'existe pas dans la table eleves");
+        }
     }
     
     // Envoyer une notification au tuteur
@@ -118,7 +124,7 @@ try {
         'data' => [
             'demande_id' => $demande['id'],
             'eleve_id' => $demande['eleve_id'],
-            'statut' => 'Validée'
+            'statut' => 'Inscrit'
         ]
     ]);
 } catch (PDOException $e) {

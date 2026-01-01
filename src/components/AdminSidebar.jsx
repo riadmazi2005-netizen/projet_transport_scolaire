@@ -10,7 +10,6 @@ import {
   Navigation,
   UserCog,
   CreditCard,
-  AlertCircle,
   Bell,
   Menu,
   X,
@@ -85,12 +84,6 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
       icon: CreditCard,
       link: 'AdminPaiements',
       path: '/AdminPaiements'
-    },
-    {
-      title: 'Accidents',
-      icon: AlertCircle,
-      link: 'AdminAccidents',
-      path: '/AdminAccidents'
     },
   ];
 
