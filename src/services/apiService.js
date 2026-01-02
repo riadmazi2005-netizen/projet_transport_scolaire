@@ -423,3 +423,50 @@ export const statistiquesAPI = {
   getPresences: (startDate, endDate) => 
     fetchAPI(`/statistiques/presences.php?start_date=${startDate}&end_date=${endDate}`),
 };
+
+// ============================================
+// ESSENCE
+// ============================================
+
+export const essenceAPI = {
+  create: (data) => fetchAPI('/essence/create.php', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getByChauffeur: (chauffeurId) => fetchAPI(`/essence/getByChauffeur.php?chauffeur_id=${chauffeurId}`),
+};
+
+// ============================================
+// RAPPORTS TRAJET
+// ============================================
+
+export const rapportsAPI = {
+  create: (data) => fetchAPI('/rapports/create.php', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getByChauffeur: (chauffeurId) => fetchAPI(`/rapports/getByChauffeur.php?chauffeur_id=${chauffeurId}`),
+};
+
+// ============================================
+// CHECKLIST
+// ============================================
+
+export const checklistAPI = {
+  create: (data) => fetchAPI('/checklist/create.php', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+};
+
+// ============================================
+// SIGNALEMENTS
+// ============================================
+
+export const signalementsAPI = {
+  create: (data) => fetchAPI('/signalements/create.php', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getByChauffeur: (chauffeurId) => fetchAPI(`/signalements/getByChauffeur.php?chauffeur_id=${chauffeurId}`),
+};

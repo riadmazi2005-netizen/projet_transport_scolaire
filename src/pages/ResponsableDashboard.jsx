@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { responsablesAPI, busAPI, chauffeursAPI, elevesAPI, presencesAPI, notificationsAPI, inscriptionsAPI, accidentsAPI } from '../services/apiService';
+import { responsablesAPI, busAPI, chauffeursAPI, elevesAPI, presencesAPI, notificationsAPI, inscriptionsAPI, accidentsAPI, trajetsAPI, tuteursAPI, rapportsAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   UserCog, Bell, LogOut, Bus, Users, AlertCircle,
-  DollarSign, User, Edit, CheckCircle, Plus, X
+  DollarSign, User, Edit, CheckCircle, Plus, X, MessageSquare, Send, Navigation, MapPin
 } from 'lucide-react';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
@@ -20,7 +20,7 @@ import { format } from 'date-fns';
 export default function ResponsableDashboard() {
   const navigate = useNavigate();
   const [responsable, setResponsable] = useState(null);
-  const [buses, setBuses] = useState([]);
+  const [bus, setBus] = useState(null);
   const [chauffeur, setChauffeur] = useState(null);
   const [eleves, setEleves] = useState([]);
   const [presences, setPresences] = useState([]);
@@ -41,6 +41,21 @@ export default function ResponsableDashboard() {
     nombre_eleves: '',
     nombre_blesses: '0'
   });
+  
+  // États pour Communication avec parents
+  const [showCommunicationForm, setShowCommunicationForm] = useState(false);
+  const [communicationForm, setCommunicationForm] = useState({
+    destinataire: 'tous', // tous, bus, eleve
+    bus_id: null,
+    eleve_id: null,
+    titre: '',
+    message: '',
+    type: 'info' // info, alerte, urgence
+  });
+  const [tuteurs, setTuteurs] = useState([]);
+  
+  // États pour trajets
+  const [trajet, setTrajet] = useState(null);
 
   useEffect(() => {
     const session = localStorage.getItem('responsable_session');
@@ -53,6 +68,103 @@ export default function ResponsableDashboard() {
     setResponsable(responsableData);
     loadData(responsableData);
   }, [navigate]);
+  
+  // Vérification automatique des retards toutes les 5 minutes
+  useEffect(() => {
+    if (!bus || !trajet) return;
+    
+    const checkRetards = async () => {
+      try {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const statusMap = {};
+        const retardsDetectes = [];
+        
+        if (bus) {
+          if (bus.chauffeur_id) {
+            try {
+              const rapportsResponse = await rapportsAPI.getByChauffeur(bus.chauffeur_id);
+              const rapportsData = rapportsResponse?.data || rapportsResponse || [];
+              const rapportAujourdhui = rapportsData.find(r => r.date === today);
+              
+              if (rapportAujourdhui && rapportAujourdhui.heure_depart_reelle) {
+                if (trajet && trajet.id === bus.trajet_id) {
+                  const periode = rapportAujourdhui.periode;
+                  const heurePrevue = periode === 'matin' 
+                    ? trajet.heure_depart_matin_a 
+                    : trajet.heure_depart_soir_a;
+                  
+                  if (heurePrevue) {
+                    const [hPrev, mPrev] = heurePrevue.split(':').map(Number);
+                    const [hReel, mReel] = rapportAujourdhui.heure_depart_reelle.split(':').map(Number);
+                    const retard = (hReel * 60 + mReel) - (hPrev * 60 + mPrev);
+                    
+                    if (retard > 10) { // Retard de plus de 10 minutes
+                      retardsDetectes.push({
+                        bus: bus,
+                        retard: retard,
+                        periode: periode
+                      });
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn('Erreur vérification retard bus', bus.id, err);
+            }
+          }
+        }
+        
+        // Envoyer des notifications automatiques pour les retards importants
+        if (retardsDetectes.length > 0 && responsable) {
+          for (const retard of retardsDetectes) {
+            // Vérifier si on a déjà envoyé une notification pour ce retard aujourd'hui
+            const notificationExiste = notifications.some(n => 
+              n.titre?.includes(`Retard Bus ${retard.bus.numero}`) &&
+              n.date?.startsWith(today)
+            );
+            
+            if (!notificationExiste) {
+              // Envoyer notification aux parents des élèves du bus
+              try {
+                const allInscriptions = await inscriptionsAPI.getAll();
+                const inscriptions = (allInscriptions?.data || allInscriptions || []).filter(i => 
+                  i.bus_id === retard.bus.id && i.statut === 'Active'
+                );
+                const eleveIds = inscriptions.map(i => i.eleve_id);
+                const allEleves = await elevesAPI.getAll();
+                const myEleves = (allEleves?.data || allEleves || []).filter(e => 
+                  eleveIds.includes(e.id) && e.tuteur_id
+                );
+                
+                const promises = myEleves.map(eleve => 
+                  notificationsAPI.create({
+                    destinataire_id: eleve.tuteur_id,
+                    destinataire_type: 'tuteur',
+                    titre: `Retard Bus ${retard.bus.numero}`,
+                    message: `Le bus ${retard.bus.numero} a un retard de ${retard.retard} minutes pour le trajet ${retard.periode === 'matin' ? 'du matin' : 'du soir'}.`,
+                    type: 'alerte',
+                    date: new Date().toISOString()
+                  })
+                );
+                
+                await Promise.all(promises);
+              } catch (err) {
+                console.error('Erreur envoi notification retard:', err);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Erreur vérification retards:', err);
+      }
+    };
+    
+    // Vérifier immédiatement puis toutes les 5 minutes
+    checkRetards();
+    const interval = setInterval(checkRetards, 5 * 60 * 1000); // 5 minutes
+    
+    return () => clearInterval(interval);
+  }, [bus, trajet, responsable]);
 
   const loadData = async (responsableData) => {
     try {
@@ -68,22 +180,20 @@ export default function ResponsableDashboard() {
         }
       }
       
-      // Charger tous les bus assignés à ce responsable
+      // Charger le bus assigné à ce responsable (un seul bus)
       // Utiliser type_id (ID dans la table responsables_bus) au lieu de id (ID utilisateur)
       const allBusesResponse = await busAPI.getAll();
       const allBuses = allBusesResponse?.data || allBusesResponse || [];
       const responsableId = responsableData.type_id || responsableData.id;
-      const myBuses = allBuses.filter(b => b.responsable_id === responsableId);
-      setBuses(myBuses);
+      const myBus = allBuses.find(b => b.responsable_id === responsableId);
+      setBus(myBus || null);
       
-      // Si le responsable a des bus
-      if (myBuses.length > 0) {
-        const mainBus = myBuses[0]; // Premier bus comme bus principal
-        
-        // Charger le chauffeur du bus principal
-        if (mainBus.chauffeur_id) {
+      // Si le responsable a un bus
+      if (myBus) {
+        // Charger le chauffeur du bus
+        if (myBus.chauffeur_id) {
           try {
-            const chauffeurResponse = await chauffeursAPI.getById(mainBus.chauffeur_id);
+            const chauffeurResponse = await chauffeursAPI.getById(myBus.chauffeur_id);
             const chauffeurData = chauffeurResponse?.data || chauffeurResponse;
             setChauffeur(chauffeurData);
           } catch (err) {
@@ -91,11 +201,10 @@ export default function ResponsableDashboard() {
           }
         }
         
-        // Charger tous les élèves assignés aux bus du responsable
+        // Charger tous les élèves assignés au bus du responsable
         const allInscriptionsResponse = await inscriptionsAPI.getAll();
         const allInscriptions = allInscriptionsResponse?.data || allInscriptionsResponse || [];
-        const busIds = myBuses.map(b => b.id);
-        const myInscriptions = allInscriptions.filter(i => busIds.includes(i.bus_id));
+        const myInscriptions = allInscriptions.filter(i => i.bus_id === myBus.id);
         
         const allElevesResponse = await elevesAPI.getAll();
         const allEleves = allElevesResponse?.data || allElevesResponse || [];
@@ -128,6 +237,26 @@ export default function ResponsableDashboard() {
       } catch (err) {
         console.warn('Erreur chargement accidents:', err);
         setAccidents([]);
+      }
+      
+      // Charger le trajet du bus
+      if (myBus && myBus.trajet_id) {
+        try {
+          const trajetResponse = await trajetsAPI.getById(myBus.trajet_id);
+          const trajetData = trajetResponse?.data || trajetResponse;
+          setTrajet(trajetData);
+        } catch (err) {
+          console.warn('Erreur chargement trajet:', err);
+        }
+      }
+      
+      // Charger les tuteurs pour la communication
+      try {
+        const tuteursResponse = await tuteursAPI.getAll();
+        const tuteursData = tuteursResponse?.data || tuteursResponse || [];
+        setTuteurs(tuteursData);
+      } catch (err) {
+        console.warn('Erreur chargement tuteurs:', err);
       }
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
@@ -203,7 +332,6 @@ export default function ResponsableDashboard() {
   };
 
   const unreadCount = notifications.filter(n => !n.lue).length;
-  const mainBus = buses.length > 0 ? buses[0] : null;
   const totalAccidents = chauffeur?.nombre_accidents || 0;
 
   if (loading) {
@@ -267,11 +395,10 @@ export default function ResponsableDashboard() {
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <StatCard 
-            title="Mes Bus" 
-            value={buses.length} 
+            title="Mon Bus" 
+            value={bus?.numero || '-'} 
             icon={Bus} 
             color="amber"
-            subtitle={mainBus?.numero || 'Aucun bus'}
           />
           <StatCard 
             title="Élèves" 
@@ -295,7 +422,7 @@ export default function ResponsableDashboard() {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {['presence', 'eleves', 'bus', 'accidents'].map((tab) => (
+          {['presence', 'eleves', 'bus', 'communication', 'accidents'].map((tab) => (
             <Button
               key={tab}
               variant={activeTab === tab ? 'default' : 'outline'}
@@ -308,7 +435,8 @@ export default function ResponsableDashboard() {
             >
               {tab === 'presence' && 'Présences'}
               {tab === 'eleves' && 'Élèves'}
-              {tab === 'bus' && 'Mes Bus'}
+              {tab === 'bus' && 'Mon Bus'}
+              {tab === 'communication' && 'Communication'}
               {tab === 'accidents' && 'Accidents'}
             </Button>
           ))}
@@ -369,60 +497,101 @@ export default function ResponsableDashboard() {
 
         {activeTab === 'bus' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {buses.map((bus) => (
-              <div key={bus.id} className="bg-white rounded-3xl shadow-xl p-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <Bus className="w-5 h-5 text-amber-500" />
-                  Bus {bus.numero}
-                </h2>
+            <div className="bg-white rounded-3xl shadow-xl p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Bus className="w-5 h-5 text-amber-500" />
+                Mon Bus
+              </h2>
+              {bus ? (
                 <div className="space-y-4">
-                  <div className="bg-amber-50 rounded-2xl p-4 text-center">
-                    <p className="text-4xl font-bold text-amber-600">{bus.numero}</p>
-                    <p className="text-gray-500">{bus.immatriculation}</p>
+                  <div className="bg-amber-50 rounded-2xl p-6 text-center">
+                    <p className="text-5xl font-bold text-amber-600">{bus.numero}</p>
+                    <p className="text-gray-500 mt-2">{bus.marque} {bus.modele}</p>
                   </div>
                   <div className="space-y-3">
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Marque</span>
-                      <span className="font-medium">{bus.marque || '-'}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Modèle</span>
-                      <span className="font-medium">{bus.modele || '-'}</span>
-                    </div>
                     <div className="flex justify-between py-2 border-b">
                       <span className="text-gray-500">Capacité</span>
                       <span className="font-medium">{bus.capacite} places</span>
                     </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-gray-500">Places occupées</span>
+                      <span className="font-medium">{eleves.length}</span>
+                    </div>
                     <div className="flex justify-between py-2">
                       <span className="text-gray-500">Statut</span>
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        bus.statut === 'Actif' ? 'bg-green-100 text-green-700' : 
-                        bus.statut === 'En maintenance' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-red-100 text-red-700'
+                        bus.statut === 'Actif' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                       }`}>
                         {bus.statut}
                       </span>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            
-            {buses.length === 0 && (
-              <div className="col-span-2 bg-white rounded-3xl shadow-xl p-12 text-center text-gray-400">
-                <Bus className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Aucun bus assigné</p>
-              </div>
-            )}
+              ) : (
+                <p className="text-center text-gray-400 py-8">Aucun bus assigné</p>
+              )}
+            </div>
 
-            {/* Chauffeur Info */}
-            {chauffeur && (
-              <div className="bg-white rounded-3xl shadow-xl p-6">
+            <div className="bg-white rounded-3xl shadow-xl p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Navigation className="w-5 h-5 text-amber-500" />
+                Mon Trajet
+              </h2>
+              {trajet ? (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 rounded-2xl p-4">
+                    <p className="text-sm text-blue-600 font-medium">Trajet</p>
+                    <p className="text-xl font-bold text-gray-800">{trajet.nom}</p>
+                  </div>
+                  
+                  {trajet.zones && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                        <MapPin className="w-4 h-4" />
+                        Zones desservies
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(Array.isArray(trajet.zones) ? trajet.zones : JSON.parse(trajet.zones || '[]')).map((zone, i) => (
+                          <span key={i} className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm">
+                            {zone}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <div className="bg-green-50 rounded-xl p-3">
+                      <p className="text-xs text-green-600 font-medium">Groupe A - Matin</p>
+                      <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_a} - {trajet.heure_arrivee_matin_a}</p>
+                    </div>
+                    <div className="bg-orange-50 rounded-xl p-3">
+                      <p className="text-xs text-orange-600 font-medium">Groupe A - Soir</p>
+                      <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_a} - {trajet.heure_arrivee_soir_a}</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-xl p-3">
+                      <p className="text-xs text-blue-600 font-medium">Groupe B - Matin</p>
+                      <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_b} - {trajet.heure_arrivee_matin_b}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3">
+                      <p className="text-xs text-purple-600 font-medium">Groupe B - Soir</p>
+                      <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_b} - {trajet.heure_arrivee_soir_b}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center text-gray-400 py-8">Aucun trajet assigné</p>
+              )}
+            </div>
+
+            {/* Chauffeur */}
+            {bus && (
+              <div className="bg-white rounded-3xl shadow-xl p-6 md:col-span-2">
                 <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <User className="w-5 h-5 text-amber-500" />
                   Chauffeur
                 </h2>
-                <div className="space-y-4">
+                {chauffeur ? (
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
                       <User className="w-8 h-8 text-gray-400" />
@@ -432,27 +601,112 @@ export default function ResponsableDashboard() {
                         {chauffeur.prenom} {chauffeur.nom}
                       </h3>
                       <p className="text-gray-500">{chauffeur.telephone}</p>
+                      <p className="text-gray-400 text-sm">{chauffeur.email}</p>
+                    </div>
+                    <div className="ml-auto">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">Accidents:</span>
+                        <span className={`font-bold ${
+                          chauffeur.nombre_accidents >= 3 ? 'text-red-500' : 'text-green-500'
+                        }`}>
+                          {chauffeur.nombre_accidents} / 3
+                        </span>
+                      </div>
+                      {chauffeur.nombre_accidents >= 3 && (
+                        <div className="mt-2 bg-red-50 border border-red-200 rounded-xl p-2 text-red-700 text-xs">
+                          <AlertCircle className="w-4 h-4 inline mr-1" />
+                          Attention: 3 accidents = licenciement + amende 1000 DH
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between py-2">
-                      <span className="text-gray-500">Accidents</span>
-                      <span className={`font-bold ${
-                        chauffeur.nombre_accidents >= 3 ? 'text-red-500' : 'text-green-500'
-                      }`}>
-                        {chauffeur.nombre_accidents} / 3
-                      </span>
-                    </div>
-                  </div>
-                  {chauffeur.nombre_accidents >= 3 && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
-                      <AlertCircle className="w-5 h-5 inline mr-2" />
-                      Attention: 3 accidents = licenciement + amende 1000 DH
-                    </div>
-                  )}
-                </div>
+                ) : (
+                  <p className="text-center text-gray-400 py-4">Aucun chauffeur assigné</p>
+                )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Section Communication avec Parents */}
+        {activeTab === 'communication' && (
+          <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <MessageSquare className="w-6 h-6 text-blue-500" />
+                Communication avec les Parents
+              </h2>
+              <Button
+                onClick={() => setShowCommunicationForm(true)}
+                className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Nouveau message
+              </Button>
+            </div>
+            
+            <div className="p-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                <p className="text-sm text-blue-800">
+                  <strong>💡 Astuce:</strong> Envoyez des notifications groupées pour informer tous les parents d'un bus, ou des messages personnalisés à un parent spécifique.
+                </p>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
+                    <p className="text-sm text-blue-600 font-medium">Messages envoyés</p>
+                    <p className="text-2xl font-bold text-blue-800">
+                      {notifications.filter(n => n.destinataire_type === 'tuteur').length}
+                    </p>
+                  </div>
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4">
+                    <p className="text-sm text-green-600 font-medium">Parents notifiés</p>
+                    <p className="text-2xl font-bold text-green-800">{tuteurs.length}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4">
+                    <p className="text-sm text-amber-600 font-medium">Élèves concernés</p>
+                    <p className="text-2xl font-bold text-amber-800">{eleves.length}</p>
+                  </div>
+                </div>
+                
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Historique des messages</h3>
+                  <div className="space-y-3">
+                    {notifications
+                      .filter(n => n.destinataire_type === 'tuteur')
+                      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+                      .slice(0, 10)
+                      .map((notif) => (
+                        <div key={notif.id} className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <h4 className="font-semibold text-gray-800">{notif.titre}</h4>
+                              <p className="text-sm text-gray-600 mt-1">{notif.message}</p>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              notif.type === 'urgence' ? 'bg-red-100 text-red-700' :
+                              notif.type === 'alerte' ? 'bg-orange-100 text-orange-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {notif.type === 'urgence' ? 'Urgence' : notif.type === 'alerte' ? 'Alerte' : 'Info'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {format(new Date(notif.date || new Date()), 'dd MMMM yyyy à HH:mm')}
+                          </p>
+                        </div>
+                      ))}
+                    {notifications.filter(n => n.destinataire_type === 'tuteur').length === 0 && (
+                      <div className="text-center py-8 text-gray-400">
+                        <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Aucun message envoyé</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -542,11 +796,10 @@ export default function ResponsableDashboard() {
             <form onSubmit={async (e) => {
               e.preventDefault();
               try {
-                const mainBus = buses.length > 0 ? buses[0] : null;
                 const accidentData = {
                   date: accidentForm.date,
                   heure: accidentForm.heure,
-                  bus_id: mainBus?.id || null,
+                  bus_id: bus?.id || null,
                   responsable_id: responsable?.id || responsable?.type_id || null,
                   lieu: accidentForm.lieu,
                   description: accidentForm.description,
@@ -683,6 +936,210 @@ export default function ResponsableDashboard() {
                 >
                   <AlertCircle className="w-4 h-4 mr-2" />
                   Déclarer l'accident
+                </Button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal Communication avec Parents */}
+      {showCommunicationForm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-blue-500 to-cyan-500">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <MessageSquare className="w-6 h-6" />
+                  Envoyer un Message aux Parents
+                </h2>
+                <button
+                  onClick={() => setShowCommunicationForm(false)}
+                  className="text-white hover:text-blue-100 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                let destinataires = [];
+                
+                if (communicationForm.destinataire === 'tous') {
+                  // Envoyer à tous les tuteurs des élèves du bus du responsable
+                  const allInscriptions = await inscriptionsAPI.getAll();
+                  const inscriptions = (allInscriptions?.data || allInscriptions || []).filter(i => 
+                    i.bus_id === bus?.id && i.statut === 'Active'
+                  );
+                  const eleveIds = inscriptions.map(i => i.eleve_id);
+                  const allEleves = await elevesAPI.getAll();
+                  const myEleves = (allEleves?.data || allEleves || []).filter(e => 
+                    eleveIds.includes(e.id) && e.tuteur_id
+                  );
+                  destinataires = myEleves.map(e => e.tuteur_id);
+                } else if (communicationForm.destinataire === 'bus' && bus) {
+                  // Envoyer aux tuteurs des élèves du bus
+                  const allInscriptions = await inscriptionsAPI.getAll();
+                  const inscriptions = (allInscriptions?.data || allInscriptions || []).filter(i => 
+                    i.bus_id === bus.id && i.statut === 'Active'
+                  );
+                  const eleveIds = inscriptions.map(i => i.eleve_id);
+                  const allEleves = await elevesAPI.getAll();
+                  const myEleves = (allEleves?.data || allEleves || []).filter(e => 
+                    eleveIds.includes(e.id) && e.tuteur_id
+                  );
+                  destinataires = myEleves.map(e => e.tuteur_id);
+                } else if (communicationForm.destinataire === 'eleve' && communicationForm.eleve_id) {
+                  // Envoyer à un tuteur spécifique
+                  const eleve = eleves.find(e => e.id === parseInt(communicationForm.eleve_id));
+                  if (eleve && eleve.tuteur_id) {
+                    destinataires = [eleve.tuteur_id];
+                  }
+                }
+                
+                // Envoyer les notifications
+                const promises = destinataires.map(tuteurId => 
+                  notificationsAPI.create({
+                    destinataire_id: tuteurId,
+                    destinataire_type: 'tuteur',
+                    titre: communicationForm.titre,
+                    message: communicationForm.message,
+                    type: communicationForm.type,
+                    date: new Date().toISOString()
+                  })
+                );
+                
+                await Promise.all(promises);
+                
+                alert(`Message envoyé à ${destinataires.length} parent(s) avec succès !`);
+                setShowCommunicationForm(false);
+                setCommunicationForm({
+                  destinataire: 'tous',
+                  bus_id: null,
+                  eleve_id: null,
+                  titre: '',
+                  message: '',
+                  type: 'info'
+                });
+                
+                // Recharger les notifications
+                const responsableId = responsable?.type_id || responsable?.id;
+                const notificationsResponse = await notificationsAPI.getByUser(responsableId, 'responsable');
+                const notificationsData = notificationsResponse?.data || notificationsResponse || [];
+                setNotifications(notificationsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)));
+              } catch (err) {
+                console.error('Erreur envoi message:', err);
+                alert('Erreur lors de l\'envoi: ' + (err.message || 'Erreur inconnue'));
+              }
+            }} className="p-6 space-y-4">
+              <div>
+                <Label>Destinataire *</Label>
+                <Select 
+                  value={communicationForm.destinataire} 
+                  onValueChange={(v) => setCommunicationForm({...communicationForm, destinataire: v, bus_id: null, eleve_id: null})}
+                >
+                  <SelectTrigger className="mt-1 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tous">Tous les parents du bus</SelectItem>
+                    <SelectItem value="bus">Parents du bus</SelectItem>
+                    <SelectItem value="eleve">Parent d'un élève spécifique</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {communicationForm.destinataire === 'bus' && bus && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>Bus sélectionné:</strong> Bus {bus.numero}
+                  </p>
+                </div>
+              )}
+              
+              {communicationForm.destinataire === 'eleve' && (
+                <div>
+                  <Label>Sélectionner un élève *</Label>
+                  <Select 
+                    value={communicationForm.eleve_id?.toString() || ''} 
+                    onValueChange={(v) => setCommunicationForm({...communicationForm, eleve_id: parseInt(v)})}
+                  >
+                    <SelectTrigger className="mt-1 rounded-xl">
+                      <SelectValue placeholder="Choisir un élève" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {eleves.map(eleve => (
+                        <SelectItem key={eleve.id} value={eleve.id.toString()}>
+                          {eleve.nom} {eleve.prenom}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              <div>
+                <Label>Type de message *</Label>
+                <Select 
+                  value={communicationForm.type} 
+                  onValueChange={(v) => setCommunicationForm({...communicationForm, type: v})}
+                >
+                  <SelectTrigger className="mt-1 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="info">Information</SelectItem>
+                    <SelectItem value="alerte">Alerte</SelectItem>
+                    <SelectItem value="urgence">Urgence</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label>Titre *</Label>
+                <Input
+                  value={communicationForm.titre}
+                  onChange={(e) => setCommunicationForm({...communicationForm, titre: e.target.value})}
+                  className="mt-1 rounded-xl"
+                  placeholder="Ex: Retard du bus, Changement d'horaires..."
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label>Message *</Label>
+                <Textarea
+                  value={communicationForm.message}
+                  onChange={(e) => setCommunicationForm({...communicationForm, message: e.target.value})}
+                  className="mt-1 rounded-xl"
+                  rows={6}
+                  placeholder="Rédigez votre message aux parents..."
+                  required
+                />
+              </div>
+              
+              <div className="flex gap-3 justify-end pt-4 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowCommunicationForm(false)}
+                  className="rounded-xl"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Annuler
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Envoyer
                 </Button>
               </div>
             </form>
