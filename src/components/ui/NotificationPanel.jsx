@@ -47,9 +47,9 @@ export default function NotificationPanel({
       return <AlertCircle className="w-5 h-5 text-red-500" />;
     }
     if (lowerTitle.includes('attention') || lowerTitle.includes('avertissement')) {
-      return <AlertCircle className="w-5 h-5 text-orange-500" />;
+      return <AlertCircle className="w-5 h-5 text-green-500" />;
     }
-    return <Info className="w-5 h-5 text-blue-500" />;
+    return <Info className="w-5 h-5 text-green-500" />;
   };
 
   const getNotificationColor = (titre) => {
@@ -58,9 +58,9 @@ export default function NotificationPanel({
       return 'border-l-red-500 bg-red-50';
     }
     if (lowerTitle.includes('attention') || lowerTitle.includes('avertissement')) {
-      return 'border-l-orange-500 bg-orange-50';
+      return 'border-l-green-500 bg-green-50';
     }
-    return 'border-l-blue-500 bg-blue-50';
+    return 'border-l-green-500 bg-green-50';
   };
 
   if (!isOpen) return null;
@@ -82,7 +82,7 @@ export default function NotificationPanel({
           className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-amber-500 to-yellow-500 p-6">
+          <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
@@ -109,7 +109,7 @@ export default function NotificationPanel({
                   onClick={() => setFilter(f)}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                     filter === f
-                      ? 'bg-white text-amber-600 shadow-lg'
+                      ? 'bg-white text-green-600 shadow-lg'
                       : 'bg-white/20 text-white hover:bg-white/30'
                   }`}
                 >
@@ -159,7 +159,7 @@ export default function NotificationPanel({
                             {notif.titre}
                           </h4>
                           {!notif.lue && (
-                            <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0 mt-1" />
+                            <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0 mt-1" />
                           )}
                         </div>
                         
@@ -217,7 +217,7 @@ export default function NotificationPanel({
                       .filter(n => !n.lue)
                       .forEach(n => onMarkAsRead(n.id));
                   }}
-                  className="text-amber-600 hover:text-amber-700"
+                  className="text-green-600 hover:text-green-700"
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Tout marquer comme lu

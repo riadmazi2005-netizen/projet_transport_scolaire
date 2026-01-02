@@ -46,30 +46,62 @@ try {
     
     $elevesConcernees = isset($data['eleves_concernees']) ? json_encode($data['eleves_concernees']) : null;
     
-    $stmt = $pdo->prepare('
-        INSERT INTO accidents (
-            date, heure, bus_id, chauffeur_id, description, degats, lieu, gravite, blesses,
-            nombre_eleves, nombre_blesses, photos, eleves_concernees, statut
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ');
+    // Vérifier si la colonne responsable_id existe
+    $checkColumn = $pdo->query("SHOW COLUMNS FROM accidents LIKE 'responsable_id'");
+    $columnExists = $checkColumn->rowCount() > 0;
     
-    $stmt->execute([
-        $date,
-        $heure,
-        $bus_id,
-        $chauffeur_id,
-        $description,
-        $degats,
-        $lieu,
-        $gravite,
-        $blesses ? 1 : 0,
-        $nombre_eleves,
-        $nombre_blesses,
-        $photos,
-        $elevesConcernees,
-        'En attente' // Statut par défaut
-    ]);
+    if ($columnExists) {
+        $stmt = $pdo->prepare('
+            INSERT INTO accidents (
+                date, heure, bus_id, chauffeur_id, responsable_id, description, degats, lieu, gravite, blesses,
+                nombre_eleves, nombre_blesses, photos, eleves_concernees, statut
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ');
+        
+        $stmt->execute([
+            $date,
+            $heure,
+            $bus_id,
+            $chauffeur_id,
+            $responsable_id,
+            $description,
+            $degats,
+            $lieu,
+            $gravite,
+            $blesses ? 1 : 0,
+            $nombre_eleves,
+            $nombre_blesses,
+            $photos,
+            $elevesConcernees,
+            'En attente' // Statut par défaut
+        ]);
+    } else {
+        $stmt = $pdo->prepare('
+            INSERT INTO accidents (
+                date, heure, bus_id, chauffeur_id, description, degats, lieu, gravite, blesses,
+                nombre_eleves, nombre_blesses, photos, eleves_concernees, statut
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ');
+        
+        $stmt->execute([
+            $date,
+            $heure,
+            $bus_id,
+            $chauffeur_id,
+            $description,
+            $degats,
+            $lieu,
+            $gravite,
+            $blesses ? 1 : 0,
+            $nombre_eleves,
+            $nombre_blesses,
+            $photos,
+            $elevesConcernees,
+            'En attente' // Statut par défaut
+        ]);
+    }
     
     $accidentId = $pdo->lastInsertId();
     

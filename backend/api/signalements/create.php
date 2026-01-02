@@ -35,29 +35,40 @@ try {
     
     $id = $pdo->lastInsertId();
     
-    // Envoyer notification au responsable
-    $stmtBus = $pdo->prepare('SELECT responsable_id, numero FROM bus WHERE id = ?');
+    // Envoyer notification à tous les administrateurs
+    $stmtBus = $pdo->prepare('SELECT numero FROM bus WHERE id = ?');
     $stmtBus->execute([$data['bus_id']]);
     $bus = $stmtBus->fetch(PDO::FETCH_ASSOC);
     
-    if ($bus && $bus['responsable_id']) {
+    if ($bus) {
         $stmtChauffeur = $pdo->prepare('SELECT u.prenom, u.nom FROM chauffeurs c JOIN utilisateurs u ON c.utilisateur_id = u.id WHERE c.id = ?');
         $stmtChauffeur->execute([$data['chauffeur_id']]);
         $chauffeur = $stmtChauffeur->fetch(PDO::FETCH_ASSOC);
         
         $urgenceText = $data['urgence'] === 'haute' ? 'URGENT' : ($data['urgence'] === 'moyenne' ? 'Moyenne' : 'Faible');
         
-        $stmtNotif = $pdo->prepare('
-            INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
-            VALUES (?, ?, ?, ?, ?)
+        // Récupérer tous les administrateurs
+        $stmtAdmins = $pdo->query('
+            SELECT u.id 
+            FROM utilisateurs u
+            INNER JOIN administrateurs a ON a.utilisateur_id = u.id
         ');
-        $stmtNotif->execute([
-            $bus['responsable_id'],
-            'responsable',
-            'Problème signalé - ' . $urgenceText,
-            "Le chauffeur {$chauffeur['prenom']} {$chauffeur['nom']} a signalé un problème sur le bus {$bus['numero']}: {$data['description']}",
-            $data['urgence'] === 'haute' ? 'alerte' : 'avertissement'
-        ]);
+        $admins = $stmtAdmins->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Envoyer une notification à chaque administrateur
+        foreach ($admins as $admin) {
+            $stmtNotif = $pdo->prepare('
+                INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
+                VALUES (?, ?, ?, ?, ?)
+            ');
+            $stmtNotif->execute([
+                $admin['id'],
+                'admin',
+                'Problème signalé - ' . $urgenceText,
+                "Le chauffeur {$chauffeur['prenom']} {$chauffeur['nom']} a signalé un problème sur le bus {$bus['numero']}.\n\nType: " . ucfirst($data['type_probleme']) . "\nUrgence: {$urgenceText}\nDescription: {$data['description']}",
+                $data['urgence'] === 'haute' ? 'alerte' : 'avertissement'
+            ]);
+        }
     }
     
     $stmt = $pdo->prepare('SELECT * FROM signalements_maintenance WHERE id = ?');

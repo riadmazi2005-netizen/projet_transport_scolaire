@@ -260,7 +260,12 @@ export const trajetsAPI = {
 // ============================================
 
 export const presencesAPI = {
-  getByDate: (date) => fetchAPI(`/presences/getByDate.php?date=${date}`),
+  getByDate: (date, busId = null) => {
+    const url = busId 
+      ? `/presences/getByDate.php?date=${date}&bus_id=${busId}`
+      : `/presences/getByDate.php?date=${date}`;
+    return fetchAPI(url);
+  },
   getByEleve: (eleveId, startDate, endDate) => 
     fetchAPI(`/presences/getByEleve.php?eleve_id=${eleveId}&start_date=${startDate}&end_date=${endDate}`),
   marquer: (data) => fetchAPI('/presences/marquer.php', {
@@ -304,6 +309,8 @@ export const accidentsAPI = {
 export const notificationsAPI = {
   getByUser: (userId, userType) => 
     fetchAPI(`/notifications/getByUser.php?user_id=${userId}&user_type=${userType}`),
+  getSentByResponsable: (responsableId) => 
+    fetchAPI(`/notifications/getSentByResponsable.php?responsable_id=${responsableId}`),
   marquerLue: (id) => fetchAPI('/notifications/marquerLue.php', {
     method: 'PUT',
     body: JSON.stringify({ id }),

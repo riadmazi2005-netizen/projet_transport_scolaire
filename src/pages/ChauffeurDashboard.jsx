@@ -267,13 +267,26 @@ export default function ChauffeurDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
+    <>
+      <style>{`
+        .chauffeur-dashboard [role="option"]:hover,
+        .chauffeur-dashboard [role="option"][data-highlighted],
+        .chauffeur-dashboard [role="option"][data-state="checked"] {
+          background-color: rgb(220 252 231) !important;
+          color: rgb(22 101 52) !important;
+        }
+        .chauffeur-dashboard [role="option"][data-state="checked"] {
+          background-color: rgb(220 252 231) !important;
+          color: rgb(22 101 52) !important;
+        }
+      `}</style>
+    <div className="chauffeur-dashboard min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <motion.div 
@@ -283,7 +296,7 @@ export default function ChauffeurDashboard() {
         >
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
                 <Bus className="w-8 h-8 text-white" />
               </div>
               <div>
@@ -298,7 +311,7 @@ export default function ChauffeurDashboard() {
               <Button
                 variant="outline"
                 onClick={() => setShowNotifications(true)}
-                className="relative rounded-xl"
+                className="relative rounded-xl border-green-500 text-green-600 hover:bg-green-50 focus:ring-green-500"
               >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
@@ -340,7 +353,7 @@ export default function ChauffeurDashboard() {
             title="Mon Bus" 
             value={bus?.numero || '-'} 
             icon={Bus} 
-            color="amber"
+            color="green"
           />
           {(() => {
             const essenceCeMois = priseEssence.filter(e => {
@@ -372,7 +385,7 @@ export default function ChauffeurDashboard() {
             title="Mon Salaire" 
             value={`${chauffeur?.salaire || 0} DH`} 
             icon={DollarSign} 
-            color="purple"
+            color="green"
           />
         </div>
 
@@ -385,8 +398,12 @@ export default function ChauffeurDashboard() {
               onClick={() => setActiveTab(tab)}
               className={`rounded-xl whitespace-nowrap ${
                 activeTab === tab 
-                  ? 'bg-amber-500 hover:bg-amber-600 text-white' 
-                  : ''
+                  ? tab === 'accidents'
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-green-500 hover:bg-green-600 text-white'
+                  : tab === 'accidents'
+                    ? 'border-red-500 text-red-600 hover:bg-red-50 focus:ring-red-500'
+                    : 'border-green-500 text-green-600 hover:bg-green-50 focus:ring-green-500'
               }`}
             >
               {tab === 'bus' && 'Mon Bus & Trajet'}
@@ -402,13 +419,13 @@ export default function ChauffeurDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-3xl shadow-xl p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Bus className="w-5 h-5 text-amber-500" />
+                <Bus className="w-5 h-5 text-green-500" />
                 Mon Bus
               </h2>
               {bus ? (
                 <div className="space-y-4">
-                  <div className="bg-amber-50 rounded-2xl p-6 text-center">
-                    <p className="text-5xl font-bold text-amber-600">{bus.numero}</p>
+                  <div className="bg-green-50 rounded-2xl p-6 text-center">
+                    <p className="text-5xl font-bold text-green-600">{bus.numero}</p>
                     <p className="text-gray-500 mt-2">{bus.marque} {bus.modele}</p>
                   </div>
                   <div className="space-y-3">
@@ -437,7 +454,7 @@ export default function ChauffeurDashboard() {
 
             <div className="bg-white rounded-3xl shadow-xl p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Navigation className="w-5 h-5 text-amber-500" />
+                <Navigation className="w-5 h-5 text-green-500" />
                 Mon Trajet
               </h2>
               {trajet ? (
@@ -455,7 +472,7 @@ export default function ChauffeurDashboard() {
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {(Array.isArray(trajet.zones) ? trajet.zones : JSON.parse(trajet.zones || '[]')).map((zone, i) => (
-                          <span key={i} className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm">
+                          <span key={i} className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
                             {zone}
                           </span>
                         ))}
@@ -468,16 +485,16 @@ export default function ChauffeurDashboard() {
                       <p className="text-xs text-green-600 font-medium">Groupe A - Matin</p>
                       <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_a} - {trajet.heure_arrivee_matin_a}</p>
                     </div>
-                    <div className="bg-orange-50 rounded-xl p-3">
-                      <p className="text-xs text-orange-600 font-medium">Groupe A - Soir</p>
+                    <div className="bg-green-50 rounded-xl p-3">
+                      <p className="text-xs text-green-600 font-medium">Groupe A - Soir</p>
                       <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_a} - {trajet.heure_arrivee_soir_a}</p>
                     </div>
                     <div className="bg-blue-50 rounded-xl p-3">
                       <p className="text-xs text-blue-600 font-medium">Groupe B - Matin</p>
                       <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_b} - {trajet.heure_arrivee_matin_b}</p>
                     </div>
-                    <div className="bg-purple-50 rounded-xl p-3">
-                      <p className="text-xs text-purple-600 font-medium">Groupe B - Soir</p>
+                    <div className="bg-green-50 rounded-xl p-3">
+                      <p className="text-xs text-green-600 font-medium">Groupe B - Soir</p>
                       <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_b} - {trajet.heure_arrivee_soir_b}</p>
                     </div>
                   </div>
@@ -490,7 +507,7 @@ export default function ChauffeurDashboard() {
             {/* Responsable */}
             <div className="bg-white rounded-3xl shadow-xl p-6 md:col-span-2">
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-amber-500" />
+                <User className="w-5 h-5 text-green-500" />
                 Responsable Bus
               </h2>
               {responsable ? (
@@ -542,8 +559,8 @@ export default function ChauffeurDashboard() {
                       <div>
                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                           accident.gravite === 'Grave' ? 'bg-red-100 text-red-700' :
-                          accident.gravite === 'Moyenne' ? 'bg-orange-100 text-orange-700' :
-                          'bg-yellow-100 text-yellow-700'
+                          accident.gravite === 'Moyenne' ? 'bg-green-100 text-green-700' :
+                          'bg-green-100 text-green-700'
                         }`}>
                           {accident.gravite}
                         </span>
@@ -681,12 +698,12 @@ export default function ChauffeurDashboard() {
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Wrench className="w-6 h-6 text-orange-500" />
+                <Wrench className="w-6 h-6 text-green-500" />
                 Signalements de Problèmes
               </h2>
               <Button
                 onClick={() => setShowSignalementForm(true)}
-                className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl"
+                className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Signaler un problème
@@ -701,12 +718,12 @@ export default function ChauffeurDashboard() {
                 </div>
               ) : (
                 signalements.sort((a, b) => new Date(b.date_creation) - new Date(a.date_creation)).map((signalement) => (
-                  <div key={signalement.id} className="p-6 hover:bg-orange-50/50 transition-colors">
+                  <div key={signalement.id} className="p-6 hover:bg-green-50/50 transition-colors">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                           signalement.type_probleme === 'mecanique' ? 'bg-red-100 text-red-700' :
-                          signalement.type_probleme === 'eclairage' ? 'bg-yellow-100 text-yellow-700' :
+                          signalement.type_probleme === 'eclairage' ? 'bg-emerald-100 text-emerald-700' :
                           signalement.type_probleme === 'portes' ? 'bg-blue-100 text-blue-700' :
                           'bg-gray-100 text-gray-700'
                         }`}>
@@ -718,7 +735,7 @@ export default function ChauffeurDashboard() {
                         </span>
                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                           signalement.urgence === 'haute' ? 'bg-red-100 text-red-700' :
-                          signalement.urgence === 'moyenne' ? 'bg-orange-100 text-orange-700' :
+                          signalement.urgence === 'moyenne' ? 'bg-green-100 text-green-700' :
                           'bg-green-100 text-green-700'
                         }`}>
                           {signalement.urgence === 'haute' ? 'Haute' :
@@ -815,7 +832,7 @@ export default function ChauffeurDashboard() {
                     type="date"
                     value={accidentForm.date}
                     onChange={(e) => setAccidentForm({...accidentForm, date: e.target.value})}
-                    className="mt-1 rounded-xl"
+                    className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     required
                   />
                 </div>
@@ -825,7 +842,7 @@ export default function ChauffeurDashboard() {
                     type="time"
                     value={accidentForm.heure}
                     onChange={(e) => setAccidentForm({...accidentForm, heure: e.target.value})}
-                    className="mt-1 rounded-xl"
+                    className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     required
                   />
                 </div>
@@ -834,7 +851,7 @@ export default function ChauffeurDashboard() {
                   <Input
                     value={accidentForm.lieu}
                     onChange={(e) => setAccidentForm({...accidentForm, lieu: e.target.value})}
-                    className="mt-1 rounded-xl"
+                    className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     placeholder="Adresse de l'accident"
                     required
                   />
@@ -845,7 +862,7 @@ export default function ChauffeurDashboard() {
                     value={accidentForm.gravite}
                     onValueChange={(v) => setAccidentForm({...accidentForm, gravite: v})}
                   >
-                    <SelectTrigger className="mt-1 rounded-xl">
+                    <SelectTrigger className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -861,7 +878,7 @@ export default function ChauffeurDashboard() {
                     type="number"
                     value={accidentForm.nombre_eleves}
                     onChange={(e) => setAccidentForm({...accidentForm, nombre_eleves: e.target.value})}
-                    className="mt-1 rounded-xl"
+                    className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     min="0"
                     placeholder="0"
                   />
@@ -872,7 +889,7 @@ export default function ChauffeurDashboard() {
                     type="number"
                     value={accidentForm.nombre_blesses}
                     onChange={(e) => setAccidentForm({...accidentForm, nombre_blesses: e.target.value})}
-                    className="mt-1 rounded-xl"
+                    className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     min="0"
                     placeholder="0"
                   />
@@ -1024,13 +1041,13 @@ export default function ChauffeurDashboard() {
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-3xl shadow-2xl max-w-md w-full"
           >
-            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-orange-500 to-red-500">
+            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-green-500 to-emerald-600">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <Wrench className="w-6 h-6" />
                   Signaler un Problème
                 </h2>
-                <button onClick={() => setShowSignalementForm(false)} className="text-white hover:text-orange-100">
+                <button onClick={() => setShowSignalementForm(false)} className="text-white hover:text-green-100">
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -1102,7 +1119,7 @@ export default function ChauffeurDashboard() {
                 <Button type="button" variant="outline" onClick={() => setShowSignalementForm(false)} className="rounded-xl">
                   <X className="w-4 h-4 mr-2" /> Annuler
                 </Button>
-                <Button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white rounded-xl">
+                <Button type="submit" className="bg-green-500 hover:bg-green-600 text-white rounded-xl">
                   <Wrench className="w-4 h-4 mr-2" /> Signaler
                 </Button>
               </div>
@@ -1126,5 +1143,6 @@ export default function ChauffeurDashboard() {
         }}
       />
     </div>
+    </>
   );
 }
