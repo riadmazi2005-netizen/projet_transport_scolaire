@@ -150,6 +150,18 @@ CREATE TABLE notifications (
     date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Table zones
+CREATE TABLE IF NOT EXISTS zones (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nom VARCHAR(100) NOT NULL,
+    ville VARCHAR(100) NOT NULL DEFAULT 'Rabat',
+    description TEXT NULL,
+    actif BOOLEAN DEFAULT TRUE,
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_zone_ville (nom, ville)
+);
+
 -- Table demandes (référence maintenant tuteurs au lieu de utilisateurs)
 -- Structure complète avec toutes les améliorations (code de vérification, zone géographique, etc.)
 CREATE TABLE demandes (

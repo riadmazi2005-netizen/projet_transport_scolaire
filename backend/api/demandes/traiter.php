@@ -122,15 +122,14 @@ try {
                 'type' => 'info'
             ],
             'En attente de paiement' => [
-                'titre' => 'Paiement requis - Code de vérification',
+                'titre' => 'Paiement requis',
                 'message' => "Votre demande d'inscription pour {$demandeActuelle['eleve_prenom']} {$demandeActuelle['eleve_nom']} a été approuvée.\n\n" .
                             "FACTURE:\n" .
                             "- Élève: {$demandeActuelle['eleve_prenom']} {$demandeActuelle['eleve_nom']}\n" .
                             "- Classe: " . ($demandeActuelle['eleve_classe'] ?? 'Non spécifiée') . "\n" .
                             "- Montant: " . number_format($montantFacture, 2) . " DH\n" .
                             "- Type de transport: " . ($descriptionData['type_transport'] ?? 'Non spécifié') . "\n\n" .
-                            "CODE DE VÉRIFICATION: {$codeVerification}\n\n" .
-                            "Veuillez consulter l'école pour effectuer le paiement et récupérer le code de vérification à saisir sur le site.",
+                            "Veuillez vous rendre à l'école pour effectuer le paiement. Après le paiement, vous recevrez un code de vérification à saisir sur le site dans la section 'Mes Enfants'.",
                 'type' => 'alerte'
             ],
             'Validée' => [

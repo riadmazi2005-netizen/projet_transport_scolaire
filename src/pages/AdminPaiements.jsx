@@ -26,6 +26,13 @@ export default function AdminPaiements() {
 
   useEffect(() => {
     loadData();
+    
+    // Rafraîchir les données toutes les 30 secondes pour avoir des paiements à jour
+    const interval = setInterval(() => {
+      loadData();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -45,33 +52,75 @@ export default function AdminPaiements() {
       const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
       const demandesData = demandesRes?.data || demandesRes || [];
       
-      // Enrichir les paiements avec les infos élève, tuteur et demande
-      const paiementsEnrichis = Array.isArray(paiementsData) ? paiementsData.map(p => {
+      // Créer une liste combinée des paiements :
+      // 1. Paiements de la table paiements (paiements mensuels récurrents)
+      const paiementsMensuels = Array.isArray(paiementsData) ? paiementsData.map(p => {
         const inscription = Array.isArray(inscriptionsData) ? inscriptionsData.find(i => i.id === p.inscription_id) : null;
         const eleve = inscription && Array.isArray(elevesData) ? elevesData.find(e => e.id === inscription.eleve_id) : null;
         const tuteur = eleve && Array.isArray(tuteursData) ? tuteursData.find(t => t.id === eleve.tuteur_id) : null;
         
-        // Trouver la demande liée à cet élève (demande de type inscription qui est payée)
-        const demande = eleve && Array.isArray(demandesData) ? demandesData.find(d => 
-          d.eleve_id === eleve.id && 
-          d.type_demande === 'inscription' && 
-          (d.statut === 'Payée' || d.statut === 'Validée' || d.statut === 'Inscrit')
-        ) : null;
-        
-        // Utiliser montant_facture de la demande si disponible, sinon utiliser le montant du paiement
-        const montantAfficher = demande?.montant_facture ? parseFloat(demande.montant_facture) : parseFloat(p.montant);
-        
         return {
           ...p,
-          montant: montantAfficher, // Remplacer le montant par montant_facture de la demande
+          montant: parseFloat(p.montant) || 0,
           eleve,
           tuteur,
           inscription,
-          demande
+          type_paiement: 'mensuel' // Paiement mensuel récurrent
         };
       }) : [];
       
-      setPaiements(paiementsEnrichis.sort((a, b) => new Date(b.date_paiement || 0) - new Date(a.date_paiement || 0)));
+      // 2. Demandes payées (paiements initiaux d'inscription)
+      const demandesPayees = Array.isArray(demandesData) ? demandesData
+        .filter(d => d.type_demande === 'inscription' && d.statut === 'Payée' && d.montant_facture)
+        .map(d => {
+          const eleve = Array.isArray(elevesData) ? elevesData.find(e => e.id === d.eleve_id) : null;
+          const tuteur = eleve && Array.isArray(tuteursData) ? tuteursData.find(t => t.id === eleve.tuteur_id) : null;
+          const inscription = Array.isArray(inscriptionsData) ? inscriptionsData.find(i => i.eleve_id === eleve?.id) : null;
+          
+          // Extraire la date de traitement comme date de paiement (TIMESTAMP -> DATE)
+          let datePaiementStr = d.date_traitement || d.date_creation;
+          if (datePaiementStr) {
+            // Si c'est un TIMESTAMP (format: "YYYY-MM-DD HH:MM:SS"), prendre seulement la date
+            if (typeof datePaiementStr === 'string' && datePaiementStr.includes(' ')) {
+              datePaiementStr = datePaiementStr.split(' ')[0];
+            }
+            // Si c'est déjà une date, utiliser directement
+          } else {
+            // Par défaut, utiliser aujourd'hui
+            datePaiementStr = new Date().toISOString().split('T')[0];
+          }
+          
+          const datePaiement = new Date(datePaiementStr);
+          
+          return {
+            id: `demande_${d.id}`, // ID unique pour éviter les conflits
+            inscription_id: inscription?.id || null,
+            montant: parseFloat(d.montant_facture) || 0,
+            mois: datePaiement.getMonth() + 1,
+            annee: datePaiement.getFullYear(),
+            date_paiement: datePaiementStr, // Date au format YYYY-MM-DD
+            mode_paiement: 'Espèces', // Par défaut, car non spécifié dans la demande
+            statut: 'Payé',
+            date_creation: d.date_traitement || d.date_creation,
+            eleve,
+            tuteur,
+            inscription,
+            demande: d,
+            type_paiement: 'initial' // Paiement initial d'inscription
+          };
+        }) : [];
+      
+      // Combiner les deux listes
+      const tousLesPaiements = [...paiementsMensuels, ...demandesPayees];
+      
+      // Trier par date de paiement (plus récent en premier)
+      tousLesPaiements.sort((a, b) => {
+        const dateA = new Date(a.date_paiement || 0);
+        const dateB = new Date(b.date_paiement || 0);
+        return dateB - dateA;
+      });
+      
+      setPaiements(tousLesPaiements);
       setEleves(Array.isArray(elevesData) ? elevesData : []);
       setTuteurs(Array.isArray(tuteursData) ? tuteursData : []);
       setInscriptions(Array.isArray(inscriptionsData) ? inscriptionsData : []);
@@ -131,7 +180,7 @@ export default function AdminPaiements() {
 
   return (
     <AdminLayout title="Gestion des Paiements">
-      <div className="mb-4">
+      <div className="mb-4 flex justify-between items-center">
         <button
           onClick={() => navigate(createPageUrl('AdminDashboard'))}
           className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
@@ -139,6 +188,14 @@ export default function AdminPaiements() {
           <ArrowLeft className="w-4 h-4" />
           Retour au tableau de bord
         </button>
+        <Button
+          onClick={() => loadData()}
+          disabled={loading}
+          className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Actualiser
+        </Button>
       </div>
       
       {/* Summary Card */}

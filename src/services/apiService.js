@@ -383,6 +383,36 @@ export const paiementsAPI = {
 };
 
 // ============================================
+// ZONES
+// ============================================
+
+export const zonesAPI = {
+  getAll: () => fetchAPI('/zones/getAll.php'),
+  create: (data) => fetchAPI('/zones/create.php', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  update: (data) => fetchAPI('/zones/update.php', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  delete: (id) => fetchAPI(`/zones/delete.php?id=${id}`, {
+    method: 'DELETE',
+  }),
+};
+
+// ============================================
+// CONTACT
+// ============================================
+
+export const contactAPI = {
+  sendMessage: (data) => fetchAPI('/contact/create.php', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+};
+
+// ============================================
 // STATISTIQUES
 // ============================================
 

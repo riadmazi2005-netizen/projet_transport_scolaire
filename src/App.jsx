@@ -16,6 +16,7 @@ import TuteurInscription from './pages/TuteurInscription';
 import TuteurPaiement from './pages/TuteurPaiement';
 import TuteurEleveDetails from './pages/TuteurEleveDetails';
 import TuteurDemandes from './pages/TuteurDemandes';
+import TuteurNotifications from './pages/TuteurNotifications';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminBus from './pages/AdminBus';
@@ -26,6 +27,8 @@ import AdminInscriptions from './pages/AdminInscriptions';
 import AdminStats from './pages/AdminStats';
 import AdminPaiements from './pages/AdminPaiements';
 import AdminProfile from './pages/AdminProfile';
+import AdminZones from './pages/AdminZones';
+import AdminNotifications from './pages/AdminNotifications';
 
 function App() {
   return (
@@ -52,6 +55,7 @@ function App() {
         <Route path="/TuteurPaiement" element={<TuteurPaiement />} />
         <Route path="/TuteurEleveDetails" element={<TuteurEleveDetails />} />
         <Route path="/TuteurDemandes" element={<TuteurDemandes />} />
+        <Route path="/TuteurNotifications" element={<TuteurNotifications />} />
 
         {/* Admin Routes */}
         <Route path="/AdminLogin" element={<AdminLogin />} />
@@ -63,7 +67,9 @@ function App() {
         <Route path="/AdminInscriptions" element={<AdminInscriptions />} />
         <Route path="/AdminStats" element={<AdminStats />} />
         <Route path="/AdminPaiements" element={<AdminPaiements />} />
+        <Route path="/AdminZones" element={<AdminZones />} />
         <Route path="/AdminProfile" element={<AdminProfile />} />
+        <Route path="/AdminNotifications" element={<AdminNotifications />} />
 
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />

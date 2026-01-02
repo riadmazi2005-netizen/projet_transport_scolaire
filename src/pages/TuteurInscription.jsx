@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, notificationsAPI, demandesAPI } from '../services/apiService';
+import { elevesAPI, notificationsAPI, demandesAPI, zonesAPI } from '../services/apiService';
 import { calculerMontantFacture, formaterMontantFacture } from '../utils/calculFacture';
 
 // Helper function to get admins
@@ -36,6 +36,7 @@ export default function TuteurInscription() {
     sexe: '',
     classe: '',
     niveau: '',
+    ville: '',
     zone: '',
     adresse: '',
     lien_parente: '',
@@ -46,7 +47,9 @@ export default function TuteurInscription() {
     groupe: ''
   });
 
-  const zones = ['Medina', 'Hay Sinaï', 'Hay El Fath', 'Souissi', 'Akkari', 'Manal', 'Agdal', 'Nahda-Takkadoum', 'Temara'];
+  const villes = ['Rabat', 'Salé', 'Temara'];
+  const [zones, setZones] = useState([]);
+  const [zonesFiltrees, setZonesFiltrees] = useState([]);
   
   // Classes selon le niveau
   const classesParNiveau = {
@@ -65,7 +68,33 @@ export default function TuteurInscription() {
       return;
     }
     setTuteur(JSON.parse(session));
+    loadZones();
   }, [navigate]);
+
+  useEffect(() => {
+    // Filtrer les zones selon la ville sélectionnée
+    if (formData.ville) {
+      const zonesFiltrees = zones.filter(z => z.ville === formData.ville && z.actif !== false);
+      setZonesFiltrees(zonesFiltrees);
+      // Réinitialiser la zone si elle n'est plus valide
+      if (formData.zone && !zonesFiltrees.some(z => z.nom === formData.zone)) {
+        setFormData(prev => ({ ...prev, zone: '' }));
+      }
+    } else {
+      setZonesFiltrees([]);
+      setFormData(prev => ({ ...prev, zone: '' }));
+    }
+  }, [formData.ville, zones]);
+
+  const loadZones = async () => {
+    try {
+      const zonesRes = await zonesAPI.getAll();
+      const zonesData = zonesRes?.data || zonesRes || [];
+      setZones(Array.isArray(zonesData) ? zonesData : []);
+    } catch (err) {
+      console.error('Erreur lors du chargement des zones:', err);
+    }
+  };
 
   const handleChange = (name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -78,7 +107,7 @@ export default function TuteurInscription() {
     
     try {
       // Validation des champs requis
-      if (!formData.nom || !formData.prenom || !formData.classe || !formData.zone || !formData.adresse) {
+      if (!formData.nom || !formData.prenom || !formData.classe || !formData.ville || !formData.zone || !formData.adresse) {
         setError('Veuillez remplir tous les champs obligatoires');
         setLoading(false);
         return;
@@ -190,6 +219,9 @@ export default function TuteurInscription() {
       console.error('Erreur lors de l\'inscription:', err);
       const errorMessage = err.message || err.response?.message || 'Erreur lors de l\'envoi de l\'inscription. Veuillez réessayer.';
       setError(errorMessage);
+      setLoading(false);
+    } finally {
+      // S'assurer que loading est toujours réinitialisé
       setLoading(false);
     }
   };
@@ -474,35 +506,66 @@ export default function TuteurInscription() {
                 <div>
                   <Label className="text-gray-700 font-medium flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-amber-500" />
-                    Adresse
+                    Ville *
                   </Label>
-                  <Input
-                    value={formData.adresse}
-                    onChange={(e) => handleChange('adresse', e.target.value)}
-                    className="mt-1 h-12 rounded-xl"
-                    placeholder="Adresse complète"
-                    required
-                  />
+                  <Select 
+                    value={formData.ville} 
+                    onValueChange={(v) => {
+                      handleChange('ville', v);
+                      handleChange('zone', ''); // Réinitialiser la zone quand on change de ville
+                    }}
+                  >
+                    <SelectTrigger className="mt-1 h-12 rounded-xl">
+                      <SelectValue placeholder="Sélectionnez votre ville" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {villes.map(v => (
+                        <SelectItem key={v} value={v}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
                   <Label className="text-gray-700 font-medium flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-amber-500" />
-                    Zone géographique
+                    Zone géographique *
                   </Label>
                   <Select 
                     value={formData.zone} 
                     onValueChange={(v) => handleChange('zone', v)}
+                    disabled={!formData.ville || zonesFiltrees.length === 0}
                   >
                     <SelectTrigger className="mt-1 h-12 rounded-xl">
-                      <SelectValue placeholder="Sélectionnez votre zone" />
+                      <SelectValue placeholder={formData.ville ? "Sélectionnez votre zone" : "Sélectionnez d'abord la ville"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {zones.map(z => (
-                        <SelectItem key={z} value={z}>{z}</SelectItem>
-                      ))}
+                      {zonesFiltrees.length > 0 ? (
+                        zonesFiltrees.map(z => (
+                          <SelectItem key={z.id || z.nom} value={z.nom}>{z.nom}</SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="" disabled>
+                          {formData.ville ? "Aucune zone disponible" : "Sélectionnez d'abord la ville"}
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div>
+                  <Label className="text-gray-700 font-medium flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-amber-500" />
+                    Adresse *
+                  </Label>
+                  <Input
+                    value={formData.adresse}
+                    onChange={(e) => handleChange('adresse', e.target.value)}
+                    className="mt-1 h-12 rounded-xl"
+                    placeholder="Ex: Quartier Hay Riad, Rue Mohammed V, Maison N°12"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Veuillez entrer le quartier, la rue et le nom/numéro de la maison</p>
                 </div>
 
                 <div className="flex gap-3">
@@ -517,7 +580,7 @@ export default function TuteurInscription() {
                   <Button
                     type="button"
                     onClick={() => setCurrentStep(3)}
-                    disabled={!formData.nom || !formData.prenom || !formData.niveau || !formData.classe || !formData.zone || !formData.adresse}
+                    disabled={!formData.nom || !formData.prenom || !formData.niveau || !formData.classe || !formData.ville || !formData.zone || !formData.adresse}
                     className="flex-1 h-12 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl"
                   >
                     Continuer

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { busAPI, trajetsAPI, chauffeursAPI, responsablesAPI } from '../services/apiService';
+import { busAPI, trajetsAPI, chauffeursAPI, responsablesAPI, zonesAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ export default function AdminBus() {
   const [editingBus, setEditingBus] = useState(null);
   const [editingTrajet, setEditingTrajet] = useState(null);
   const [error, setError] = useState(null);
+  const [zones, setZones] = useState([]);
 
   const [busForm, setBusForm] = useState({
     numero: '', capacite: '', chauffeur_id: '', responsable_id: '', trajet_id: '', statut: 'Actif'
@@ -37,11 +38,24 @@ export default function AdminBus() {
     heure_depart_soir_b: '17:30', heure_arrivee_soir_b: '18:00'
   });
 
-  const zones = ['Medina', 'Hay Sinaï', 'Hay El Fath', 'Souissi', 'Akkari', 'Manal', 'Agdal', 'Nahda-Takkadoum', 'Temara'];
-
   useEffect(() => {
     loadData();
+    loadZones();
   }, []);
+
+  const loadZones = async () => {
+    try {
+      const response = await zonesAPI.getAll();
+      const zonesData = response?.data || response || [];
+      // Filtrer uniquement les zones actives et extraire les noms
+      const activeZones = zonesData
+        .filter(z => z.actif !== false)
+        .map(z => z.nom);
+      setZones(activeZones);
+    } catch (err) {
+      console.error('Erreur lors du chargement des zones:', err);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -245,7 +259,7 @@ export default function AdminBus() {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-amber-700 border-t-transparent rounded-full animate-spin" />
         </div>
       </AdminLayout>
     );
@@ -253,10 +267,10 @@ export default function AdminBus() {
 
   return (
     <AdminLayout title="Gestion des Bus et Trajets">
-      <div className="mb-4">
+      <div className="mb-6">
         <button
           onClick={() => navigate(createPageUrl('AdminDashboard'))}
-          className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+          className="flex items-center gap-2 text-gray-600 hover:text-amber-800 transition-colors font-medium"
         >
           <ArrowLeft className="w-4 h-4" />
           Retour au tableau de bord
@@ -264,27 +278,35 @@ export default function AdminBus() {
       </div>
       
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
-          {error}
+        <div className="bg-red-50 border-l-4 border-red-400 text-red-700 px-6 py-4 rounded-lg mb-6 shadow-sm">
+          <p className="font-medium">{error}</p>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-3 mb-8">
           <Button
             variant={activeTab === 'buses' ? 'default' : 'outline'}
             onClick={() => setActiveTab('buses')}
-            className={`rounded-xl ${activeTab === 'buses' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+            className={`rounded-xl font-semibold transition-all duration-300 ${
+              activeTab === 'buses' 
+                ? 'bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-800 hover:to-amber-900 text-white shadow-lg shadow-amber-200' 
+                : 'border-2 border-amber-200 hover:border-amber-300 text-amber-700 hover:bg-amber-50'
+            }`}
           >
-            <Bus className="w-4 h-4 mr-2" />
+            <Bus className="w-5 h-5 mr-2" />
             Bus ({buses.length})
           </Button>
           <Button
             variant={activeTab === 'trajets' ? 'default' : 'outline'}
             onClick={() => setActiveTab('trajets')}
-            className={`rounded-xl ${activeTab === 'trajets' ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+            className={`rounded-xl font-semibold transition-all duration-300 ${
+              activeTab === 'trajets' 
+                ? 'bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-800 hover:to-amber-900 text-white shadow-lg shadow-amber-200' 
+                : 'border-2 border-amber-200 hover:border-amber-300 text-amber-700 hover:bg-amber-50'
+            }`}
           >
-            <Navigation className="w-4 h-4 mr-2" />
+            <Navigation className="w-5 h-5 mr-2" />
             Trajets ({trajets.length})
           </Button>
         </div>
@@ -294,50 +316,52 @@ export default function AdminBus() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-3xl shadow-xl overflow-hidden"
+            className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-amber-100"
           >
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Bus className="w-6 h-6 text-amber-500" />
+            <div className="p-8 bg-gradient-to-r from-amber-700 via-amber-800 to-amber-700 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                  <Bus className="w-7 h-7 text-white" />
+                </div>
                 Gestion des Bus
               </h2>
               <Button
                 onClick={() => setShowBusForm(true)}
-                className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
+                className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6 py-3"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-5 h-5 mr-2" />
                 Ajouter un bus
               </Button>
             </div>
 
             {showBusForm && (
-              <div className="p-6 bg-amber-50 border-b border-amber-100">
-                <form onSubmit={handleSaveBus} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-8 bg-gradient-to-br from-amber-50 via-white to-amber-50 border-b-2 border-amber-200">
+                <form onSubmit={handleSaveBus} className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <Label>Numéro du bus</Label>
+                    <Label className="text-amber-900 font-semibold mb-2 block">Numéro du bus</Label>
                     <Input
                       value={busForm.numero}
                       onChange={(e) => setBusForm({ ...busForm, numero: e.target.value })}
                       placeholder="Ex: BUS-001"
-                      className="mt-1 rounded-xl"
+                      className="mt-1 rounded-xl border-2 border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 h-12"
                       required
                     />
                   </div>
                   <div>
-                    <Label>Capacité</Label>
+                    <Label className="text-amber-900 font-semibold mb-2 block">Capacité</Label>
                     <Input
                       type="number"
                       value={busForm.capacite}
                       onChange={(e) => setBusForm({ ...busForm, capacite: e.target.value })}
                       placeholder="Ex: 40"
-                      className="mt-1 rounded-xl"
+                      className="mt-1 rounded-xl border-2 border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 h-12"
                       required
                     />
                   </div>
                   <div>
-                    <Label>Chauffeur</Label>
+                    <Label className="text-amber-900 font-semibold mb-2 block">Chauffeur</Label>
                     <Select value={busForm.chauffeur_id} onValueChange={(v) => setBusForm({ ...busForm, chauffeur_id: v })}>
-                      <SelectTrigger className="mt-1 rounded-xl">
+                      <SelectTrigger className="mt-1 rounded-xl border-2 border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 h-12">
                         <SelectValue placeholder="Sélectionnez un chauffeur" />
                       </SelectTrigger>
                       <SelectContent>
@@ -361,9 +385,9 @@ export default function AdminBus() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Responsable</Label>
+                    <Label className="text-amber-900 font-semibold mb-2 block">Responsable</Label>
                     <Select value={busForm.responsable_id} onValueChange={(v) => setBusForm({ ...busForm, responsable_id: v })}>
-                      <SelectTrigger className="mt-1 rounded-xl">
+                      <SelectTrigger className="mt-1 rounded-xl border-2 border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 h-12">
                         <SelectValue placeholder="Sélectionnez un responsable" />
                       </SelectTrigger>
                       <SelectContent>
@@ -387,9 +411,9 @@ export default function AdminBus() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Trajet</Label>
+                    <Label className="text-amber-900 font-semibold mb-2 block">Trajet</Label>
                     <Select value={busForm.trajet_id} onValueChange={(v) => setBusForm({ ...busForm, trajet_id: v })}>
-                      <SelectTrigger className="mt-1 rounded-xl">
+                      <SelectTrigger className="mt-1 rounded-xl border-2 border-amber-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 h-12">
                         <SelectValue placeholder="Sélectionnez un trajet" />
                       </SelectTrigger>
                       <SelectContent>
@@ -400,13 +424,13 @@ export default function AdminBus() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="md:col-span-3 flex gap-3 justify-end">
-                    <Button type="button" variant="outline" onClick={resetBusForm} className="rounded-xl">
-                      <X className="w-4 h-4 mr-2" />
+                  <div className="md:col-span-3 flex gap-4 justify-end pt-4 border-t-2 border-amber-200">
+                    <Button type="button" variant="outline" onClick={resetBusForm} className="rounded-xl border-2 border-amber-300 text-amber-700 hover:bg-amber-50 font-semibold px-6">
+                      <X className="w-5 h-5 mr-2" />
                       Annuler
                     </Button>
-                    <Button type="submit" className="bg-green-500 hover:bg-green-600 text-white rounded-xl">
-                      <Save className="w-4 h-4 mr-2" />
+                    <Button type="submit" className="bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-800 hover:to-amber-900 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6">
+                      <Save className="w-5 h-5 mr-2" />
                       {editingBus ? 'Modifier' : 'Enregistrer'}
                     </Button>
                   </div>
@@ -414,59 +438,66 @@ export default function AdminBus() {
               </div>
             )}
 
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-amber-100">
               {buses.map((bus) => {
                 const chauffeur = chauffeurs.find(c => c.id === bus.chauffeur_id);
                 const responsable = responsables.find(r => r.id === bus.responsable_id);
                 const trajet = trajets.find(t => t.id === bus.trajet_id);
                 
                 return (
-                  <div key={bus.id} className="p-6 hover:bg-amber-50/50 transition-colors">
+                  <motion.div 
+                    key={bus.id} 
+                    className="p-8 hover:bg-gradient-to-r hover:from-amber-50 hover:to-white transition-all duration-300"
+                    whileHover={{ x: 4 }}
+                  >
                     <div className="flex justify-between items-start">
-                      <div className="flex items-start gap-4">
-                        <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center">
-                          <Bus className="w-8 h-8 text-amber-600" />
+                      <div className="flex items-start gap-6">
+                        <div className="w-20 h-20 bg-gradient-to-br from-amber-600 to-amber-700 rounded-2xl flex items-center justify-center shadow-lg">
+                          <Bus className="w-10 h-10 text-white" />
                         </div>
                         <div>
-                          <h3 className="text-xl font-bold text-gray-800">{bus.numero}</h3>
-                          <div className="flex flex-wrap gap-2 mt-2 text-sm">
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg">
+                          <h3 className="text-2xl font-bold text-amber-900 mb-3">{bus.numero}</h3>
+                          <div className="flex flex-wrap gap-3 mt-2">
+                            <span className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold shadow-md">
                               {bus.capacite} places
                             </span>
                             {chauffeur && (
-                              <span className="px-2 py-1 bg-green-100 text-green-700 rounded-lg">
+                              <span className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold shadow-md">
                                 {chauffeur.prenom} {chauffeur.nom}
                               </span>
                             )}
                             {responsable && (
-                              <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg">
+                              <span className="px-4 py-2 bg-gradient-to-r from-violet-500 to-violet-600 text-white rounded-xl font-semibold shadow-md">
                                 Resp: {responsable.prenom} {responsable.nom}
                               </span>
                             )}
                             {trajet && (
-                              <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-lg">
+                              <span className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-xl font-semibold shadow-md">
                                 {trajet.nom}
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="icon" onClick={() => editBus(bus)} className="rounded-xl">
-                          <Edit className="w-4 h-4" />
+                      <div className="flex gap-3">
+                        <Button variant="outline" size="icon" onClick={() => editBus(bus)} className="rounded-xl border-2 border-amber-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400 w-11 h-11 shadow-md">
+                          <Edit className="w-5 h-5" />
                         </Button>
-                        <Button variant="outline" size="icon" onClick={() => handleDeleteBus(bus.id)} className="rounded-xl text-red-500 hover:text-red-600">
-                          <Trash2 className="w-4 h-4" />
+                        <Button variant="outline" size="icon" onClick={() => handleDeleteBus(bus.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                          <Trash2 className="w-5 h-5" />
                         </Button>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
               {buses.length === 0 && (
-                <div className="p-12 text-center text-gray-400">
-                  <Bus className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucun bus enregistré</p>
+                <div className="p-16 text-center">
+                  <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Bus className="w-10 h-10 text-amber-600 opacity-60" />
+                  </div>
+                  <p className="text-amber-700 font-semibold text-lg">Aucun bus enregistré</p>
+                  <p className="text-amber-600 text-sm mt-2">Cliquez sur "Ajouter un bus" pour commencer</p>
                 </div>
               )}
             </div>
@@ -478,57 +509,60 @@ export default function AdminBus() {
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-3xl shadow-xl overflow-hidden"
+            className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200"
           >
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Navigation className="w-6 h-6 text-amber-500" />
+            <div className="p-8 bg-gradient-to-r from-gray-700 via-gray-800 to-gray-700 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                  <Navigation className="w-7 h-7 text-white" />
+                </div>
                 Gestion des Trajets
               </h2>
               <Button
                 onClick={() => setShowTrajetForm(true)}
-                className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
+                className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6 py-3"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-5 h-5 mr-2" />
                 Ajouter un trajet
               </Button>
             </div>
 
             {showTrajetForm && (
-              <div className="p-6 bg-amber-50 border-b border-amber-100">
-                <form onSubmit={handleSaveTrajet} className="space-y-4">
+              <div className="p-8 bg-gradient-to-br from-gray-50 via-white to-gray-50 border-b-2 border-gray-200">
+                <form onSubmit={handleSaveTrajet} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label>Nom du trajet</Label>
+                      <Label className="text-gray-900 font-semibold mb-2 block">Nom du trajet</Label>
                       <Input
                         value={trajetForm.nom}
                         onChange={(e) => setTrajetForm({ ...trajetForm, nom: e.target.value })}
                         placeholder="Ex: Trajet Nord"
-                        className="mt-1 rounded-xl"
+                        className="mt-1 rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12"
                         required
                       />
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-amber-500" />
+                      <Label className="text-gray-900 font-semibold flex items-center gap-2 mb-2">
+                        <MapPin className="w-5 h-5 text-gray-600" />
                         Zones desservies (max 2)
                       </Label>
                       <div className="mt-2 space-y-2">
                         {/* Zones sélectionnées */}
                         {trajetForm.zones.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mb-2">
+                          <div className="flex flex-wrap gap-3 mb-4">
                             {trajetForm.zones.map((zone, index) => (
                               <span
                                 key={index}
-                                className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl text-sm font-semibold shadow-md"
                               >
+                                <MapPin className="w-4 h-4" />
                                 {zone}
                                 <button
                                   type="button"
                                   onClick={() => handleZoneSelect(zone)}
-                                  className="ml-1 hover:text-amber-900"
+                                  className="ml-1 hover:bg-gray-800 rounded-full p-0.5 transition-colors"
                                 >
-                                  <X className="w-3 h-3" />
+                                  <X className="w-4 h-4" />
                                 </button>
                               </span>
                             ))}
@@ -544,7 +578,7 @@ export default function AdminBus() {
                           }}
                           disabled={trajetForm.zones.length >= 2}
                         >
-                          <SelectTrigger className="rounded-xl">
+                          <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12">
                             <SelectValue placeholder={trajetForm.zones.length >= 2 ? "Maximum 2 zones sélectionnées" : "Sélectionnez une zone"} />
                           </SelectTrigger>
                           <SelectContent>
@@ -564,91 +598,97 @@ export default function AdminBus() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <Label>Départ Matin A</Label>
-                      <Input
-                        type="time"
-                        value={trajetForm.heure_depart_matin_a}
-                        onChange={(e) => setTrajetForm({ ...trajetForm, heure_depart_matin_a: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Arrivée Matin A</Label>
-                      <Input
-                        type="time"
-                        value={trajetForm.heure_arrivee_matin_a}
-                        onChange={(e) => setTrajetForm({ ...trajetForm, heure_arrivee_matin_a: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Départ Soir A</Label>
-                      <Input
-                        type="time"
-                        value={trajetForm.heure_depart_soir_a}
-                        onChange={(e) => setTrajetForm({ ...trajetForm, heure_depart_soir_a: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Arrivée Soir A</Label>
-                      <Input
-                        type="time"
-                        value={trajetForm.heure_arrivee_soir_a}
-                        onChange={(e) => setTrajetForm({ ...trajetForm, heure_arrivee_soir_a: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <Label>Départ Matin B</Label>
-                      <Input
-                        type="time"
-                        value={trajetForm.heure_depart_matin_b}
-                        onChange={(e) => setTrajetForm({ ...trajetForm, heure_depart_matin_b: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Arrivée Matin B</Label>
-                      <Input
-                        type="time"
-                        value={trajetForm.heure_arrivee_matin_b}
-                        onChange={(e) => setTrajetForm({ ...trajetForm, heure_arrivee_matin_b: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Départ Soir B</Label>
-                      <Input
-                        type="time"
-                        value={trajetForm.heure_depart_soir_b}
-                        onChange={(e) => setTrajetForm({ ...trajetForm, heure_depart_soir_b: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Arrivée Soir B</Label>
-                      <Input
-                        type="time"
-                        value={trajetForm.heure_arrivee_soir_b}
-                        onChange={(e) => setTrajetForm({ ...trajetForm, heure_arrivee_soir_b: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
+                  <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Groupe A</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label className="text-gray-800 font-semibold mb-2 block">Départ Matin</Label>
+                        <Input
+                          type="time"
+                          value={trajetForm.heure_depart_matin_a}
+                          onChange={(e) => setTrajetForm({ ...trajetForm, heure_depart_matin_a: e.target.value })}
+                          className="mt-1 rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-800 font-semibold mb-2 block">Arrivée Matin</Label>
+                        <Input
+                          type="time"
+                          value={trajetForm.heure_arrivee_matin_a}
+                          onChange={(e) => setTrajetForm({ ...trajetForm, heure_arrivee_matin_a: e.target.value })}
+                          className="mt-1 rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-800 font-semibold mb-2 block">Départ Soir</Label>
+                        <Input
+                          type="time"
+                          value={trajetForm.heure_depart_soir_a}
+                          onChange={(e) => setTrajetForm({ ...trajetForm, heure_depart_soir_a: e.target.value })}
+                          className="mt-1 rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-800 font-semibold mb-2 block">Arrivée Soir</Label>
+                        <Input
+                          type="time"
+                          value={trajetForm.heure_arrivee_soir_a}
+                          onChange={(e) => setTrajetForm({ ...trajetForm, heure_arrivee_soir_a: e.target.value })}
+                          className="mt-1 rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12"
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex gap-3 justify-end">
-                    <Button type="button" variant="outline" onClick={resetTrajetForm} className="rounded-xl">
-                      <X className="w-4 h-4 mr-2" />
+                  <div className="bg-white p-6 rounded-2xl border-2 border-gray-200 shadow-sm">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">Groupe B</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label className="text-gray-800 font-semibold mb-2 block">Départ Matin</Label>
+                        <Input
+                          type="time"
+                          value={trajetForm.heure_depart_matin_b}
+                          onChange={(e) => setTrajetForm({ ...trajetForm, heure_depart_matin_b: e.target.value })}
+                          className="mt-1 rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-800 font-semibold mb-2 block">Arrivée Matin</Label>
+                        <Input
+                          type="time"
+                          value={trajetForm.heure_arrivee_matin_b}
+                          onChange={(e) => setTrajetForm({ ...trajetForm, heure_arrivee_matin_b: e.target.value })}
+                          className="mt-1 rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-800 font-semibold mb-2 block">Départ Soir</Label>
+                        <Input
+                          type="time"
+                          value={trajetForm.heure_depart_soir_b}
+                          onChange={(e) => setTrajetForm({ ...trajetForm, heure_depart_soir_b: e.target.value })}
+                          className="mt-1 rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-gray-800 font-semibold mb-2 block">Arrivée Soir</Label>
+                        <Input
+                          type="time"
+                          value={trajetForm.heure_arrivee_soir_b}
+                          onChange={(e) => setTrajetForm({ ...trajetForm, heure_arrivee_soir_b: e.target.value })}
+                          className="mt-1 rounded-xl border-2 border-gray-200 focus:border-gray-500 focus:ring-2 focus:ring-gray-200 h-12"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 justify-end pt-4 border-t-2 border-amber-200">
+                    <Button type="button" variant="outline" onClick={resetTrajetForm} className="rounded-xl border-2 border-amber-300 text-amber-700 hover:bg-amber-50 font-semibold px-6">
+                      <X className="w-5 h-5 mr-2" />
                       Annuler
                     </Button>
-                    <Button type="submit" className="bg-green-500 hover:bg-green-600 text-white rounded-xl">
-                      <Save className="w-4 h-4 mr-2" />
+                    <Button type="submit" className="bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-800 hover:to-amber-900 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6">
+                      <Save className="w-5 h-5 mr-2" />
                       {editingTrajet ? 'Modifier' : 'Enregistrer'}
                     </Button>
                   </div>
@@ -661,47 +701,63 @@ export default function AdminBus() {
                 const zonesArray = Array.isArray(trajet.zones) ? trajet.zones : [];
                 
                 return (
-                  <div key={trajet.id} className="p-6 hover:bg-amber-50/50 transition-colors">
+                  <motion.div 
+                    key={trajet.id} 
+                    className="p-8 hover:bg-gradient-to-r hover:from-gray-50 hover:to-white transition-all duration-300"
+                    whileHover={{ x: 4 }}
+                  >
                     <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-800">{trajet.nom}</h3>
-                        <div className="flex flex-wrap gap-2 mt-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="w-16 h-16 bg-gradient-to-br from-gray-600 to-gray-700 rounded-2xl flex items-center justify-center shadow-lg">
+                            <Navigation className="w-9 h-9 text-white" />
+                          </div>
+                          <h3 className="text-2xl font-bold text-gray-900">{trajet.nom}</h3>
+                        </div>
+                        <div className="flex flex-wrap gap-3 mb-6">
                           {zonesArray.map((zone, i) => (
-                            <span key={i} className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
+                            <span key={i} className="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl text-sm font-semibold shadow-md flex items-center gap-2">
+                              <MapPin className="w-4 h-4" />
                               {zone}
                             </span>
                           ))}
                         </div>
-                        <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
-                          <div>
-                            <p className="text-gray-500">Groupe A</p>
-                            <p>Matin: {trajet.heure_depart_matin_a} - {trajet.heure_arrivee_matin_a}</p>
-                            <p>Soir: {trajet.heure_depart_soir_a} - {trajet.heure_arrivee_soir_a}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="bg-gradient-to-br from-blue-50 to-white p-5 rounded-xl border-2 border-blue-200 shadow-sm">
+                            <p className="text-blue-900 font-bold text-lg mb-3">Groupe A</p>
+                            <div className="space-y-2 text-gray-900">
+                              <p className="font-semibold"><span className="text-gray-700">Matin:</span> {trajet.heure_depart_matin_a} - {trajet.heure_arrivee_matin_a}</p>
+                              <p className="font-semibold"><span className="text-gray-700">Soir:</span> {trajet.heure_depart_soir_a} - {trajet.heure_arrivee_soir_a}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-gray-500">Groupe B</p>
-                            <p>Matin: {trajet.heure_depart_matin_b} - {trajet.heure_arrivee_matin_b}</p>
-                            <p>Soir: {trajet.heure_depart_soir_b} - {trajet.heure_arrivee_soir_b}</p>
+                          <div className="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-xl border-2 border-indigo-200 shadow-sm">
+                            <p className="text-indigo-900 font-bold text-lg mb-3">Groupe B</p>
+                            <div className="space-y-2 text-gray-900">
+                              <p className="font-semibold"><span className="text-gray-700">Matin:</span> {trajet.heure_depart_matin_b} - {trajet.heure_arrivee_matin_b}</p>
+                              <p className="font-semibold"><span className="text-gray-700">Soir:</span> {trajet.heure_depart_soir_b} - {trajet.heure_arrivee_soir_b}</p>
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="icon" onClick={() => editTrajet(trajet)} className="rounded-xl">
-                          <Edit className="w-4 h-4" />
+                      <div className="flex gap-3 ml-6">
+                        <Button variant="outline" size="icon" onClick={() => editTrajet(trajet)} className="rounded-xl border-2 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 w-11 h-11 shadow-md">
+                          <Edit className="w-5 h-5" />
                         </Button>
-                        <Button variant="outline" size="icon" onClick={() => handleDeleteTrajet(trajet.id)} className="rounded-xl text-red-500">
-                          <Trash2 className="w-4 h-4" />
+                        <Button variant="outline" size="icon" onClick={() => handleDeleteTrajet(trajet.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                          <Trash2 className="w-5 h-5" />
                         </Button>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
               {trajets.length === 0 && (
-                <div className="p-12 text-center text-gray-400">
-                  <Navigation className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucun trajet enregistré</p>
+                <div className="p-16 text-center">
+                  <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Navigation className="w-10 h-10 text-gray-600 opacity-60" />
+                  </div>
+                  <p className="text-gray-700 font-semibold text-lg">Aucun trajet enregistré</p>
+                  <p className="text-gray-600 text-sm mt-2">Cliquez sur "Ajouter un trajet" pour commencer</p>
                 </div>
               )}
             </div>

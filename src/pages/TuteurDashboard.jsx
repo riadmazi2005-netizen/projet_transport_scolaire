@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI, inscriptionsAPI } from '../services/apiService';
+import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI, inscriptionsAPI, paiementsAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { 
   Users, Bell, UserPlus, Edit, LogOut, GraduationCap, 
   Bus, CreditCard, Clock, CheckCircle, AlertCircle, Eye, XCircle,
-  TrendingUp, MapPin, Calendar, FileText
+  TrendingUp, MapPin, Calendar, FileText, History, Trash2
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,13 @@ export default function TuteurDashboard() {
   const [loading, setLoading] = useState(true);
   const [inscriptionFilter, setInscriptionFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('eleves');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedEleveForPayment, setSelectedEleveForPayment] = useState(null);
+  const [paymentCode, setPaymentCode] = useState('');
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [paiements, setPaiements] = useState([]);
+  const [paiementsLoading, setPaiementsLoading] = useState(false);
 
   useEffect(() => {
     const session = localStorage.getItem('tuteur_session');
@@ -41,13 +48,15 @@ export default function TuteurDashboard() {
   }, [navigate]);
 
   const loadData = async (tuteurId, userId) => {
+    setLoading(true);
     try {
       // Charger toutes les données nécessaires
-      const [elevesRes, notificationsRes, demandesRes, inscriptionsRes] = await Promise.allSettled([
+      const [elevesRes, notificationsRes, demandesRes, inscriptionsRes, paiementsRes] = await Promise.allSettled([
         elevesAPI.getAll(),
         notificationsAPI.getByUser(userId, 'tuteur'),
         demandesAPI.getAll(),
-        inscriptionsAPI.getAll()
+        inscriptionsAPI.getAll(),
+        paiementsAPI.getByTuteur(tuteurId)
       ]);
       
       const allEleves = elevesRes.status === 'fulfilled'
@@ -62,9 +71,15 @@ export default function TuteurDashboard() {
       const allInscriptions = inscriptionsRes.status === 'fulfilled'
         ? (Array.isArray(inscriptionsRes.value?.data) ? inscriptionsRes.value.data : (Array.isArray(inscriptionsRes.value) ? inscriptionsRes.value : []))
         : [];
+      const paiementsData = paiementsRes.status === 'fulfilled'
+        ? (Array.isArray(paiementsRes.value?.data) ? paiementsRes.value.data : (Array.isArray(paiementsRes.value) ? paiementsRes.value : []))
+        : [];
       
       // Filtrer les élèves du tuteur
       const elevesData = Array.isArray(allEleves) ? allEleves.filter(e => e.tuteur_id === tuteurId) : [];
+      
+      // Sauvegarder les paiements
+      setPaiements(Array.isArray(paiementsData) ? paiementsData : []);
       
       // Filtrer uniquement les demandes d'inscription
       const demandesInscription = Array.isArray(allDemandes) 
@@ -93,7 +108,7 @@ export default function TuteurDashboard() {
           const statut = demandeInscription.statut || 'En attente';
           if (statut === 'En attente') {
             statutDemande = 'En cours de traitement';
-          } else if (statut === 'Validée') {
+          } else if (statut === 'Validée' || statut === 'En attente de paiement') {
             // Quand l'admin valide, on affiche "En attente de paiement"
             statutDemande = 'En attente de paiement';
           } else if (statut === 'Refusée') {
@@ -118,8 +133,10 @@ export default function TuteurDashboard() {
       setNotifications(notificationsData.sort((a, b) => new Date(b.date || b.date_creation || 0) - new Date(a.date || a.date_creation || 0)));
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
+    } finally {
+      setLoading(false);
+      setPaiementsLoading(false);
     }
-    setLoading(false);
   };
 
   const handleLogout = () => {
@@ -140,6 +157,7 @@ export default function TuteurDashboard() {
     const styles = {
       'En cours de traitement': 'bg-blue-100 text-blue-700 border-blue-200',
       'En attente de paiement': 'bg-orange-100 text-orange-700 border-orange-200',
+      'Payée': 'bg-amber-100 text-amber-700 border-amber-200',
       'Refusée': 'bg-red-100 text-red-700 border-red-200',
       'Inscrit': 'bg-emerald-100 text-emerald-700 border-emerald-200',
       'En attente': 'bg-yellow-100 text-yellow-700 border-yellow-200'
@@ -174,12 +192,30 @@ export default function TuteurDashboard() {
     }
   };
 
-  const filteredEleves = eleves.filter(e => {
+  const handleDeleteEleve = async (eleve) => {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer définitivement l'inscription de ${eleve.prenom} ${eleve.nom} ?`)) {
+      return;
+    }
+    
+    try {
+      await elevesAPI.delete(eleve.id);
+      const tuteurId = tuteur.type_id || tuteur.id;
+      await loadData(tuteurId, tuteur.id);
+    } catch (err) {
+      console.error('Erreur lors de la suppression:', err);
+      alert('Erreur lors de la suppression de l\'inscription');
+    }
+  };
+
+  // Filtrer les élèves : exclure les refusées de la liste principale
+  const elevesActifs = eleves.filter(e => e.statut_demande !== 'Refusée');
+  const elevesRefuses = eleves.filter(e => e.statut_demande === 'Refusée');
+  
+  const filteredEleves = elevesActifs.filter(e => {
     if (inscriptionFilter === 'all') return true;
     if (inscriptionFilter === 'inscrit') return e.statut_demande === 'Inscrit';
     if (inscriptionFilter === 'en_attente') return e.statut_demande === 'En attente de paiement';
     if (inscriptionFilter === 'en_traitement') return e.statut_demande === 'En cours de traitement';
-    if (inscriptionFilter === 'refusee') return e.statut_demande === 'Refusée';
     return true;
   });
 
@@ -188,13 +224,13 @@ export default function TuteurDashboard() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-lime-50 via-white to-lime-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <motion.div 
@@ -204,7 +240,7 @@ export default function TuteurDashboard() {
         >
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-16 h-16 bg-gradient-to-br from-lime-400 to-lime-500 rounded-2xl flex items-center justify-center shadow-lg">
                 <Users className="w-8 h-8 text-white" />
               </div>
               <div>
@@ -253,7 +289,7 @@ export default function TuteurDashboard() {
             title="Mes Enfants" 
             value={eleves.length} 
             icon={GraduationCap} 
-            color="amber"
+            color="lime"
           />
           <StatCard 
             title="En attente" 
@@ -262,15 +298,15 @@ export default function TuteurDashboard() {
             color="orange"
           />
           <StatCard 
-            title="Affectés" 
+            title="Inscrits" 
             value={eleves.filter(e => e.statut_demande === 'Inscrit' || e.statut_demande === 'En attente de paiement').length} 
             icon={CheckCircle} 
             color="green"
           />
           <StatCard 
-            title="Notifications" 
-            value={unreadCount} 
-            icon={Bell} 
+            title="Total Paiements" 
+            value={`${paiements.filter(p => p.statut === 'Payé').reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0).toFixed(2)} DH`}
+            icon={CreditCard} 
             color="blue"
           />
         </div>
@@ -283,7 +319,7 @@ export default function TuteurDashboard() {
           className="mb-8 flex gap-4 flex-wrap"
         >
           <Link to={createPageUrl('TuteurInscription')}>
-            <Button className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl h-14 px-8 shadow-lg hover:shadow-xl transition-all">
+            <Button className="bg-gradient-to-r from-lime-500 to-lime-500 hover:from-lime-600 hover:to-lime-600 text-white rounded-xl h-14 px-8 shadow-lg hover:shadow-xl transition-all">
               <UserPlus className="w-5 h-5 mr-2" />
               Inscrire un nouvel élève
             </Button>
@@ -294,6 +330,61 @@ export default function TuteurDashboard() {
               Mes Demandes
             </Button>
           </Link>
+          <Link to={createPageUrl('TuteurNotifications')}>
+            <Button variant="outline" className="rounded-xl h-14 px-8 shadow-lg hover:shadow-xl transition-all relative">
+              <Bell className="w-5 h-5 mr-2" />
+              Notifications
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-6 h-6 bg-lime-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                  {unreadCount}
+                </span>
+              )}
+            </Button>
+          </Link>
+        </motion.div>
+
+        {/* Tabs Navigation */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mb-6"
+        >
+          <div className="bg-white rounded-2xl shadow-lg p-2 inline-flex gap-2">
+            <Button
+              onClick={() => setActiveTab('eleves')}
+              className={`rounded-xl px-6 py-3 transition-all font-semibold ${
+                activeTab === 'eleves'
+                  ? 'bg-gradient-to-r from-lime-500 to-lime-600 text-white shadow-md'
+                  : 'bg-transparent text-lime-600 hover:bg-lime-50 border-2 border-lime-200'
+              }`}
+            >
+              <GraduationCap className="w-5 h-5 mr-2" />
+              Mes Enfants
+            </Button>
+            <Button
+              onClick={() => setActiveTab('historique')}
+              className={`rounded-xl px-6 py-3 transition-all font-semibold ${
+                activeTab === 'historique'
+                  ? 'bg-gradient-to-r from-lime-500 to-lime-600 text-white shadow-md'
+                  : 'bg-transparent text-lime-600 hover:bg-lime-50 border-2 border-lime-200'
+              }`}
+            >
+              <History className="w-5 h-5 mr-2" />
+              Historique ({elevesRefuses.length})
+            </Button>
+            <Button
+              onClick={() => setActiveTab('paiements')}
+              className={`rounded-xl px-6 py-3 transition-all font-semibold ${
+                activeTab === 'paiements'
+                  ? 'bg-gradient-to-r from-lime-500 to-lime-600 text-white shadow-md'
+                  : 'bg-transparent text-lime-600 hover:bg-lime-50 border-2 border-lime-200'
+              }`}
+            >
+              <CreditCard className="w-5 h-5 mr-2" />
+              Paiements
+            </Button>
+          </div>
         </motion.div>
 
         {/* Content */}
@@ -307,7 +398,7 @@ export default function TuteurDashboard() {
           <div className="p-6 border-b border-gray-100">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <GraduationCap className="w-6 h-6 text-amber-500" />
+                <GraduationCap className="w-6 h-6 text-lime-500" />
                 Mes Enfants
               </h2>
               <Select value={inscriptionFilter} onValueChange={setInscriptionFilter}>
@@ -319,7 +410,6 @@ export default function TuteurDashboard() {
                   <SelectItem value="inscrit">Inscrits</SelectItem>
                   <SelectItem value="en_attente">En attente de paiement</SelectItem>
                   <SelectItem value="en_traitement">En cours de traitement</SelectItem>
-                  <SelectItem value="refusee">Refusées</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -330,7 +420,7 @@ export default function TuteurDashboard() {
               <GraduationCap className="w-16 h-16 mx-auto text-gray-300 mb-4" />
               <p className="text-gray-500">Aucun élève inscrit pour le moment</p>
               <Link to={createPageUrl('TuteurInscription')}>
-                <Button className="mt-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl">
+                <Button className="mt-4 bg-lime-500 hover:bg-lime-600 text-white rounded-xl">
                   Inscrire un élève
                 </Button>
               </Link>
@@ -343,7 +433,7 @@ export default function TuteurDashboard() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.1 * index }}
-                  className="p-6 hover:bg-amber-50/50 transition-colors"
+                  className="p-6 hover:bg-lime-50/50 transition-colors"
                 >
                   <div className="flex flex-col md:flex-row justify-between gap-4">
                     <div className="flex items-center gap-4">
@@ -400,17 +490,20 @@ export default function TuteurDashboard() {
                       )}
                       
                       {eleve.statut_demande === 'En attente de paiement' && eleve.demande_inscription?.id && (
-                        <Link to={createPageUrl(`TuteurPaiement?demandeId=${eleve.demande_inscription.id}`)}>
-                          <Button className="bg-green-500 hover:bg-green-600 text-white rounded-xl">
-                            <CreditCard className="w-4 h-4 mr-2" />
-                            Payer
-                          </Button>
-                        </Link>
+                        <Button 
+                          onClick={() => {
+                            setSelectedEleveForPayment(eleve);
+                            setShowPaymentModal(true);
+                            setPaymentCode('');
+                            setPaymentError('');
+                          }}
+                          className="bg-gradient-to-r from-lime-600 to-lime-600 hover:from-lime-700 hover:to-lime-700 text-white rounded-xl font-semibold shadow-md"
+                        >
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Payer
+                        </Button>
                       )}
                       
-                      {eleve.statut_demande === 'Refusée' && (
-                        <span className="text-sm text-red-600 font-medium italic">Demande refusée</span>
-                      )}
                       
                       {eleve.statut_demande === 'Inscrit' && (
                         <span className="text-sm text-green-600 font-medium">Élève inscrit</span>
@@ -424,8 +517,187 @@ export default function TuteurDashboard() {
         </motion.div>
         )}
 
+        {/* Content - Historique */}
+        {activeTab === 'historique' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-3xl shadow-xl overflow-hidden"
+          >
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <History className="w-6 h-6 text-lime-500" />
+                Historique des Inscriptions Refusées
+              </h2>
+              <p className="text-gray-500 mt-1">{elevesRefuses.length} inscription(s) refusée(s)</p>
+            </div>
+            
+            {elevesRefuses.length === 0 ? (
+              <div className="p-12 text-center">
+                <History className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500">Aucune inscription refusée dans l'historique</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {elevesRefuses.map((eleve, index) => (
+                  <motion.div
+                    key={eleve.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 * index }}
+                    className="p-6 hover:bg-red-50/50 transition-colors"
+                  >
+                    <div className="flex flex-col md:flex-row justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center">
+                          <XCircle className="w-7 h-7 text-red-500" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800 text-lg">
+                            {eleve.nom} {eleve.prenom}
+                          </h3>
+                          <div className="flex flex-wrap gap-2 mt-1 text-sm text-gray-500">
+                            <span>{eleve.classe}</span>
+                            {eleve.adresse && (
+                              <>
+                                <span>•</span>
+                                <span>{eleve.adresse.substring(0, 30)}...</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="mt-2">
+                            <span className="px-3 py-1 rounded-xl text-sm font-medium border border-red-300 bg-red-50 text-red-700">
+                              Refusée
+                            </span>
+                            {eleve.demande_inscription?.date_creation && (
+                              <span className="ml-3 text-xs text-gray-500">
+                                Le {new Date(eleve.demande_inscription.date_creation).toLocaleDateString('fr-FR')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Link to={createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`)}>
+                          <Button variant="outline" className="rounded-xl">
+                            <Eye className="w-4 h-4 mr-2" />
+                            Détails
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleDeleteEleve(eleve)}
+                          className="rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50 border-red-300"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Supprimer
+                        </Button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {activeTab === 'demandes' && (
           <DemandeFormTuteur tuteur={tuteur} eleves={eleves} />
+        )}
+
+        {/* Content - Paiements */}
+        {activeTab === 'paiements' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-3xl shadow-xl overflow-hidden"
+          >
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <CreditCard className="w-6 h-6 text-lime-500" />
+                Mes Paiements
+              </h2>
+              <p className="text-gray-500 mt-1">
+                Total: {paiements.filter(p => p.statut === 'Payé').reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0).toFixed(2)} DH
+              </p>
+            </div>
+            
+            {paiements.length === 0 ? (
+              <div className="p-12 text-center">
+                <CreditCard className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500">Aucun paiement enregistré</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {paiements.map((paiement, index) => (
+                  <motion.div
+                    key={paiement.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 * index }}
+                    className="p-6 hover:bg-lime-50/50 transition-colors"
+                  >
+                    <div className="flex flex-col md:flex-row justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                          paiement.type_paiement === 'initial' ? 'bg-blue-100' : 'bg-green-100'
+                        }`}>
+                          <CreditCard className={`w-7 h-7 ${
+                            paiement.type_paiement === 'initial' ? 'text-blue-500' : 'text-green-500'
+                          }`} />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-800 text-lg">
+                            {paiement.eleve_prenom} {paiement.eleve_nom}
+                          </h3>
+                          <div className="flex flex-wrap gap-2 mt-1 text-sm text-gray-500">
+                            <span>{paiement.eleve_classe || 'N/A'}</span>
+                            {paiement.bus_numero && (
+                              <>
+                                <span>•</span>
+                                <span>Bus {paiement.bus_numero}</span>
+                              </>
+                            )}
+                            {paiement.date_paiement && (
+                              <>
+                                <span>•</span>
+                                <span>{new Date(paiement.date_paiement).toLocaleDateString('fr-FR')}</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="mt-2 flex gap-2">
+                            <span className={`px-3 py-1 rounded-xl text-xs font-medium ${
+                              paiement.type_paiement === 'initial' 
+                                ? 'bg-blue-100 text-blue-700' 
+                                : 'bg-green-100 text-green-700'
+                            }`}>
+                              {paiement.type_paiement === 'initial' ? 'Paiement initial' : `Mois ${paiement.mois}/${paiement.annee}`}
+                            </span>
+                            <span className={`px-3 py-1 rounded-xl text-xs font-medium border ${
+                              paiement.statut === 'Payé' 
+                                ? 'bg-green-100 text-green-700 border-green-200' 
+                                : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                            }`}>
+                              {paiement.statut}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center">
+                        <span className="text-2xl font-bold text-lime-600">
+                          {parseFloat(paiement.montant || 0).toFixed(2)} DH
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </motion.div>
         )}
       </div>
 
@@ -443,6 +715,154 @@ export default function TuteurDashboard() {
           }
         }}
       />
+
+      {/* Modal de paiement */}
+      {showPaymentModal && selectedEleveForPayment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+          >
+            <div className="p-6 bg-gradient-to-r from-lime-600 to-lime-600">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                  <CreditCard className="w-6 h-6" />
+                  Paiement
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setSelectedEleveForPayment(null);
+                    setPaymentCode('');
+                    setPaymentError('');
+                  }}
+                  className="text-white/80 hover:text-white transition-colors"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {/* Informations de la demande */}
+              <div className="bg-lime-50 rounded-xl p-4 mb-6 border border-lime-200">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Élève:</span>
+                    <span className="font-semibold">{selectedEleveForPayment.prenom} {selectedEleveForPayment.nom}</span>
+                  </div>
+                  {selectedEleveForPayment.demande_inscription?.montant_facture && (
+                    <div className="flex justify-between pt-2 border-t border-lime-200">
+                      <span className="text-gray-700 font-medium">Montant:</span>
+                      <span className="text-lg font-bold text-lime-700">
+                        {parseFloat(selectedEleveForPayment.demande_inscription.montant_facture).toFixed(2)} DH
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Instructions */}
+              <div className="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-200">
+                <p className="text-sm text-blue-800">
+                  <strong>Instructions:</strong> Veuillez consulter l'école pour effectuer le paiement et récupérer le code de vérification à saisir ci-dessous.
+                </p>
+              </div>
+
+              {paymentError && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-600">
+                  <AlertCircle className="w-5 h-5" />
+                  {paymentError}
+                </div>
+              )}
+
+              {/* Formulaire de code */}
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-gray-700 font-semibold mb-2 block">
+                    Code de vérification (fourni par l'école)
+                  </Label>
+                  <Input
+                    value={paymentCode}
+                    onChange={(e) => setPaymentCode(e.target.value.toUpperCase())}
+                    placeholder="Entrez le code de vérification"
+                    className="h-12 rounded-xl text-center text-xl tracking-widest font-mono uppercase"
+                    maxLength={10}
+                    disabled={paymentLoading}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setSelectedEleveForPayment(null);
+                      setPaymentCode('');
+                      setPaymentError('');
+                    }}
+                    className="flex-1 rounded-xl"
+                    disabled={paymentLoading}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      if (!paymentCode || paymentCode.length < 4) {
+                        setPaymentError('Veuillez saisir le code de vérification');
+                        return;
+                      }
+
+                      setPaymentLoading(true);
+                      setPaymentError('');
+
+                      try {
+                        const response = await demandesAPI.verifierCode(
+                          selectedEleveForPayment.demande_inscription.id,
+                          paymentCode
+                        );
+
+                        if (!response.success) {
+                          setPaymentError(response.message || 'Code de vérification incorrect');
+                          setPaymentLoading(false);
+                          return;
+                        }
+
+                        // Succès - fermer la modal et recharger les données
+                        setShowPaymentModal(false);
+                        setSelectedEleveForPayment(null);
+                        setPaymentCode('');
+                        
+                        // Recharger les données
+                        const tuteurId = tuteur.type_id || tuteur.id;
+                        await loadData(tuteurId, tuteur.id);
+                      } catch (err) {
+                        console.error('Erreur lors de la vérification:', err);
+                        setPaymentError(err.message || 'Erreur lors de la vérification du code. Veuillez réessayer.');
+                      }
+                      setPaymentLoading(false);
+                    }}
+                    disabled={paymentLoading}
+                    className="flex-1 bg-gradient-to-r from-lime-600 to-lime-600 hover:from-lime-700 hover:to-lime-700 text-white rounded-xl font-semibold"
+                  >
+                    {paymentLoading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <CheckCircle className="w-5 h-5 mr-2" />
+                        Confirmer
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
@@ -511,7 +931,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
       className="bg-white rounded-3xl shadow-xl p-6"
     >
       <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-        <TrendingUp className="w-6 h-6 text-amber-500" />
+        <TrendingUp className="w-6 h-6 text-lime-500" />
         Demande de changement d'adresse / Zone (Déménagement)
       </h2>
 
@@ -547,7 +967,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
         </div>
 
         {selectedEleve && (
-          <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+          <div className="bg-lime-50 rounded-xl p-4 border border-lime-100">
             <p className="text-sm text-gray-600 mb-2">Informations actuelles</p>
             <p className="font-medium">Adresse actuelle: <span className="text-gray-700">{selectedEleve.adresse || 'Non renseignée'}</span></p>
           </div>
@@ -555,7 +975,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
 
         <div>
           <Label className="text-gray-700 font-medium mb-2 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-amber-500" />
+            <MapPin className="w-4 h-4 text-lime-500" />
             Nouvelle adresse
           </Label>
           <Input
@@ -569,7 +989,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
 
         <div>
           <Label className="text-gray-700 font-medium mb-2 flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-amber-500" />
+            <MapPin className="w-4 h-4 text-lime-500" />
             Nouvelle zone
           </Label>
           <Select
@@ -589,7 +1009,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
 
         <div>
           <Label className="text-gray-700 font-medium mb-2 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-amber-500" />
+            <Calendar className="w-4 h-4 text-lime-500" />
             Date de déménagement
           </Label>
           <Input
@@ -615,7 +1035,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
         <Button
           type="submit"
           disabled={loading || !formData.eleve_id}
-          className="w-full h-12 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl"
+          className="w-full h-12 bg-gradient-to-r from-lime-500 to-lime-500 hover:from-lime-600 hover:to-lime-600 text-white rounded-xl"
         >
           {loading ? (
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

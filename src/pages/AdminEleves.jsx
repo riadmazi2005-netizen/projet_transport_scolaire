@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, tuteursAPI, inscriptionsAPI, busAPI, trajetsAPI, demandesAPI } from '../services/apiService';
+import { elevesAPI, tuteursAPI, inscriptionsAPI, busAPI, trajetsAPI, demandesAPI, zonesAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,15 @@ export default function AdminEleves() {
   const navigate = useNavigate();
   const [eleves, setEleves] = useState([]);
   const [tuteurs, setTuteurs] = useState([]);
+  const [zones, setZones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [zoneFilter, setZoneFilter] = useState('all');
+  const [classeFilter, setClasseFilter] = useState('all');
+  const [groupeFilter, setGroupeFilter] = useState('all');
+  const [typeTransportFilter, setTypeTransportFilter] = useState('all');
+  const [typeAbonnementFilter, setTypeAbonnementFilter] = useState('all');
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -37,7 +43,8 @@ export default function AdminEleves() {
         inscriptionsAPI.getAll(),
         busAPI.getAll(),
         trajetsAPI.getAll(),
-        demandesAPI.getAll()
+        demandesAPI.getAll(),
+        zonesAPI.getAll()
       ]);
       
       // Extraire les données avec gestion de différents formats
@@ -59,18 +66,29 @@ export default function AdminEleves() {
       const demandesArray = results[5].status === 'fulfilled'
         ? (Array.isArray(results[5].value?.data) ? results[5].value.data : (Array.isArray(results[5].value) ? results[5].value : []))
         : [];
+      const zonesArray = results[6].status === 'fulfilled'
+        ? (Array.isArray(results[6].value?.data) ? results[6].value.data : (Array.isArray(results[6].value) ? results[6].value : []))
+        : [];
       
       // Filtrer uniquement les demandes d'inscription
       const demandesInscription = Array.isArray(demandesArray) ? demandesArray.filter(d => d.type_demande === 'inscription') : [];
       
-      // Filtrer les élèves qui ont une inscription active OU une demande avec statut "Inscrit"
+      // Filtrer les élèves qui ont une inscription active OU une demande avec statut "Inscrit", "Validée", "Payée" ou "En attente de paiement"
+      // Exclure explicitement les élèves avec des demandes refusées
       const elevesInscrits = Array.isArray(elevesArray) ? elevesArray.filter(e => {
         const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut === 'Active') : null;
         const demandeInscription = Array.isArray(demandesInscription) ? demandesInscription
           .filter(d => d.eleve_id === e.id)
           .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
-        // Inclure si inscription active OU demande avec statut "Inscrit"
-        return inscription !== null || demandeInscription?.statut === 'Inscrit';
+        
+        // Exclure si la demande la plus récente est refusée
+        if (demandeInscription?.statut === 'Refusée') {
+          return false;
+        }
+        
+        // Inclure si inscription active OU demande avec statut valide (Inscrit, Validée, Payée, En attente de paiement, etc.)
+        const statutsValides = ['Inscrit', 'Validée', 'Payée', 'En attente de paiement', 'En cours de traitement'];
+        return inscription !== null || (demandeInscription && statutsValides.includes(demandeInscription.statut));
       }) : [];
       
       // Enrichir les élèves avec toutes les informations
@@ -103,6 +121,7 @@ export default function AdminEleves() {
       
       setEleves(elevesWithDetails);
       setTuteurs(tuteursArray);
+      setZones(zonesArray.filter(z => z.actif !== false));
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
       setError('Erreur lors du chargement des données: ' + (err.message || 'Erreur de connexion au serveur'));
@@ -112,7 +131,9 @@ export default function AdminEleves() {
   };
 
   const filteredEleves = eleves.filter(e => {
-    const matchSearch = 
+    // Recherche globale (nom, prénom, ID)
+    const matchSearch = searchTerm === '' || 
+      e.id?.toString().includes(searchTerm) ||
       e.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.classe?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -122,10 +143,36 @@ export default function AdminEleves() {
       e.tuteur?.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.tuteur?.telephone?.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchStatus = statusFilter === 'all' || e.inscription?.statut === statusFilter || e.statut === statusFilter;
+    // Filtre par statut
+    const matchStatus = statusFilter === 'all' || e.inscription?.statut === statusFilter || e.statut_affichage === statusFilter;
     
-    return matchSearch && matchStatus;
+    // Filtre par zone
+    const matchZone = zoneFilter === 'all' || e.zone === zoneFilter || e.demande_inscription?.zone_geographique === zoneFilter;
+    
+    // Filtre par classe
+    const matchClasse = classeFilter === 'all' || e.classe === classeFilter;
+    
+    // Filtre par groupe
+    const matchGroupe = groupeFilter === 'all' || e.groupe === groupeFilter || e.demande_inscription?.groupe === groupeFilter;
+    
+    // Filtre par type de transport
+    const matchTypeTransport = typeTransportFilter === 'all' || 
+      e.type_transport === typeTransportFilter || 
+      e.demande_inscription?.type_transport === typeTransportFilter;
+    
+    // Filtre par type d'abonnement
+    const matchTypeAbonnement = typeAbonnementFilter === 'all' || 
+      e.type_abonnement === typeAbonnementFilter || 
+      e.demande_inscription?.abonnement === typeAbonnementFilter;
+    
+    return matchSearch && matchStatus && matchZone && matchClasse && matchGroupe && matchTypeTransport && matchTypeAbonnement;
   });
+  
+  // Extraire les valeurs uniques pour les filtres
+  const classesUniques = [...new Set(eleves.map(e => e.classe).filter(Boolean))].sort();
+  const groupesUniques = [...new Set(eleves.map(e => e.groupe || e.demande_inscription?.groupe).filter(Boolean))].sort();
+  const typesTransportUniques = [...new Set(eleves.map(e => e.type_transport || e.demande_inscription?.type_transport).filter(Boolean))].sort();
+  const typesAbonnementUniques = [...new Set(eleves.map(e => e.type_abonnement || e.demande_inscription?.abonnement).filter(Boolean))].sort();
 
   const getStatusBadge = (statut) => {
     const styles = {
@@ -185,28 +232,97 @@ export default function AdminEleves() {
 
         {/* Filters */}
         <div className="p-6 border-b border-gray-100">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
+          <div className="space-y-4">
+            {/* Recherche globale */}
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
-                placeholder="Rechercher par nom, prénom, classe, adresse, zone, tuteur..."
+                placeholder="Rechercher par ID, nom, prénom..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 h-12 rounded-xl"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-48 h-12 rounded-xl">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Statut" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Suspendue">Suspendue</SelectItem>
-                <SelectItem value="Terminée">Terminée</SelectItem>
-              </SelectContent>
-            </Select>
+            
+            {/* Filtres avancés */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-12 rounded-xl">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Suspendue">Suspendue</SelectItem>
+                  <SelectItem value="Terminée">Terminée</SelectItem>
+                  <SelectItem value="Inscrit">Inscrit</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={zoneFilter} onValueChange={setZoneFilter}>
+                <SelectTrigger className="h-12 rounded-xl">
+                  <MapPin className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Zone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les zones</SelectItem>
+                  {zones.map(zone => (
+                    <SelectItem key={zone.id} value={zone.nom}>{zone.nom}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={classeFilter} onValueChange={setClasseFilter}>
+                <SelectTrigger className="h-12 rounded-xl">
+                  <GraduationCap className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les classes</SelectItem>
+                  {classesUniques.map(classe => (
+                    <SelectItem key={classe} value={classe}>{classe}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={groupeFilter} onValueChange={setGroupeFilter}>
+                <SelectTrigger className="h-12 rounded-xl">
+                  <SelectValue placeholder="Groupe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les groupes</SelectItem>
+                  {groupesUniques.map(groupe => (
+                    <SelectItem key={groupe} value={groupe}>{groupe}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={typeTransportFilter} onValueChange={setTypeTransportFilter}>
+                <SelectTrigger className="h-12 rounded-xl">
+                  <Bus className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Transport" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les types</SelectItem>
+                  {typesTransportUniques.map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={typeAbonnementFilter} onValueChange={setTypeAbonnementFilter}>
+                <SelectTrigger className="h-12 rounded-xl">
+                  <SelectValue placeholder="Abonnement" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les abonnements</SelectItem>
+                  {typesAbonnementUniques.map(abonnement => (
+                    <SelectItem key={abonnement} value={abonnement}>{abonnement}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 

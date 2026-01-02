@@ -1,10 +1,160 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { Bus, Users, UserCog, Shield, GraduationCap } from 'lucide-react';
+import { contactAPI } from '../services/apiService';
+import { Bus, Users, UserCog, Shield, GraduationCap, Phone, Mail, MapPin, Send } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
+function ContactForm() {
+  const [formData, setFormData] = useState({
+    nom: '',
+    email: '',
+    message: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setSuccess(false);
+    setError(null);
+
+    try {
+      const response = await contactAPI.sendMessage(formData);
+      if (response.success) {
+        setSuccess(true);
+        setFormData({ nom: '', email: '', message: '' });
+        setTimeout(() => setSuccess(false), 5000);
+      } else {
+        setError(response.message || 'Erreur lors de l\'envoi du message');
+      }
+    } catch (err) {
+      console.error('Erreur:', err);
+      setError('Erreur de connexion. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      {success && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700">
+          Message envoyé avec succès ! Nous vous répondrons dans les plus brefs délais.
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <Label htmlFor="nom" className="text-gray-700 font-medium mb-2 block">
+            Votre nom
+          </Label>
+          <Input
+            id="nom"
+            value={formData.nom}
+            onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+            placeholder="Votre nom"
+            className="h-12 rounded-xl border-gray-300"
+            required
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="email" className="text-gray-700 font-medium mb-2 block">
+            Votre email
+          </Label>
+          <Input
+            id="email"
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            placeholder="Votre email"
+            className="h-12 rounded-xl border-gray-300"
+            required
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="message" className="text-gray-700 font-medium mb-2 block">
+            Votre message
+          </Label>
+          <Textarea
+            id="message"
+            value={formData.message}
+            onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+            placeholder="Votre message"
+            className="min-h-[120px] rounded-xl border-gray-300"
+            required
+          />
+        </div>
+
+        <Button
+          type="submit"
+          disabled={loading}
+          className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <>
+              <Send className="w-5 h-5" />
+              Envoyer le message
+            </>
+          )}
+        </Button>
+      </form>
+    </>
+  );
+}
 
 export default function Home() {
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    // Créer l'élément audio une seule fois
+    if (!audioRef.current) {
+      audioRef.current = new Audio('/school_bus_horn_short.mp3');
+      audioRef.current.volume = 0.5; // Volume à 50%
+      audioRef.current.preload = 'auto';
+    }
+
+    // Fonction pour jouer le son
+    const playHornSound = () => {
+      if (audioRef.current) {
+        audioRef.current.play().catch(error => {
+          // Certains navigateurs bloquent l'autoplay audio
+          console.log('Son désactivé (autoplay bloqué ou fichier non trouvé):', error);
+        });
+      }
+    };
+
+    // Attendre un peu après le chargement pour jouer le son (800ms)
+    const timer = setTimeout(() => {
+      playHornSound();
+    }, 800);
+
+    // Nettoyage
+    return () => {
+      clearTimeout(timer);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
   const spaces = [
     {
       title: "Espace Tuteur",
@@ -75,14 +225,25 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Bus Image */}
+        {/* Bus Image avec animation breathing */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
           className="flex justify-center mb-16"
         >
-          <div className="relative">
+          <motion.div 
+            className="relative"
+            animate={{
+              y: [0, -6, 0],
+              scale: [1, 1.015, 1],
+            }}
+            transition={{
+              duration: 3.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          >
             <img 
               src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694e9878090ae6571e82701e/b6246c87a_image.png" 
               alt="Bus Scolaire Mohammed 5"
@@ -93,7 +254,7 @@ export default function Home() {
               <p className="text-lg font-semibold">Transport Fiable & Sécurisé</p>
               <p className="text-sm opacity-90">Pour tous vos enfants</p>
             </div>
-          </div>
+          </motion.div>
         </motion.div>
 
         {/* Space Cards */}
@@ -135,14 +296,93 @@ export default function Home() {
           ))}
         </div>
 
+        {/* Contact Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.8 }}
+          className="mt-20 mb-16"
+          id="contact"
+        >
+          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2 min-h-[500px]">
+              {/* Left Panel - Dark Yellow/Orange */}
+              <div className="bg-gradient-to-br from-amber-700 to-orange-700 p-8 md:p-12 flex flex-col justify-center text-white">
+                <h2 className="text-4xl font-bold mb-4">Contactez-nous</h2>
+                <p className="text-amber-100 text-lg mb-8">
+                  Notre équipe est disponible pour répondre à toutes vos questions concernant le service de transport scolaire.
+                </p>
+
+                <div className="space-y-6">
+                  {/* Phone 1 */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                      <Phone className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-amber-100 text-sm">Téléphone</p>
+                      <p className="text-white font-semibold">+212 714390289</p>
+                    </div>
+                  </div>
+
+                  {/* Phone 2 */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                      <Phone className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-amber-100 text-sm">Téléphone</p>
+                      <p className="text-white font-semibold">+212 669-266176</p>
+                    </div>
+                  </div>
+
+                  {/* Email */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                      <Mail className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-amber-100 text-sm">Email</p>
+                      <p className="text-white font-semibold">mohammed5@gmail.com</p>
+                    </div>
+                  </div>
+
+                  {/* Address */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                      <MapPin className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-amber-100 text-sm">Adresse</p>
+                      <p className="text-white font-semibold">Rabat, Maroc</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Panel - White Form */}
+              <div className="bg-white p-8 md:p-12 flex flex-col justify-center">
+                <h3 className="text-2xl font-bold text-gray-800 mb-6">
+                  Envoyez-nous un message
+                </h3>
+                <ContactForm />
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
         {/* Footer */}
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.8 }}
-          className="text-center mt-16 text-gray-500"
+          transition={{ duration: 0.8, delay: 1 }}
+          className="text-center mt-8 text-gray-500"
         >
-          <p>© 2025 Mohammed 5 School Bus - Tous droits réservés</p>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <Bus className="w-5 h-5 text-amber-500" />
+            <span className="font-semibold">Mohammed 5 School Bus</span>
+          </div>
+          <p>© 2024 Mohammed 5 School Bus. Tous droits réservés.</p>
         </motion.div>
       </div>
     </div>

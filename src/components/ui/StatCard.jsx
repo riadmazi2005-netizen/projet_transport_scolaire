@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 export default function StatCard({ title, value, icon: Icon, color = 'amber', trend, subtitle }) {
   const colors = {
     amber: 'from-amber-400 to-yellow-500',
+    lime: 'from-lime-400 to-lime-500',
     green: 'from-green-400 to-emerald-500',
     blue: 'from-blue-400 to-cyan-500',
     red: 'from-red-400 to-rose-500',

@@ -17,7 +17,8 @@ import {
   LogOut,
   GraduationCap,
   FileText,
-  User
+  User,
+  MapPin
 } from 'lucide-react';
 
 export default function AdminSidebar({ admin, notifications = [], onLogout, onNotificationClick }) {
@@ -87,10 +88,22 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
       path: '/AdminPaiements'
     },
     {
+      title: 'Zones',
+      icon: MapPin,
+      link: 'AdminZones',
+      path: '/AdminZones'
+    },
+    {
       title: 'Profil',
       icon: User,
       link: 'AdminProfile',
       path: '/AdminProfile'
+    },
+    {
+      title: 'Notifications',
+      icon: Bell,
+      link: 'AdminNotifications',
+      path: '/AdminNotifications'
     },
   ];
 

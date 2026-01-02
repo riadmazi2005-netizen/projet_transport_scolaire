@@ -33,7 +33,7 @@ export default function AdminInscriptions() {
   const [adminUser, setAdminUser] = useState(null);
   const [inscriptionForm, setInscriptionForm] = useState({
     date_debut: format(new Date(), 'yyyy-MM-dd'),
-    date_fin: format(new Date(new Date().setMonth(new Date().getMonth() + 10)), 'yyyy-MM-dd')
+    date_fin: '2026-02-01' // Par défaut pour mensuel, sera recalculé selon l'abonnement
   });
   const [copiedCode, setCopiedCode] = useState(null);
 
@@ -141,22 +141,13 @@ export default function AdminInscriptions() {
     
     let dateFin;
     if (abonnement === 'Annuel') {
-      // Si on est après juin, utiliser le 30 juin de l'année suivante, sinon de l'année en cours
-      const currentYear = today.getFullYear();
-      const currentMonth = today.getMonth(); // 0-11, juin = 5
-      
-      if (currentMonth >= 6) {
-        // Après juin, utiliser l'année suivante
-        dateFin = format(new Date(currentYear + 1, 5, 30), 'yyyy-MM-dd'); // 30 juin année suivante
-      } else {
-        // Avant ou en juin, utiliser le 30 juin de l'année en cours
-        dateFin = format(new Date(currentYear, 5, 30), 'yyyy-MM-dd'); // 30 juin année en cours
-      }
+      // Pour abonnement annuel : date de fin fixée au 30/06/2026
+      dateFin = '2026-06-30';
     } else {
-      // Mensuel : date de fin = date de début + 1 mois
-      const dateFinDate = new Date(today);
-      dateFinDate.setMonth(dateFinDate.getMonth() + 1);
-      dateFin = format(dateFinDate, 'yyyy-MM-dd');
+      // Pour abonnement mensuel : date de fin = date de début + 1 mois
+      const dateFinObj = new Date(today);
+      dateFinObj.setMonth(dateFinObj.getMonth() + 1);
+      dateFin = format(dateFinObj, 'yyyy-MM-dd');
     }
     
     return { dateDebut, dateFin };
@@ -201,17 +192,7 @@ export default function AdminInscriptions() {
       return;
     }
 
-    // Vérifier que les dates sont valides
-    if (!inscriptionForm.date_debut || !inscriptionForm.date_fin) {
-      setError('Veuillez remplir les dates de début et de fin.');
-      return;
-    }
-
-    if (new Date(inscriptionForm.date_debut) >= new Date(inscriptionForm.date_fin)) {
-      setError('La date de fin doit être postérieure à la date de début.');
-      return;
-    }
-    
+    // Les dates sont calculées automatiquement, pas besoin de vérification supplémentaire
     setError(null);
     
     try {
@@ -229,36 +210,22 @@ export default function AdminInscriptions() {
         throw new Error(traiterResponse?.message || 'Erreur lors du traitement de la demande');
       }
       
-      // Extraire les infos de transport pour calculer le montant mensuel
-      const infosTransport = extraireInfosTransport(selectedEleve.demande_inscription.description);
-      const montantFacture = calculerMontantFacture(infosTransport.type_transport, infosTransport.abonnement);
-      // Pour l'inscription, on utilise le montant mensuel (même pour annuel, on stocke le montant mensuel)
-      const montantMensuel = infosTransport.abonnement === 'Annuel' ? montantFacture / 10 : montantFacture;
-      
-      // Créer l'inscription avec tous les champs requis
-      // Note: L'inscription est créée mais le statut reste "Active" car le paiement sera fait ensuite par le tuteur
-      const inscriptionData = {
-        eleve_id: selectedEleve.id,
-        bus_id: null, // Le bus sera affecté après le paiement
-        date_debut: inscriptionForm.date_debut,
-        date_fin: inscriptionForm.date_fin,
-        montant_mensuel: montantMensuel,
-        statut: 'Active'
-      };
-      
-      const response = await inscriptionsAPI.create(inscriptionData);
-      
-      if (!response || !response.success) {
-        throw new Error(response?.message || 'Erreur lors de la création de l\'inscription');
-      }
+      // Ne PAS créer l'inscription maintenant
+      // L'inscription sera créée par l'administrateur APRÈS le paiement du tuteur et l'affectation du bus
       
       // Tout s'est bien passé, fermer le modal et recharger les données
       setShowInscriptionModal(false);
       setSelectedEleve(null);
+      
+      // Réinitialiser le formulaire avec des valeurs par défaut
+      const today = new Date();
+      const defaultDateFin = new Date(today);
+      defaultDateFin.setMonth(defaultDateFin.getMonth() + 1);
       setInscriptionForm({
-        date_debut: format(new Date(), 'yyyy-MM-dd'),
-        date_fin: format(new Date(new Date().setMonth(new Date().getMonth() + 10)), 'yyyy-MM-dd')
+        date_debut: format(today, 'yyyy-MM-dd'),
+        date_fin: format(defaultDateFin, 'yyyy-MM-dd')
       });
+      
       await loadData();
     } catch (err) {
       console.error('Erreur lors de la validation:', err);
@@ -362,7 +329,38 @@ export default function AdminInscriptions() {
         return;
       }
       
-      // Mettre à jour le statut de la demande en "Inscrit" si elle existe
+      // Calculer le montant mensuel depuis la demande
+      let montantMensuel = 500; // valeur par défaut
+      if (selectedEleve.demande_inscription?.description) {
+        const infosTransport = extraireInfosTransport(selectedEleve.demande_inscription.description);
+        const montantFacture = calculerMontantFacture(infosTransport.type_transport, infosTransport.abonnement);
+        montantMensuel = infosTransport.abonnement === 'Annuel' ? montantFacture / 10 : montantFacture;
+      }
+      
+      // Calculer les dates selon le type d'abonnement
+      let abonnement = 'Mensuel';
+      if (selectedEleve.demande_inscription?.description) {
+        const infosTransport = extraireInfosTransport(selectedEleve.demande_inscription.description);
+        abonnement = infosTransport.abonnement || 'Mensuel';
+      }
+      const { dateDebut, dateFin } = calculateDates(abonnement);
+      
+      // Créer l'inscription avec le bus affecté
+      const inscriptionData = {
+        eleve_id: selectedEleve.id,
+        bus_id: busId,
+        date_debut: dateDebut,
+        date_fin: dateFin,
+        montant_mensuel: montantMensuel,
+        statut: 'Active'
+      };
+      
+      const createResponse = await inscriptionsAPI.create(inscriptionData);
+      if (!createResponse || !createResponse.success) {
+        throw new Error(createResponse?.message || 'Erreur lors de la création de l\'inscription');
+      }
+      
+      // Mettre à jour le statut de la demande en "Inscrit" après l'affectation du bus
       if (selectedEleve.demande_inscription?.id) {
         try {
           await demandesAPI.traiter(
@@ -378,38 +376,13 @@ export default function AdminInscriptions() {
         }
       }
       
-      if (selectedEleve.inscription && selectedEleve.inscription.id) {
-        // Mettre à jour l'inscription existante
-        const updateResponse = await inscriptionsAPI.update(selectedEleve.inscription.id, {
-          bus_id: busId,
-          statut: 'Active'
+      // Activer l'élève (mettre le statut à "Actif")
+      try {
+        await elevesAPI.update(selectedEleve.id, {
+          statut: 'Actif'
         });
-        
-        if (!updateResponse || !updateResponse.success) {
-          throw new Error(updateResponse?.message || 'Erreur lors de la mise à jour de l\'inscription');
-        }
-      } else {
-        // Créer une nouvelle inscription avec montant calculé depuis la demande
-        let montantMensuel = 500; // valeur par défaut
-        if (selectedEleve.demande_inscription?.description) {
-          const infosTransport = extraireInfosTransport(selectedEleve.demande_inscription.description);
-          const montantFacture = calculerMontantFacture(infosTransport.type_transport, infosTransport.abonnement);
-          montantMensuel = infosTransport.abonnement === 'Annuel' ? montantFacture / 10 : montantFacture;
-        }
-        
-        const inscriptionData = {
-          eleve_id: selectedEleve.id,
-          bus_id: busId,
-          date_debut: format(new Date(), 'yyyy-MM-dd'),
-          date_fin: format(new Date(new Date().setMonth(new Date().getMonth() + 10)), 'yyyy-MM-dd'),
-          montant_mensuel: montantMensuel,
-          statut: 'Active'
-        };
-        
-        const createResponse = await inscriptionsAPI.create(inscriptionData);
-        if (!createResponse || !createResponse.success) {
-          throw new Error(createResponse?.message || 'Erreur lors de la création de l\'inscription');
-        }
+      } catch (err) {
+        console.warn('Erreur lors de l\'activation de l\'élève:', err);
       }
       
       // Notifier le tuteur
@@ -456,7 +429,7 @@ export default function AdminInscriptions() {
       'En attente': 'bg-yellow-100 text-yellow-700',
       'En cours de traitement': 'bg-blue-100 text-blue-700',
       'En attente de paiement': 'bg-orange-100 text-orange-700',
-      'Payée': 'bg-green-100 text-green-700',
+      'Payée': 'bg-amber-100 text-amber-700',
       'Validée': 'bg-green-100 text-green-700',
       'Inscrit': 'bg-emerald-100 text-emerald-700',
       'Refusée': 'bg-red-100 text-red-700',
@@ -543,6 +516,7 @@ export default function AdminInscriptions() {
                   <SelectItem value="En attente">En attente</SelectItem>
                   <SelectItem value="En cours de traitement">En cours de traitement</SelectItem>
                   <SelectItem value="En attente de paiement">En attente de paiement</SelectItem>
+                  <SelectItem value="Payée">Payée</SelectItem>
                   <SelectItem value="Validée">Validée</SelectItem>
                   <SelectItem value="Inscrit">Inscrit</SelectItem>
                   <SelectItem value="Refusée">Refusée</SelectItem>
@@ -691,7 +665,7 @@ export default function AdminInscriptions() {
                         </>
                       )}
 
-                      {(eleve.statut_demande === 'Payée' || eleve.statut_demande === 'Validée' || eleve.statut_demande === 'Inscrit') && !eleve.inscription?.bus_id && (
+                      {(eleve.statut_demande === 'Payée' || eleve.statut_demande === 'En attente de paiement') && !eleve.inscription?.bus_id && (
                         <Button
                           onClick={() => handleVerifyZone(eleve)}
                           className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
@@ -917,9 +891,10 @@ export default function AdminInscriptions() {
                       <Input
                         type="date"
                         value={inscriptionForm.date_debut}
-                        onChange={(e) => setInscriptionForm({...inscriptionForm, date_debut: e.target.value})}
-                        className="rounded-xl"
+                        disabled
+                        className="rounded-xl bg-gray-50 cursor-not-allowed"
                       />
+                      <p className="text-xs text-gray-500 mt-1">Date automatique (date courante)</p>
                     </div>
 
                     <div>
@@ -930,8 +905,8 @@ export default function AdminInscriptions() {
                       <Input
                         type="date"
                         value={inscriptionForm.date_fin}
-                        onChange={(e) => setInscriptionForm({...inscriptionForm, date_fin: e.target.value})}
-                        className="rounded-xl"
+                        disabled
+                        className="rounded-xl bg-gray-50 cursor-not-allowed"
                       />
                       <p className="text-xs text-gray-500 mt-1">
                         {(() => {
@@ -945,8 +920,8 @@ export default function AdminInscriptions() {
                             } catch (err) {}
                           }
                           return abonnement === 'Annuel' 
-                            ? 'Date de fin calculée jusqu\'au 30 juin selon le type d\'abonnement annuel'
-                            : 'Date de fin calculée pour 1 mois selon le type d\'abonnement mensuel';
+                            ? 'Date automatique (30/06/2026 pour abonnement annuel)'
+                            : 'Date automatique (date de début + 1 mois pour abonnement mensuel)';
                         })()}
                       </p>
                     </div>

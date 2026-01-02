@@ -60,7 +60,25 @@ try {
         exit;
     }
     
-    // Code correct - mettre à jour le statut de la demande en "Payée" et de l'élève en "Actif"
+    // Parser la description pour extraire les informations
+    $descriptionData = json_decode($demande['description'], true);
+    if (!is_array($descriptionData)) {
+        $descriptionData = [];
+    }
+    
+    // Calculer les dates selon le type d'abonnement
+    $dateDebut = date('Y-m-d');
+    $abonnement = $descriptionData['abonnement'] ?? 'Mensuel';
+    $dateFin = ($abonnement === 'Annuel') ? '2026-06-30' : '2026-02-01';
+    
+    // Calculer le montant mensuel
+    $typeTransport = $descriptionData['type_transport'] ?? 'Aller-Retour';
+    $basePrice = ($typeTransport === 'Aller-Retour') ? 400 : 250;
+    $montantFacture = ($abonnement === 'Annuel') ? $basePrice * 10 : $basePrice;
+    $montantMensuel = ($abonnement === 'Annuel') ? $montantFacture / 10 : $montantFacture;
+    
+    // Code correct - mettre à jour le statut de la demande en "Payée"
+    // L'administrateur devra ensuite affecter le bus et mettre le statut à "Inscrit"
     $stmt = $pdo->prepare('
         UPDATE demandes 
         SET statut = "Payée",
@@ -68,18 +86,6 @@ try {
         WHERE id = ?
     ');
     $stmt->execute([$data['demande_id']]);
-    
-    // Activer l'élève (mettre le statut à "Actif")
-    if ($demande['eleve_id']) {
-        $stmt = $pdo->prepare('UPDATE eleves SET statut = "Actif" WHERE id = ?');
-        $stmt->execute([$demande['eleve_id']]);
-        
-        // Vérifier que la mise à jour a bien été effectuée
-        if ($stmt->rowCount() === 0) {
-            // L'élève n'existe pas, créer un log d'erreur mais continuer quand même
-            error_log("Erreur: L'élève avec l'ID {$demande['eleve_id']} n'existe pas dans la table eleves");
-        }
-    }
     
     // Envoyer une notification au tuteur
     if ($demande['tuteur_utilisateur_id']) {
@@ -91,12 +97,12 @@ try {
             $demande['tuteur_utilisateur_id'],
             'tuteur',
             'Paiement confirmé',
-            "Le paiement pour {$demande['eleve_prenom']} {$demande['eleve_nom']} a été confirmé. L'administrateur va maintenant affecter votre enfant à un bus.",
-            'info'
+            "Le paiement pour l'inscription de {$demande['eleve_prenom']} {$demande['eleve_nom']} a été confirmé. L'administrateur va maintenant affecter votre enfant à un bus.",
+            'success'
         ]);
     }
     
-    // Envoyer une notification à tous les administrateurs
+    // Envoyer une notification à tous les administrateurs pour qu'ils affectent le bus
     $stmt = $pdo->prepare('
         SELECT a.utilisateur_id 
         FROM administrateurs a
@@ -113,14 +119,14 @@ try {
             $admin['utilisateur_id'],
             'admin',
             'Paiement confirmé - Affectation bus requise',
-            "Le paiement pour {$demande['eleve_prenom']} {$demande['eleve_nom']} a été confirmé. Veuillez affecter l'élève à un bus.",
+            "Le paiement pour l'inscription de {$demande['eleve_prenom']} {$demande['eleve_nom']} a été confirmé. Veuillez affecter l'élève à un bus dans la section Inscriptions.",
             'alerte'
         ]);
     }
     
     echo json_encode([
         'success' => true,
-        'message' => 'Code de vérification correct. Le paiement a été confirmé.',
+        'message' => 'Code de vérification correct. Le paiement a été confirmé. L\'administrateur va maintenant affecter votre enfant à un bus.',
         'data' => [
             'demande_id' => $demande['id'],
             'eleve_id' => $demande['eleve_id'],
