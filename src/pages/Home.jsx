@@ -246,9 +246,13 @@ export default function Home() {
             }}
           >
             <img 
-              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694e9878090ae6571e82701e/b6246c87a_image.png" 
+              src="/bus-main.jpg" 
               alt="Bus Scolaire Mohammed 5"
               className="w-full h-full object-cover shadow-2xl"
+              onError={(e) => {
+                // Fallback vers l'ancienne image si la nouvelle n'est pas trouvée
+                e.target.src = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694e9878090ae6571e82701e/b6246c87a_image.png";
+              }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-amber-900/50 via-amber-900/20 to-transparent" />
             <div className="absolute bottom-12 left-12 text-white">

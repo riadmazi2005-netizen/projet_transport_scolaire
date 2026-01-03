@@ -115,16 +115,21 @@ export default function TuteurDashboard() {
           .filter(d => d.eleve_id === eleve.id)
           .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0];
         
-        // Trouver l'inscription active pour cet élève
+        // Trouver l'inscription pour cet élève (active ou désabonnée)
         const inscription = Array.isArray(allInscriptions) 
-          ? allInscriptions.find(i => i.eleve_id === eleve.id && i.statut === 'Active')
+          ? allInscriptions.find(i => i.eleve_id === eleve.id && (i.statut === 'Active' || i.statut === 'Désabonné'))
           : null;
         
         // Déterminer le statut à afficher
         let statutDemande = null;
         if (inscription) {
-          // L'élève a une inscription active, donc il est inscrit
-          statutDemande = 'Inscrit';
+          // Vérifier si l'inscription est désabonnée
+          if (inscription.statut === 'Désabonné') {
+            statutDemande = 'Désabonné';
+          } else {
+            // L'élève a une inscription active, donc il est inscrit
+            statutDemande = 'Inscrit';
+          }
         } else if (demandeInscription) {
           // Utiliser le statut de la demande et mapper selon les besoins
           const statut = demandeInscription.statut || 'En attente';
@@ -176,15 +181,24 @@ export default function TuteurDashboard() {
   };
 
   const getStatusBadge = (statut) => {
-    const styles = {
-      'En cours de traitement': 'bg-blue-100 text-blue-700 border-blue-200',
-      'En attente de paiement': 'bg-orange-100 text-orange-700 border-orange-200',
-      'Payée': 'bg-amber-100 text-amber-700 border-amber-200',
-      'Refusée': 'bg-red-100 text-red-700 border-red-200',
-      'Inscrit': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      'En attente': 'bg-yellow-100 text-yellow-700 border-yellow-200'
-    };
-    return styles[statut] || 'bg-gray-100 text-gray-700 border-gray-200';
+    const baseStyle = 'px-4 py-2 rounded-xl text-sm font-medium border';
+    
+    if (statut === 'En cours de traitement') {
+      return `${baseStyle} bg-[#64B5F6] text-white border-[#64B5F6]`;
+    } else if (statut === 'Inscrit') {
+      return `${baseStyle} bg-[#A5D6A7] text-[#1B5E20] border-[#A5D6A7]`;
+    } else if (statut === 'Désabonné') {
+      return `${baseStyle} bg-[#E57373] text-white border-[#E57373]`;
+    } else if (statut === 'En attente de paiement') {
+      return `${baseStyle} bg-orange-100 text-orange-700 border-orange-200`;
+    } else if (statut === 'Payée') {
+      return `${baseStyle} bg-amber-100 text-amber-700 border-amber-200`;
+    } else if (statut === 'Refusée') {
+      return `${baseStyle} bg-red-100 text-red-700 border-red-200`;
+    } else if (statut === 'En attente') {
+      return `${baseStyle} bg-yellow-100 text-yellow-700 border-yellow-200`;
+    }
+    return `${baseStyle} bg-gray-100 text-gray-700 border-gray-200`;
   };
 
   const handleCancelDemande = async (eleve) => {
@@ -249,11 +263,11 @@ export default function TuteurDashboard() {
         statut: 'Validée' // Statut Validée pour annulation automatique
       });
 
-      // Si l'élève a une inscription active, la mettre en "Terminée"
+      // Si l'élève a une inscription active, la mettre en "Désabonné"
       if (selectedEleveForDesabonnement.inscription?.id) {
         try {
           await inscriptionsAPI.update(selectedEleveForDesabonnement.inscription.id, {
-            statut: 'Terminée'
+            statut: 'Désabonné'
           });
         } catch (err) {
           console.warn('Erreur lors de la mise à jour de l\'inscription:', err);
@@ -565,7 +579,7 @@ export default function TuteurDashboard() {
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className={`px-4 py-2 rounded-xl text-sm font-medium border ${getStatusBadge(eleve.statut_demande)}`}>
+                      <span className={getStatusBadge(eleve.statut_demande)}>
                         {eleve.statut_demande}
                       </span>
                       
@@ -620,7 +634,10 @@ export default function TuteurDashboard() {
                               setShowDesabonnementModal(true);
                               setDesabonnementRaison('');
                             }}
-                            className="rounded-xl bg-red-500 hover:bg-red-600 text-white border-2 border-red-600"
+                            className="rounded-xl text-white border-2"
+                            style={{ backgroundColor: '#E57373', borderColor: '#E57373' }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#EF5350'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = '#E57373'}
                           >
                             <LogOut className="w-4 h-4 mr-2" />
                             Désabonnement
@@ -647,7 +664,10 @@ export default function TuteurDashboard() {
                                 abonnement: descriptionData.abonnement || ''
                               });
                             }}
-                            className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
+                            className="rounded-xl text-white border-2"
+                            style={{ backgroundColor: '#4CAF50', borderColor: '#4CAF50' }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#45a049'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = '#4CAF50'}
                           >
                             <Repeat className="w-4 h-4 mr-2" />
                             Demande de changement
