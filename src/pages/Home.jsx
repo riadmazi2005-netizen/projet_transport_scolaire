@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import { contactAPI } from '../services/apiService';
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import AnimatedBusHero from '../components/AnimatedBusHero';
 
 function ContactForm() {
   const [formData, setFormData] = useState({
@@ -120,40 +121,7 @@ function ContactForm() {
 }
 
 export default function Home() {
-  const audioRef = useRef(null);
-
-  useEffect(() => {
-    // Créer l'élément audio une seule fois
-    if (!audioRef.current) {
-      audioRef.current = new Audio('/school_bus_horn_short.mp3');
-      audioRef.current.volume = 0.5; // Volume à 50%
-      audioRef.current.preload = 'auto';
-    }
-
-    // Fonction pour jouer le son
-    const playHornSound = () => {
-      if (audioRef.current) {
-        audioRef.current.play().catch(error => {
-          // Certains navigateurs bloquent l'autoplay audio
-          console.log('Son désactivé (autoplay bloqué ou fichier non trouvé):', error);
-        });
-      }
-    };
-
-    // Attendre un peu après le chargement pour jouer le son (800ms)
-    const timer = setTimeout(() => {
-      playHornSound();
-    }, 800);
-
-    // Nettoyage
-    return () => {
-      clearTimeout(timer);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
+  // Le son du klaxon est maintenant géré par le composant AnimatedBusHero
 
   const spaces = [
     {
@@ -225,41 +193,26 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Bus Image avec animation breathing - Plein écran */}
+        {/* Animated Bus Hero Section */}
         <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
+          initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="w-full mb-16 -mx-4 md:-mx-8"
+          className="w-full mb-16 -mx-4 md:-mx-8 rounded-2xl overflow-hidden shadow-2xl"
         >
-          <motion.div 
+          <div 
             className="relative w-full"
             style={{ height: '70vh', minHeight: '500px' }}
-            animate={{
-              y: [0, -6, 0],
-              scale: [1, 1.01, 1],
-            }}
-            transition={{
-              duration: 3.5,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
           >
-            <img 
-              src="/bus-main.jpg" 
-              alt="Bus Scolaire Mohammed 5"
-              className="w-full h-full object-cover shadow-2xl"
-              onError={(e) => {
-                // Fallback vers l'ancienne image si la nouvelle n'est pas trouvée
-                e.target.src = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694e9878090ae6571e82701e/b6246c87a_image.png";
-              }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-amber-900/50 via-amber-900/20 to-transparent" />
-            <div className="absolute bottom-12 left-12 text-white">
-              <p className="text-2xl md:text-3xl font-bold mb-2">Transport Fiable & Sécurisé</p>
-              <p className="text-lg md:text-xl opacity-90">Pour tous vos enfants</p>
+            <AnimatedBusHero />
+            {/* Overlay avec texte */}
+            <div className="absolute inset-0 bg-gradient-to-t from-amber-900/60 via-amber-900/20 to-transparent pointer-events-none" />
+            <div className="absolute bottom-12 left-8 md:left-12 text-white pointer-events-none">
+              <p className="text-2xl md:text-3xl font-bold mb-2 drop-shadow-lg">Transport Fiable & Sécurisé</p>
+              <p className="text-lg md:text-xl opacity-90 drop-shadow-md">Pour tous vos enfants</p>
+              <p className="text-sm md:text-base mt-2 opacity-75 italic">Cliquez sur le bus pour entendre le klaxon</p>
             </div>
-          </motion.div>
+          </div>
         </motion.div>
 
         {/* Space Cards */}

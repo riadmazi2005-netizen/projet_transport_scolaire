@@ -71,6 +71,20 @@ try {
         exit;
     }
     
+    // Vérifier si le téléphone existe déjà (si fourni)
+    $telephone = isset($data['telephone']) && !empty(trim($data['telephone'])) 
+        ? trim($data['telephone']) 
+        : null;
+    if ($telephone) {
+        $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE telephone = ?');
+        $stmt->execute([$telephone]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Un compte existe déjà avec ce numéro de téléphone']);
+            exit;
+        }
+    }
+    
     // Hasher le mot de passe
     $hashedPassword = password_hash($data['mot_de_passe'], PASSWORD_DEFAULT);
     
@@ -83,9 +97,6 @@ try {
     // Préparer les données pour l'insertion
     $nom = trim($data['nom']);
     $prenom = trim($data['prenom']);
-    $telephone = isset($data['telephone']) && !empty(trim($data['telephone'])) 
-        ? trim($data['telephone']) 
-        : null;
     
     // Insérer le nouvel utilisateur (SANS colonne role)
     $stmt = $pdo->prepare('
@@ -115,8 +126,13 @@ try {
     $stmt->execute([$userId]);
     $tuteurId = $pdo->lastInsertId();
     
-    // Récupérer l'utilisateur créé (sans le mot de passe)
-    $stmt = $pdo->prepare('SELECT id, nom, prenom, email, telephone, statut, date_creation FROM utilisateurs WHERE id = ?');
+    // Récupérer l'utilisateur créé avec l'adresse du tuteur (sans le mot de passe)
+    $stmt = $pdo->prepare('
+        SELECT u.id, u.nom, u.prenom, u.email, u.telephone, u.statut, u.date_creation, t.adresse
+        FROM utilisateurs u
+        INNER JOIN tuteurs t ON t.utilisateur_id = u.id
+        WHERE u.id = ?
+    ');
     $stmt->execute([$userId]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     

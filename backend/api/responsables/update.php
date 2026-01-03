@@ -50,7 +50,7 @@ try {
     }
     if (isset($data['email'])) {
         // Vérifier que l'email n'est pas déjà utilisé par un autre utilisateur
-        $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE email = ? AND id != ?');
+        $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE LOWER(email) = LOWER(?) AND id != ?');
         $stmt->execute([$data['email'], $utilisateurId]);
         if ($stmt->fetch()) {
             http_response_code(400);
@@ -61,9 +61,17 @@ try {
         $userValues[] = $data['email'];
         unset($data['email']);
     }
-    if (isset($data['telephone'])) {
+    if (isset($data['telephone']) && !empty(trim($data['telephone']))) {
+        // Vérifier que le téléphone n'est pas déjà utilisé par un autre utilisateur
+        $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE telephone = ? AND id != ?');
+        $stmt->execute([trim($data['telephone']), $utilisateurId]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Ce numéro de téléphone est déjà utilisé']);
+            exit;
+        }
         $userFields[] = 'telephone = ?';
-        $userValues[] = $data['telephone'];
+        $userValues[] = trim($data['telephone']);
         unset($data['telephone']);
     }
     if (isset($data['mot_de_passe']) && !empty($data['mot_de_passe'])) {

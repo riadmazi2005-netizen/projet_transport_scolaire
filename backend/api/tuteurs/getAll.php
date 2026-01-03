@@ -8,6 +8,7 @@ try {
         SELECT 
             t.id,
             t.utilisateur_id,
+            t.adresse,
             u.nom,
             u.prenom,
             u.email,

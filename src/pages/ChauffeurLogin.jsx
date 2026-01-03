@@ -15,7 +15,8 @@ export default function ChauffeurLogin() {
     setError('');
     
     try {
-      const response = await authAPI.login(formData.email, formData.password);
+      // Vérifier que l'utilisateur est bien un chauffeur
+      const response = await authAPI.login(formData.email, formData.password, 'chauffeur');
       
       if (response.success) {
         localStorage.setItem('chauffeur_session', JSON.stringify(response.user));

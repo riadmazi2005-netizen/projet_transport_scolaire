@@ -17,6 +17,9 @@ if ((!isset($data['email']) && !isset($data['telephone'])) || !isset($data['pass
     exit;
 }
 
+// Récupérer le rôle attendu (optionnel mais recommandé pour la sécurité)
+$expectedRole = isset($data['expected_role']) ? strtolower(trim($data['expected_role'])) : null;
+
 try {
     $pdo = getDBConnection();
     
@@ -83,12 +86,13 @@ try {
                 $typeId = $responsable['id'];
             } else {
                 // Vérifier si c'est un tuteur
-                $stmt = $pdo->prepare('SELECT id FROM tuteurs WHERE utilisateur_id = ?');
+                $stmt = $pdo->prepare('SELECT id, adresse FROM tuteurs WHERE utilisateur_id = ?');
                 $stmt->execute([$user['id']]);
                 $tuteur = $stmt->fetch(PDO::FETCH_ASSOC);
                 if ($tuteur) {
                     $userType = 'tuteur';
                     $typeId = $tuteur['id'];
+                    $user['adresse'] = $tuteur['adresse']; // Ajouter l'adresse à l'utilisateur
                 }
             }
         }
@@ -97,6 +101,13 @@ try {
     if (!$userType) {
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'Type d\'utilisateur non reconnu']);
+        exit;
+    }
+    
+    // Vérifier que l'utilisateur correspond au rôle attendu (si spécifié)
+    if ($expectedRole && $userType !== $expectedRole) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Accès refusé : vous ne pouvez pas vous connecter à cet espace avec ces identifiants']);
         exit;
     }
     

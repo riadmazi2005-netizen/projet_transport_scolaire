@@ -38,8 +38,8 @@ export default function ResponsableLogin() { // <-- Ne pas oublier l'export et l
     setError('');
     
     try {
-      // Le type d'utilisateur est déterminé automatiquement par le backend
-      const response = await authAPI.login(formData.email, formData.password);
+      // Vérifier que l'utilisateur est bien un responsable
+      const response = await authAPI.login(formData.email, formData.password, 'responsable');
       
       if (response.success) {
         localStorage.setItem('responsable_session', JSON.stringify(response.user));

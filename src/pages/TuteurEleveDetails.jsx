@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { 
   GraduationCap, ArrowLeft, Bus, MapPin, Calendar,
-  User, Clock, CheckCircle, AlertCircle
+  User, Clock, CheckCircle, AlertCircle, UserCircle, Phone
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -230,6 +230,72 @@ export default function TuteurEleveDetails() {
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Informations du chauffeur */}
+                  {bus.chauffeur && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center gap-2 mb-3">
+                        <UserCircle className="w-5 h-5 text-lime-500" />
+                        <p className="text-sm font-semibold text-gray-700">Chauffeur</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-3 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 text-sm">Nom complet</span>
+                          <span className="font-medium text-gray-800">
+                            {bus.chauffeur.prenom} {bus.chauffeur.nom}
+                          </span>
+                        </div>
+                        {bus.chauffeur.numero_permis && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600 text-sm">Numéro de permis</span>
+                            <span className="font-medium text-gray-800">{bus.chauffeur.numero_permis}</span>
+                          </div>
+                        )}
+                        {bus.chauffeur.telephone && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600 text-sm flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              Téléphone
+                            </span>
+                            <span className="font-medium text-gray-800">{bus.chauffeur.telephone}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Informations du responsable */}
+                  {bus.responsable && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center gap-2 mb-3">
+                        <UserCircle className="w-5 h-5 text-lime-500" />
+                        <p className="text-sm font-semibold text-gray-700">Responsable</p>
+                      </div>
+                      <div className="bg-purple-50 rounded-xl p-3 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 text-sm">Nom complet</span>
+                          <span className="font-medium text-gray-800">
+                            {bus.responsable.prenom} {bus.responsable.nom}
+                          </span>
+                        </div>
+                        {bus.responsable.zone_responsabilite && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600 text-sm">Zone de responsabilité</span>
+                            <span className="font-medium text-gray-800">{bus.responsable.zone_responsabilite}</span>
+                          </div>
+                        )}
+                        {bus.responsable.telephone && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600 text-sm flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              Téléphone
+                            </span>
+                            <span className="font-medium text-gray-800">{bus.responsable.telephone}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

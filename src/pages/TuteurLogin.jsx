@@ -15,8 +15,8 @@ export default function TuteurLogin() {
     setError('');
     
     try {
-      // Le type d'utilisateur est déterminé automatiquement par le backend
-      const response = await authAPI.login(formData.email, formData.password);
+      // Vérifier que l'utilisateur est bien un tuteur
+      const response = await authAPI.login(formData.email, formData.password, 'tuteur');
       
       if (response.success) {
         // Save JWT token for API authentication

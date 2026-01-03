@@ -14,12 +14,23 @@ try {
     $pdo = getDBConnection();
     
     // Vérifier si l'email existe déjà
-    $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE email = ?');
+    $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE LOWER(email) = LOWER(?)');
     $stmt->execute([$data['email']]);
     if ($stmt->fetch()) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Cet email est déjà utilisé']);
         exit;
+    }
+    
+    // Vérifier si le téléphone existe déjà (si fourni)
+    if (isset($data['telephone']) && !empty(trim($data['telephone']))) {
+        $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE telephone = ?');
+        $stmt->execute([trim($data['telephone'])]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Ce numéro de téléphone est déjà utilisé']);
+            exit;
+        }
     }
     
     // Hasher le mot de passe

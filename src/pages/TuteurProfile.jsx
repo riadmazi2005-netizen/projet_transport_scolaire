@@ -50,11 +50,8 @@ export default function TuteurProfile() {
     setSuccess(false);
     
     try {
-      // Prepare data for update (exclude adresse as it's not in the database)
-      const { adresse, ...updateData } = formData;
-      
-      // Update tuteur via API - l'API attend l'ID utilisateur
-      const response = await tuteursAPI.update(tuteurId, updateData);
+      // Update tuteur via API - l'API attend l'ID utilisateur (inclut maintenant l'adresse)
+      const response = await tuteursAPI.update(tuteurId, formData);
       
       if (!response.success) {
         throw new Error(response.message || 'Erreur lors de la mise à jour');
@@ -64,9 +61,7 @@ export default function TuteurProfile() {
       const session = JSON.parse(localStorage.getItem('tuteur_session'));
       const updatedSession = { 
         ...session, 
-        ...(response.data || updateData),
-        // Keep adresse in local storage if it was there, but don't send it to API
-        ...(adresse ? { adresse } : {}),
+        ...(response.data || formData),
         // Keep type_id if it exists
         ...(session.type_id ? { type_id: session.type_id } : {})
       };

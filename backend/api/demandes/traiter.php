@@ -110,6 +110,8 @@ try {
         $descriptionData['montant_avant_reduction'] = $montantFactureInitial;
         $descriptionData['taux_reduction'] = $tauxReduction;
         $descriptionData['montant_reduction'] = $tauxReduction > 0 ? ($montantFactureInitial - $montantFacture) : 0;
+        // Nombre total d'élèves inscrits (y compris l'élève actuel)
+        $descriptionData['nombre_eleves_total'] = $nombreElevesInscrits + 1;
     }
     
     // Récupérer la raison du refus si fournie
@@ -184,7 +186,7 @@ try {
                             "- Classe: " . ($demandeActuelle['eleve_classe'] ?? 'Non spécifiée') . "\n" .
                             "- Montant: " . number_format($montantFacture, 2) . " DH\n" .
                             "- Type de transport: " . ($descriptionData['type_transport'] ?? 'Non spécifié') . "\n\n" .
-                            "Veuillez vous rendre à l'école pour effectuer le paiement. Après le paiement, vous recevrez un code de vérification à saisir sur le site dans la section 'Mes Enfants'.",
+                            "Veuillez vous rendre à l'école pour effectuer le paiement. Après le paiement, vous devez récupérer votre code de vérification à l'école et le saisir sur le site dans la section 'Mes Enfants'.",
                 'type' => 'alerte'
             ],
             'Validée' => [

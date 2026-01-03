@@ -81,13 +81,18 @@ const fetchAPI = async (endpoint, options = {}) => {
 
 export const authAPI = {
   // Connexion (le type d'utilisateur est déterminé automatiquement par le backend)
-  // Accepte email ou téléphone
-  login: async (emailOrPhone, password) => {
+  // Accepte email ou téléphone et expectedRole pour sécuriser l'accès
+  login: async (emailOrPhone, password, expectedRole = null) => {
     // Détecter si c'est un email ou un téléphone
     const isEmail = emailOrPhone.includes('@');
     const data = isEmail 
       ? { email: emailOrPhone, password }
       : { telephone: emailOrPhone, password };
+    
+    // Ajouter le rôle attendu si spécifié
+    if (expectedRole) {
+      data.expected_role = expectedRole;
+    }
     
     return fetchAPI('/auth/login.php', {
       method: 'POST',

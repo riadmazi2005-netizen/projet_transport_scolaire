@@ -35,7 +35,8 @@ export default function AdminLogin() {
     setError('');
     
     try {
-      const response = await authAPI.login(formData.email, formData.password);
+      // Vérifier que l'utilisateur est bien un administrateur
+      const response = await authAPI.login(formData.email, formData.password, 'admin');
       
       if (response.success) {
         authAPI.saveUser(response.user);

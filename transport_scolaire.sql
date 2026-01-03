@@ -28,7 +28,7 @@ CREATE TABLE utilisateurs (
     email VARCHAR(150) UNIQUE NOT NULL,
     mot_de_passe VARCHAR(255) NOT NULL,
     mot_de_passe_plain VARCHAR(255) NULL COMMENT 'Mot de passe en clair (pour affichage admin uniquement - NON SÉCURISÉ)',
-    telephone VARCHAR(20),
+    telephone VARCHAR(20) UNIQUE,
     statut ENUM('Actif', 'Inactif') DEFAULT 'Actif',
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -46,6 +46,7 @@ CREATE TABLE administrateurs (
 CREATE TABLE tuteurs (
     id INT PRIMARY KEY AUTO_INCREMENT,
     utilisateur_id INT UNIQUE NOT NULL,
+    adresse TEXT,
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
 );

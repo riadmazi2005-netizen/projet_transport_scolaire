@@ -15,13 +15,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
+import TuteurLayout from '../components/TuteurLayout';
 
-export default function TuteurDashboard() {
+function TuteurDashboardContent() {
   const navigate = useNavigate();
   const [tuteur, setTuteur] = useState(null);
   const [eleves, setEleves] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [loading, setLoading] = useState(true);
   const [inscriptionFilter, setInscriptionFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('eleves');
@@ -43,6 +43,8 @@ export default function TuteurDashboard() {
     abonnement: ''
   });
   const [zones, setZones] = useState([]);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     const session = localStorage.getItem('tuteur_session');
@@ -58,6 +60,9 @@ export default function TuteurDashboard() {
     loadData(tuteurId, tuteurData.id); // Passer aussi l'ID utilisateur
     loadZones();
   }, [navigate]);
+  
+  // Ne plus charger les notifications ici - elles sont gérées par TuteurLayout
+  // Mais on garde la logique pour setNotifications si besoin pour les afficher dans le panel
 
   const loadZones = async () => {
     try {
@@ -166,10 +171,7 @@ export default function TuteurDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('tuteur_session');
-    navigate(createPageUrl('Home'));
-  };
+  // handleLogout est maintenant géré par TuteurLayout
 
   const markNotificationAsRead = async (notifId) => {
     try {
@@ -222,9 +224,12 @@ export default function TuteurDashboard() {
       // Recharger les données
       const tuteurId = tuteur.type_id || tuteur.id;
       loadData(tuteurId, tuteur.id);
+      setSuccessMessage('Demande annulée avec succès');
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Erreur lors de l\'annulation:', err);
-      alert('Erreur lors de l\'annulation de la demande');
+      setErrorMessage('Erreur lors de l\'annulation de la demande');
+      setTimeout(() => setErrorMessage(''), 5000);
     }
   };
 
@@ -237,22 +242,27 @@ export default function TuteurDashboard() {
       await elevesAPI.delete(eleve.id);
       const tuteurId = tuteur.type_id || tuteur.id;
       await loadData(tuteurId, tuteur.id);
+      setSuccessMessage('Inscription supprimée avec succès');
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
-      alert('Erreur lors de la suppression de l\'inscription');
+      setErrorMessage('Erreur lors de la suppression de l\'inscription');
+      setTimeout(() => setErrorMessage(''), 5000);
     }
   };
 
   const handleDesabonnement = async () => {
     if (!selectedEleveForDesabonnement || !desabonnementRaison.trim()) {
-      alert('Veuillez saisir la raison du désabonnement');
+      setErrorMessage('Veuillez saisir la raison du désabonnement');
+      setTimeout(() => setErrorMessage(''), 5000);
       return;
     }
 
     try {
+      setErrorMessage('');
       const tuteurId = tuteur.type_id || tuteur.id;
       
-      // Créer la demande de désinscription avec statut "Validée" pour annulation automatique
+      // Créer la demande de désinscription avec statut "Validée" pour trace
       await demandesAPI.create({
         eleve_id: selectedEleveForDesabonnement.id,
         tuteur_id: tuteurId,
@@ -260,28 +270,22 @@ export default function TuteurDashboard() {
         description: JSON.stringify({
           raison: desabonnementRaison
         }),
-        statut: 'Validée' // Statut Validée pour annulation automatique
+        statut: 'Validée'
       });
 
-      // Si l'élève a une inscription active, la mettre en "Désabonné"
-      if (selectedEleveForDesabonnement.inscription?.id) {
-        try {
-          await inscriptionsAPI.update(selectedEleveForDesabonnement.inscription.id, {
-            statut: 'Désabonné'
-          });
-        } catch (err) {
-          console.warn('Erreur lors de la mise à jour de l\'inscription:', err);
-        }
-      }
+      // Supprimer complètement l'élève de la base de données
+      await elevesAPI.delete(selectedEleveForDesabonnement.id);
 
-      alert('Désabonnement effectué avec succès');
+      setSuccessMessage('Désabonnement effectué avec succès. L\'élève a été supprimé.');
       setShowDesabonnementModal(false);
       setSelectedEleveForDesabonnement(null);
       setDesabonnementRaison('');
       await loadData(tuteurId, tuteur.id);
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Erreur lors du désabonnement:', err);
-      alert('Erreur lors du désabonnement');
+      setErrorMessage('Erreur lors du désabonnement');
+      setTimeout(() => setErrorMessage(''), 5000);
     }
   };
 
@@ -291,7 +295,8 @@ export default function TuteurDashboard() {
     }
 
     if (!changementForm.zone && !changementForm.type_transport && !changementForm.abonnement) {
-      alert('Veuillez sélectionner au moins un élément à modifier');
+      setErrorMessage('Veuillez sélectionner au moins un élément à modifier');
+      setTimeout(() => setErrorMessage(''), 5000);
       return;
     }
 
@@ -328,14 +333,16 @@ export default function TuteurDashboard() {
         statut: 'En attente'
       });
 
-      alert('Demande de modification envoyée avec succès');
+      setSuccessMessage('Demande de modification envoyée avec succès');
       setShowChangementModal(false);
       setSelectedEleveForChangement(null);
       setChangementForm({ zone: '', type_transport: '', abonnement: '' });
       await loadData(tuteurId, tuteur.id);
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Erreur lors de la demande de changement:', err);
-      alert('Erreur lors de l\'envoi de la demande de modification');
+      setErrorMessage('Erreur lors de l\'envoi de la demande de modification');
+      setTimeout(() => setErrorMessage(''), 5000);
     }
   };
 
@@ -362,8 +369,48 @@ export default function TuteurDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-lime-50 via-white to-lime-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <>
+        {/* Messages de succès et d'erreur */}
+        {successMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center justify-between gap-2 text-green-700 shadow-lg"
+          >
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5" />
+              <span>{successMessage}</span>
+            </div>
+            <button
+              onClick={() => setSuccessMessage('')}
+              className="text-green-600 hover:text-green-800 transition-colors"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </motion.div>
+        )}
+
+        {errorMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-2 text-red-600 shadow-lg"
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5" />
+              <span>{errorMessage}</span>
+            </div>
+            <button
+              onClick={() => setErrorMessage('')}
+              className="text-red-600 hover:text-red-800 transition-colors"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </motion.div>
+        )}
+
         {/* Header */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -383,34 +430,6 @@ export default function TuteurDashboard() {
               </div>
             </div>
             
-            <div className="flex gap-3">
-              <Button
-                onClick={() => setShowNotifications(true)}
-                className="relative rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
-              >
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
-              
-              <Link to={createPageUrl('TuteurProfile')}>
-                <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
-                  <Edit className="w-5 h-5 mr-2" />
-                  Profil
-                </Button>
-              </Link>
-              
-              <Button 
-                variant="ghost" 
-                onClick={handleLogout}
-                className="text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl"
-              >
-                <LogOut className="w-5 h-5" />
-              </Button>
-            </div>
           </div>
         </motion.div>
 
@@ -442,7 +461,7 @@ export default function TuteurDashboard() {
           />
         </div>
 
-        {/* Actions et Navigation - 6 boutons sur une seule ligne */}
+        {/* Onglets de navigation internes */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -450,29 +469,6 @@ export default function TuteurDashboard() {
           className="mb-6"
         >
           <div className="bg-white rounded-2xl shadow-lg p-2 flex gap-2 flex-wrap">
-            <Link to={createPageUrl('TuteurInscription')}>
-              <Button className="rounded-xl px-6 py-3 transition-all font-semibold bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
-                <UserPlus className="w-5 h-5 mr-2" />
-                Inscrire un nouvel élève
-              </Button>
-            </Link>
-            <Link to={createPageUrl('TuteurDemandes')}>
-              <Button className="rounded-xl px-6 py-3 transition-all font-semibold bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
-                <FileText className="w-5 h-5 mr-2" />
-                Mes Demandes
-              </Button>
-            </Link>
-            <Link to={createPageUrl('TuteurNotifications')}>
-              <Button className="rounded-xl px-6 py-3 transition-all font-semibold relative bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
-                <Bell className="w-5 h-5 mr-2" />
-                Notifications
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
-            </Link>
             <Button
               onClick={() => setActiveTab('eleves')}
               className={`rounded-xl px-6 py-3 transition-all font-semibold ${
@@ -866,20 +862,7 @@ export default function TuteurDashboard() {
         )}
       </div>
 
-      <NotificationPanel
-        isOpen={showNotifications}
-        onClose={() => setShowNotifications(false)}
-        notifications={notifications}
-        onMarkAsRead={markNotificationAsRead}
-        onDelete={async (notifId) => {
-          try {
-            await notificationsAPI.delete(notifId);
-            setNotifications(prev => prev.filter(n => n.id !== notifId));
-          } catch (err) {
-            console.error('Erreur lors de la suppression de la notification:', err);
-          }
-        }}
-      />
+      {/* NotificationPanel retiré - les notifications sont gérées par le sidebar */}
 
       {/* Modal de paiement */}
       {showPaymentModal && selectedEleveForPayment && (
@@ -1057,7 +1040,7 @@ export default function TuteurDashboard() {
             <form onSubmit={(e) => { e.preventDefault(); handleDesabonnement(); }} className="p-6 space-y-4">
               <div className="bg-red-50 rounded-xl p-4 border border-red-200">
                 <p className="text-sm text-red-800">
-                  <strong>Attention :</strong> Vous êtes sur le point de demander le désabonnement pour <strong>{selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}</strong>.
+                  <strong>Attention :</strong> Vous êtes sur le point de désabonner <strong>{selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}</strong>. Cette action est irréversible et supprimera définitivement toutes les données de l'élève.
                 </p>
               </div>
               <div>
@@ -1379,5 +1362,13 @@ function DemandeFormTuteur({ tuteur, eleves }) {
         </Button>
       </form>
     </motion.div>
+  );
+}
+
+export default function TuteurDashboard() {
+  return (
+    <TuteurLayout>
+      <TuteurDashboardContent />
+    </TuteurLayout>
   );
 }

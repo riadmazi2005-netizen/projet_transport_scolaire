@@ -41,34 +41,87 @@ try {
     unset($data['mot_de_passe']);
     unset($data['role']); // Ne pas permettre le changement de rôle via cette API
     
-    $fields = [];
-    $values = [];
+    // Séparer les champs utilisateurs et tuteurs
+    $userFields = [];
+    $userValues = [];
+    $tuteurFields = [];
+    $tuteurValues = [];
     
-    // Champs autorisés pour la mise à jour
-    // Note: adresse n'existe pas dans la table utilisateurs, donc on ne l'inclut pas
-    $allowedFields = ['nom', 'prenom', 'email', 'telephone'];
+    // Vérifier l'unicité de l'email si modifié
+    if (isset($data['email'])) {
+        $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE LOWER(email) = LOWER(?) AND id != ?');
+        $stmt->execute([$data['email'], $id]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Cet email est déjà utilisé']);
+            exit;
+        }
+        $userFields[] = 'email = ?';
+        $userValues[] = trim($data['email']);
+        unset($data['email']);
+    }
     
+    // Vérifier l'unicité du téléphone si modifié
+    if (isset($data['telephone']) && !empty(trim($data['telephone']))) {
+        $stmt = $pdo->prepare('SELECT id FROM utilisateurs WHERE telephone = ? AND id != ?');
+        $stmt->execute([trim($data['telephone']), $id]);
+        if ($stmt->fetch()) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Ce numéro de téléphone est déjà utilisé']);
+            exit;
+        }
+        $userFields[] = 'telephone = ?';
+        $userValues[] = trim($data['telephone']);
+        unset($data['telephone']);
+    }
+    
+    // Champs utilisateurs
+    $userAllowedFields = ['nom', 'prenom'];
     foreach ($data as $key => $value) {
-        if (in_array($key, $allowedFields)) {
-            $fields[] = "$key = ?";
-            $values[] = $value;
+        if (in_array($key, $userAllowedFields)) {
+            $userFields[] = "$key = ?";
+            $userValues[] = trim($value);
+            unset($data[$key]);
         }
     }
     
-    if (empty($fields)) {
+    // Champs tuteurs (adresse)
+    if (isset($data['adresse'])) {
+        $tuteurFields[] = 'adresse = ?';
+        $tuteurValues[] = trim($data['adresse']);
+        unset($data['adresse']);
+    }
+    
+    // Mettre à jour la table utilisateurs si nécessaire
+    if (!empty($userFields)) {
+        $userValues[] = $id;
+        $sql = "UPDATE utilisateurs SET " . implode(', ', $userFields) . " WHERE id = ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($userValues);
+    }
+    
+    // Mettre à jour la table tuteurs si nécessaire
+    if (!empty($tuteurFields)) {
+        $tuteurValues[] = $user['tuteur_id'];
+        $sql = "UPDATE tuteurs SET " . implode(', ', $tuteurFields) . " WHERE id = ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($tuteurValues);
+    }
+    
+    // Vérifier qu'il y a au moins une mise à jour
+    if (empty($userFields) && empty($tuteurFields)) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Aucune donnée à mettre à jour']);
         exit;
     }
     
-    $values[] = $id;
-    
-    $sql = "UPDATE utilisateurs SET " . implode(', ', $fields) . " WHERE id = ?";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($values);
-    
-    // Récupérer l'utilisateur mis à jour (sans le mot de passe)
-    $stmt = $pdo->prepare('SELECT id, nom, prenom, email, telephone, statut, date_creation, date_modification FROM utilisateurs WHERE id = ?');
+    // Récupérer l'utilisateur mis à jour avec l'adresse du tuteur
+    $stmt = $pdo->prepare('
+        SELECT u.id, u.nom, u.prenom, u.email, u.telephone, u.statut, u.date_creation, u.date_modification, t.adresse
+        FROM utilisateurs u
+        INNER JOIN tuteurs t ON t.utilisateur_id = u.id
+        WHERE u.id = ?
+    ');
     $stmt->execute([$id]);
     $updatedUser = $stmt->fetch(PDO::FETCH_ASSOC);
     
@@ -85,4 +138,3 @@ try {
     echo json_encode(['success' => false, 'message' => 'Erreur lors de la mise à jour']);
 }
 ?>
-
