@@ -30,13 +30,6 @@ try {
         exit;
     }
     
-    // Vérifier que la demande n'est pas encore traitée (seulement "En attente" peut être modifiée)
-    if ($demande['statut'] !== 'En attente') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Cette demande ne peut plus être modifiée car elle est déjà en cours de traitement']);
-        exit;
-    }
-    
     // Préparer les champs à mettre à jour
     $fields = [];
     $values = [];
@@ -44,7 +37,15 @@ try {
     // Champs autorisés pour la mise à jour
     $allowedFields = ['description', 'zone_geographique', 'type_demande'];
     
+    // Si la demande n'est pas "En attente", on peut quand même modifier la zone_geographique
+    $canUpdateAll = ($demande['statut'] === 'En attente');
+    
     foreach ($data as $key => $value) {
+        // Si la demande n'est pas "En attente", on ne permet que la modification de zone_geographique
+        if (!$canUpdateAll && $key !== 'zone_geographique') {
+            continue;
+        }
+        
         if (in_array($key, $allowedFields) && $key !== 'id') {
             // Si c'est la description et qu'elle contient des données supplémentaires, les encoder en JSON
             if ($key === 'description' && is_array($value)) {

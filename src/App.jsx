@@ -21,7 +21,6 @@ import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminBus from './pages/AdminBus';
 import AdminChauffeur from './pages/AdminChauffeur';
-import AdminResponsable from './pages/AdminResponsable';
 import AdminEleves from './pages/AdminEleves';
 import AdminInscriptions from './pages/AdminInscriptions';
 import AdminStats from './pages/AdminStats';
@@ -29,6 +28,9 @@ import AdminPaiements from './pages/AdminPaiements';
 import AdminProfile from './pages/AdminProfile';
 import AdminZones from './pages/AdminZones';
 import AdminNotifications from './pages/AdminNotifications';
+import AdminAccidents from './pages/AdminAccidents';
+import AdminProblemes from './pages/AdminProblemes';
+import AdminEssence from './pages/AdminEssence';
 
 function App() {
   return (
@@ -63,13 +65,15 @@ function App() {
         <Route path="/AdminEleves" element={<AdminEleves />} />
         <Route path="/AdminBus" element={<AdminBus />} />
         <Route path="/AdminChauffeurs" element={<AdminChauffeur />} />
-        <Route path="/AdminResponsables" element={<AdminResponsable />} />
         <Route path="/AdminInscriptions" element={<AdminInscriptions />} />
         <Route path="/AdminStats" element={<AdminStats />} />
         <Route path="/AdminPaiements" element={<AdminPaiements />} />
         <Route path="/AdminZones" element={<AdminZones />} />
         <Route path="/AdminProfile" element={<AdminProfile />} />
         <Route path="/AdminNotifications" element={<AdminNotifications />} />
+        <Route path="/AdminAccidents" element={<AdminAccidents />} />
+        <Route path="/AdminProblemes" element={<AdminProblemes />} />
+        <Route path="/AdminEssence" element={<AdminEssence />} />
 
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />

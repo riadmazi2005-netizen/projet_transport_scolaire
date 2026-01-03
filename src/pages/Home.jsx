@@ -225,18 +225,19 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Bus Image avec animation breathing */}
+        {/* Bus Image avec animation breathing - Plein écran */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="flex justify-center mb-16"
+          className="w-full mb-16 -mx-4 md:-mx-8"
         >
           <motion.div 
-            className="relative"
+            className="relative w-full"
+            style={{ height: '70vh', minHeight: '500px' }}
             animate={{
               y: [0, -6, 0],
-              scale: [1, 1.015, 1],
+              scale: [1, 1.01, 1],
             }}
             transition={{
               duration: 3.5,
@@ -247,12 +248,12 @@ export default function Home() {
             <img 
               src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694e9878090ae6571e82701e/b6246c87a_image.png" 
               alt="Bus Scolaire Mohammed 5"
-              className="rounded-3xl shadow-2xl max-w-full md:max-w-2xl h-64 md:h-80 object-cover"
+              className="w-full h-full object-cover shadow-2xl"
             />
-            <div className="absolute inset-0 rounded-3xl bg-gradient-to-t from-amber-900/30 to-transparent" />
-            <div className="absolute bottom-6 left-6 text-white">
-              <p className="text-lg font-semibold">Transport Fiable & Sécurisé</p>
-              <p className="text-sm opacity-90">Pour tous vos enfants</p>
+            <div className="absolute inset-0 bg-gradient-to-t from-amber-900/50 via-amber-900/20 to-transparent" />
+            <div className="absolute bottom-12 left-12 text-white">
+              <p className="text-2xl md:text-3xl font-bold mb-2">Transport Fiable & Sécurisé</p>
+              <p className="text-lg md:text-xl opacity-90">Pour tous vos enfants</p>
             </div>
           </motion.div>
         </motion.div>

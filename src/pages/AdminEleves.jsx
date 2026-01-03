@@ -5,9 +5,10 @@ import { elevesAPI, tuteursAPI, inscriptionsAPI, busAPI, trajetsAPI, demandesAPI
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  GraduationCap, Search, User, ArrowLeft, Filter, Bus, MapPin, Phone, Calendar, Key
+  GraduationCap, Search, User, ArrowLeft, Filter, Bus, MapPin, Phone, Calendar, Key, Edit, Trash2, XCircle
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from 'date-fns';
@@ -26,6 +27,15 @@ export default function AdminEleves() {
   const [typeTransportFilter, setTypeTransportFilter] = useState('all');
   const [typeAbonnementFilter, setTypeAbonnementFilter] = useState('all');
   const [error, setError] = useState(null);
+  const [selectedEleve, setSelectedEleve] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    nom: '',
+    prenom: '',
+    classe: '',
+    adresse: '',
+    zone: ''
+  });
 
   useEffect(() => {
     loadData();
@@ -115,7 +125,8 @@ export default function AdminEleves() {
           statut_affichage: statutAffiche,
           type_transport: demandeInscription?.type_transport || inscription?.type_transport || 'Non spécifié',
           type_abonnement: demandeInscription?.abonnement || inscription?.type_abonnement || 'Non spécifié',
-          groupe: demandeInscription?.groupe || inscription?.groupe || e.groupe || 'Non spécifié'
+          groupe: demandeInscription?.groupe || inscription?.groupe || e.groupe || 'Non spécifié',
+          zone: demandeInscription?.zone_geographique || null
         };
       });
       
@@ -184,6 +195,54 @@ export default function AdminEleves() {
       'Inscrit': 'bg-emerald-100 text-emerald-700'
     };
     return styles[statut] || 'bg-gray-100 text-gray-700';
+  };
+
+  const handleEdit = (eleve) => {
+    setSelectedEleve(eleve);
+    setEditForm({
+      nom: eleve.nom || '',
+      prenom: eleve.prenom || '',
+      classe: eleve.classe || '',
+      adresse: eleve.adresse || '',
+      zone: eleve.zone || eleve.demande_inscription?.zone_geographique || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedEleve) return;
+    
+    setError(null);
+    try {
+      await elevesAPI.update(selectedEleve.id, {
+        nom: editForm.nom,
+        prenom: editForm.prenom,
+        classe: editForm.classe,
+        adresse: editForm.adresse
+      });
+      
+      setShowEditModal(false);
+      setSelectedEleve(null);
+      await loadData();
+    } catch (err) {
+      console.error('Erreur lors de la modification:', err);
+      setError('Erreur lors de la modification de l\'élève: ' + (err.message || 'Erreur inconnue'));
+    }
+  };
+
+  const handleDelete = async (eleve) => {
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer l'élève ${eleve.prenom} ${eleve.nom} ?`)) {
+      return;
+    }
+    
+    setError(null);
+    try {
+      await elevesAPI.delete(eleve.id);
+      await loadData();
+    } catch (err) {
+      console.error('Erreur lors de la suppression:', err);
+      setError('Erreur lors de la suppression de l\'élève: ' + (err.message || 'Erreur inconnue'));
+    }
   };
 
   if (loading) {
@@ -446,7 +505,7 @@ export default function AdminEleves() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="flex flex-col items-end gap-3">
                     <span className={`px-4 py-2 rounded-xl text-sm font-medium ${getStatusBadge(eleve.statut_affichage || eleve.inscription?.statut || eleve.statut)}`}>
                       {eleve.statut_affichage || eleve.inscription?.statut || eleve.statut}
                     </span>
@@ -455,6 +514,22 @@ export default function AdminEleves() {
                         {eleve.inscription.montant_mensuel} DH/mois
                       </span>
                     )}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => handleEdit(eleve)}
+                        className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Modifier
+                      </Button>
+                      <Button
+                        onClick={() => handleDelete(eleve)}
+                        className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Supprimer
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -462,6 +537,117 @@ export default function AdminEleves() {
           )}
         </div>
       </motion.div>
+
+      {/* Modal de modification */}
+      {showEditModal && selectedEleve && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-amber-500 to-yellow-500">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Edit className="w-6 h-6" />
+                  Modifier l'élève
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setSelectedEleve(null);
+                  }}
+                  className="text-white hover:text-amber-100 transition-colors"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-700 font-semibold mb-2 block">Nom</Label>
+                  <Input
+                    value={editForm.nom}
+                    onChange={(e) => setEditForm({ ...editForm, nom: e.target.value })}
+                    className="rounded-xl border-2 border-gray-200 focus:border-amber-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-700 font-semibold mb-2 block">Prénom</Label>
+                  <Input
+                    value={editForm.prenom}
+                    onChange={(e) => setEditForm({ ...editForm, prenom: e.target.value })}
+                    className="rounded-xl border-2 border-gray-200 focus:border-amber-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-700 font-semibold mb-2 block">Classe</Label>
+                  <Input
+                    value={editForm.classe}
+                    onChange={(e) => setEditForm({ ...editForm, classe: e.target.value })}
+                    className="rounded-xl border-2 border-gray-200 focus:border-amber-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-700 font-semibold mb-2 block">Adresse</Label>
+                  <Input
+                    value={editForm.adresse}
+                    onChange={(e) => setEditForm({ ...editForm, adresse: e.target.value })}
+                    className="rounded-xl border-2 border-gray-200 focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-700 font-semibold mb-2 block">Zone géographique</Label>
+                  <Select 
+                    value={editForm.zone} 
+                    onValueChange={(value) => setEditForm({ ...editForm, zone: value })}
+                  >
+                    <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-amber-500">
+                      <SelectValue placeholder="Sélectionner une zone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Aucune zone</SelectItem>
+                      {zones.map(zone => (
+                        <SelectItem key={zone.id} value={zone.nom}>{zone.nom}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+                  {error}
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end pt-4">
+                <Button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setSelectedEleve(null);
+                  }}
+                  variant="outline"
+                  className="rounded-xl"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleSaveEdit}
+                  className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
+                >
+                  Enregistrer
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

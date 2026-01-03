@@ -18,10 +18,13 @@ import {
   GraduationCap,
   FileText,
   User,
-  MapPin
+  MapPin,
+  AlertCircle,
+  Wrench,
+  Fuel
 } from 'lucide-react';
 
-export default function AdminSidebar({ admin, notifications = [], onLogout, onNotificationClick }) {
+export default function AdminSidebar({ admin, notifications = [], newItemsCount = { inscriptions: 0, accidents: 0, problemes: 0 }, onLogout, onNotificationClick }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -70,16 +73,10 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
       path: '/AdminBus'
     },
     {
-      title: 'Chauffeurs',
+      title: 'Chauffeur & Responsable Bus',
       icon: Users,
       link: 'AdminChauffeurs',
       path: '/AdminChauffeurs'
-    },
-    {
-      title: 'Responsables',
-      icon: UserCog,
-      link: 'AdminResponsables',
-      path: '/AdminResponsables'
     },
     {
       title: 'Paiements',
@@ -92,6 +89,24 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
       icon: MapPin,
       link: 'AdminZones',
       path: '/AdminZones'
+    },
+    {
+      title: 'Accidents',
+      icon: AlertCircle,
+      link: 'AdminAccidents',
+      path: '/AdminAccidents'
+    },
+    {
+      title: 'Problèmes',
+      icon: Wrench,
+      link: 'AdminProblemes',
+      path: '/AdminProblemes'
+    },
+    {
+      title: 'Essence',
+      icon: Fuel,
+      link: 'AdminEssence',
+      path: '/AdminEssence'
     },
     {
       title: 'Profil',
@@ -221,6 +236,20 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
               const active = isActive(item.path);
               const Icon = item.icon;
               
+              // Déterminer le badge à afficher selon la page
+              let badgeCount = 0;
+              if (item.link === 'AdminNotifications') {
+                badgeCount = unreadCount;
+              } else if (item.link === 'AdminInscriptions') {
+                badgeCount = newItemsCount.inscriptions || 0;
+              } else if (item.link === 'AdminAccidents') {
+                badgeCount = newItemsCount.accidents || 0;
+              } else if (item.link === 'AdminProblemes') {
+                badgeCount = newItemsCount.problemes || 0;
+              }
+              
+              const showBadge = badgeCount > 0;
+              
               return (
                 <motion.button
                   key={item.link}
@@ -241,9 +270,9 @@ export default function AdminSidebar({ admin, notifications = [], onLogout, onNo
                 >
                   <div className="relative">
                     <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-gray-600'}`} />
-                    {item.badge > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
-                        {item.badge}
+                    {showBadge && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                        {badgeCount > 99 ? '99+' : badgeCount}
                       </span>
                     )}
                   </div>

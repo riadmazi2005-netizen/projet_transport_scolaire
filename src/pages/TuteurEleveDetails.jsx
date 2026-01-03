@@ -84,7 +84,7 @@ export default function TuteurEleveDetails() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -97,7 +97,7 @@ export default function TuteurEleveDetails() {
           <p className="text-gray-500">Élève non trouvé</p>
           <Button 
             onClick={() => navigate(createPageUrl('TuteurDashboard'))}
-            className="mt-4 bg-amber-500 hover:bg-amber-600 rounded-xl"
+            className="mt-4 bg-lime-500 hover:bg-lime-600 rounded-xl"
           >
             Retour au tableau de bord
           </Button>
@@ -116,7 +116,7 @@ export default function TuteurEleveDetails() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-lime-50 via-white to-lime-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -132,7 +132,7 @@ export default function TuteurEleveDetails() {
 
           {/* Header Card */}
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
-            <div className="p-6 bg-gradient-to-r from-amber-500 to-yellow-500">
+            <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-2xl bg-white/20 flex items-center justify-center">
                   <GraduationCap className="w-10 h-10 text-white" />
@@ -152,7 +152,7 @@ export default function TuteurEleveDetails() {
             {/* Infos Élève */}
             <div className="bg-white rounded-3xl shadow-xl p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-amber-500" />
+                <User className="w-5 h-5 text-lime-500" />
                 Informations personnelles
               </h2>
               <div className="space-y-4">
@@ -180,14 +180,14 @@ export default function TuteurEleveDetails() {
             {/* Infos Bus */}
             <div className="bg-white rounded-3xl shadow-xl p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Bus className="w-5 h-5 text-amber-500" />
+                <Bus className="w-5 h-5 text-lime-500" />
                 Informations de transport
               </h2>
               
               {bus ? (
                 <div className="space-y-4">
-                  <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100">
-                    <p className="text-sm text-amber-600 font-medium">Bus assigné</p>
+                  <div className="bg-lime-50 rounded-2xl p-4 border border-lime-100">
+                    <p className="text-sm text-lime-600 font-medium">Bus assigné</p>
                     <p className="text-2xl font-bold text-gray-800">{bus.numero}</p>
                     <p className="text-sm text-gray-500">{bus.immatriculation}</p>
                   </div>
@@ -246,7 +246,7 @@ export default function TuteurEleveDetails() {
           {/* Historique des présences */}
           <div className="bg-white rounded-3xl shadow-xl p-6 mt-6">
             <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-amber-500" />
+              <Calendar className="w-5 h-5 text-lime-500" />
               Historique des présences (7 derniers jours)
             </h2>
             

@@ -4,7 +4,8 @@
 -- Ce fichier contient :
 -- 1. Le schéma complet de la base de données (SANS colonne role)
 -- 2. Tables séparées : administrateurs, tuteurs, chauffeurs, responsables_bus
--- 3. Les données de test complètes
+-- 3. Toutes les améliorations et migrations intégrées
+-- 4. Les données de test complètes
 -- 
 -- MOT DE PASSE POUR TOUS LES COMPTES DE TEST : test123
 -- Hash bcrypt pour "test123" : $2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi
@@ -26,6 +27,7 @@ CREATE TABLE utilisateurs (
     prenom VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
     mot_de_passe VARCHAR(255) NOT NULL,
+    mot_de_passe_plain VARCHAR(255) NULL COMMENT 'Mot de passe en clair (pour affichage admin uniquement - NON SÉCURISÉ)',
     telephone VARCHAR(20),
     statut ENUM('Actif', 'Inactif') DEFAULT 'Actif',
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -55,6 +57,7 @@ CREATE TABLE chauffeurs (
     numero_permis VARCHAR(50) UNIQUE NOT NULL,
     date_expiration_permis DATE,
     nombre_accidents INT DEFAULT 0,
+    salaire DECIMAL(10,2) DEFAULT 0 NULL,
     statut ENUM('Actif', 'Licencié', 'Suspendu') DEFAULT 'Actif',
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
@@ -65,6 +68,7 @@ CREATE TABLE responsables_bus (
     id INT PRIMARY KEY AUTO_INCREMENT,
     utilisateur_id INT UNIQUE NOT NULL,
     zone_responsabilite VARCHAR(100),
+    salaire DECIMAL(10,2) DEFAULT 0 NULL,
     statut ENUM('Actif', 'Inactif') DEFAULT 'Actif',
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
@@ -84,6 +88,18 @@ CREATE TABLE eleves (
     statut ENUM('Actif', 'Inactif') DEFAULT 'Actif',
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tuteur_id) REFERENCES tuteurs(id) ON DELETE SET NULL
+);
+
+-- Table zones
+CREATE TABLE IF NOT EXISTS zones (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nom VARCHAR(100) NOT NULL,
+    ville VARCHAR(100) NOT NULL DEFAULT 'Rabat',
+    description TEXT NULL,
+    actif BOOLEAN DEFAULT TRUE,
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_zone_ville (nom, ville)
 );
 
 -- Table trajets
@@ -120,21 +136,28 @@ CREATE TABLE bus (
     FOREIGN KEY (trajet_id) REFERENCES trajets(id) ON DELETE SET NULL
 );
 
--- Table accidents
+-- Table accidents (avec toutes les améliorations)
 CREATE TABLE accidents (
     id INT PRIMARY KEY AUTO_INCREMENT,
     date DATE NOT NULL,
     heure TIME,
     bus_id INT,
     chauffeur_id INT,
+    responsable_id INT NULL COMMENT 'ID du responsable qui a déclaré l\'accident',
     description TEXT NOT NULL,
     degats TEXT,
     lieu VARCHAR(255),
     gravite ENUM('Légère', 'Moyenne', 'Grave') NOT NULL,
     blesses BOOLEAN DEFAULT FALSE,
+    nombre_eleves INT NULL,
+    nombre_blesses INT NULL,
+    photos TEXT NULL COMMENT 'JSON array of base64 encoded photos',
+    eleves_concernees TEXT NULL COMMENT 'JSON array des IDs et noms des élèves présents dans le bus',
+    statut ENUM('En attente', 'Validé') DEFAULT 'En attente' COMMENT 'Statut de validation du rapport par l\'administrateur',
     date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (bus_id) REFERENCES bus(id) ON DELETE SET NULL,
-    FOREIGN KEY (chauffeur_id) REFERENCES chauffeurs(id) ON DELETE SET NULL
+    FOREIGN KEY (chauffeur_id) REFERENCES chauffeurs(id) ON DELETE SET NULL,
+    FOREIGN KEY (responsable_id) REFERENCES responsables_bus(id) ON DELETE SET NULL
 );
 
 -- Table notifications
@@ -145,21 +168,9 @@ CREATE TABLE notifications (
     destinataire_type ENUM('chauffeur', 'responsable', 'tuteur', 'admin') NOT NULL,
     titre VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
-    type ENUM('info', 'alerte', 'avertissement') DEFAULT 'info',
+    type ENUM('info', 'alerte', 'avertissement', 'warning', 'success') DEFAULT 'info',
     lue BOOLEAN DEFAULT FALSE,
     date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Table zones
-CREATE TABLE IF NOT EXISTS zones (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    nom VARCHAR(100) NOT NULL,
-    ville VARCHAR(100) NOT NULL DEFAULT 'Rabat',
-    description TEXT NULL,
-    actif BOOLEAN DEFAULT TRUE,
-    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_zone_ville (nom, ville)
 );
 
 -- Table demandes (référence maintenant tuteurs au lieu de utilisateurs)
@@ -264,6 +275,88 @@ CREATE TABLE conduire (
     FOREIGN KEY (bus_id) REFERENCES bus(id) ON DELETE SET NULL
 );
 
+-- Table prise_essence (pour les fonctionnalités chauffeur)
+CREATE TABLE IF NOT EXISTS prise_essence (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    chauffeur_id INT NOT NULL,
+    bus_id INT NOT NULL,
+    date DATE NOT NULL,
+    heure TIME NOT NULL,
+    quantite_litres DECIMAL(10,2) NOT NULL,
+    prix_total DECIMAL(10,2) NOT NULL,
+    kilometrage_actuel INT,
+    station_service VARCHAR(255),
+    photo_ticket VARCHAR(255),
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (chauffeur_id) REFERENCES chauffeurs(id) ON DELETE CASCADE,
+    FOREIGN KEY (bus_id) REFERENCES bus(id) ON DELETE CASCADE,
+    INDEX idx_chauffeur_date (chauffeur_id, date),
+    INDEX idx_bus_date (bus_id, date)
+);
+
+-- Table rapports_trajet (pour les fonctionnalités chauffeur)
+CREATE TABLE IF NOT EXISTS rapports_trajet (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    chauffeur_id INT NOT NULL,
+    bus_id INT NOT NULL,
+    date DATE NOT NULL,
+    periode ENUM('matin', 'soir') NOT NULL,
+    heure_depart_prevue TIME,
+    heure_depart_reelle TIME,
+    heure_arrivee_prevue TIME,
+    heure_arrivee_reelle TIME,
+    nombre_eleves INT DEFAULT 0,
+    kilometres_parcourus INT,
+    problemes TEXT,
+    observations TEXT,
+    statut ENUM('planifie', 'en_cours', 'termine', 'annule') DEFAULT 'planifie',
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (chauffeur_id) REFERENCES chauffeurs(id) ON DELETE CASCADE,
+    FOREIGN KEY (bus_id) REFERENCES bus(id) ON DELETE CASCADE,
+    INDEX idx_chauffeur_date (chauffeur_id, date),
+    INDEX idx_date_periode (date, periode)
+);
+
+-- Table checklist_depart (pour les fonctionnalités chauffeur)
+CREATE TABLE IF NOT EXISTS checklist_depart (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    chauffeur_id INT NOT NULL,
+    bus_id INT NOT NULL,
+    date DATE NOT NULL,
+    periode ENUM('matin', 'soir') NOT NULL,
+    essence_verifiee BOOLEAN DEFAULT FALSE,
+    pneus_ok BOOLEAN DEFAULT FALSE,
+    portes_ok BOOLEAN DEFAULT FALSE,
+    eclairage_ok BOOLEAN DEFAULT FALSE,
+    nettoyage_fait BOOLEAN DEFAULT FALSE,
+    trousse_secours BOOLEAN DEFAULT FALSE,
+    autres_verifications TEXT,
+    validee BOOLEAN DEFAULT FALSE,
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (chauffeur_id) REFERENCES chauffeurs(id) ON DELETE CASCADE,
+    FOREIGN KEY (bus_id) REFERENCES bus(id) ON DELETE CASCADE,
+    INDEX idx_chauffeur_date (chauffeur_id, date)
+);
+
+-- Table signalements_maintenance (pour les fonctionnalités chauffeur)
+CREATE TABLE IF NOT EXISTS signalements_maintenance (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    chauffeur_id INT NOT NULL,
+    bus_id INT NOT NULL,
+    type_probleme ENUM('mecanique', 'eclairage', 'portes', 'climatisation', 'pneus', 'autre') NOT NULL,
+    description TEXT NOT NULL,
+    urgence ENUM('faible', 'moyenne', 'haute') DEFAULT 'moyenne',
+    photo VARCHAR(255),
+    statut ENUM('en_attente', 'en_cours', 'resolu') DEFAULT 'en_attente',
+    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_resolution TIMESTAMP NULL,
+    FOREIGN KEY (chauffeur_id) REFERENCES chauffeurs(id) ON DELETE CASCADE,
+    FOREIGN KEY (bus_id) REFERENCES bus(id) ON DELETE CASCADE,
+    INDEX idx_chauffeur (chauffeur_id),
+    INDEX idx_bus (bus_id),
+    INDEX idx_statut (statut)
+);
+
 -- ============================================
 -- 2. INDEX POUR AMÉLIORER LES PERFORMANCES
 -- ============================================
@@ -279,6 +372,7 @@ CREATE INDEX idx_bus_responsable ON bus(responsable_id);
 CREATE INDEX idx_bus_trajet ON bus(trajet_id);
 CREATE INDEX idx_accidents_bus ON accidents(bus_id);
 CREATE INDEX idx_accidents_chauffeur ON accidents(chauffeur_id);
+CREATE INDEX idx_accidents_responsable ON accidents(responsable_id);
 CREATE INDEX idx_notifications_destinataire ON notifications(destinataire_id, destinataire_type);
 CREATE INDEX idx_inscriptions_bus ON inscriptions(bus_id);
 CREATE INDEX idx_paiements_inscription ON paiements(inscription_id);
@@ -331,20 +425,52 @@ INSERT INTO tuteurs (utilisateur_id) VALUES
 (7),  -- Mohammed Alami
 (8);  -- Fatima Benjelloun
 
--- 3.6. Créer les trajets
+-- 3.6. Insérer les zones avec leurs villes
+-- Rabat – 8 zones
+INSERT INTO zones (nom, ville, actif) VALUES
+('Agdal', 'Rabat', TRUE),
+('Hassan', 'Rabat', TRUE),
+('Hay Riad', 'Rabat', TRUE),
+('Yacoub El Mansour', 'Rabat', TRUE),
+('Souissi', 'Rabat', TRUE),
+('Nahda', 'Rabat', TRUE),
+('Akkari', 'Rabat', TRUE),
+('Takkadoum', 'Rabat', TRUE)
+ON DUPLICATE KEY UPDATE ville=VALUES(ville), actif=VALUES(actif);
+
+-- Salé – 8 zones
+INSERT INTO zones (nom, ville, actif) VALUES
+('Hay Amal', 'Salé', TRUE),
+('Hay Karima', 'Salé', TRUE),
+('Hay Nbi3at', 'Salé', TRUE),
+('Sidi Moussa', 'Salé', TRUE),
+('Boulknadel', 'Salé', TRUE),
+('Sale Jadida', 'Salé', TRUE),
+('Harhoura', 'Salé', TRUE),
+('Maamora', 'Salé', TRUE)
+ON DUPLICATE KEY UPDATE ville=VALUES(ville), actif=VALUES(actif);
+
+-- Temara – 3 zones
+INSERT INTO zones (nom, ville, actif) VALUES
+('Temara Centre', 'Temara', TRUE),
+('Milano', 'Temara', TRUE),
+('Harhoura', 'Temara', TRUE)
+ON DUPLICATE KEY UPDATE ville=VALUES(ville), actif=VALUES(actif);
+
+-- 3.7. Créer les trajets
 INSERT INTO trajets (nom, zones, heure_depart_matin_a, heure_arrivee_matin_a, heure_depart_soir_a, heure_arrivee_soir_a, heure_depart_matin_b, heure_arrivee_matin_b, heure_depart_soir_b, heure_arrivee_soir_b) VALUES
 ('Trajet Centre', '["Maarif", "Gauthier", "2 Mars", "Ain Diab"]', '07:30:00', '08:00:00', '17:00:00', '17:30:00', '08:00:00', '08:30:00', '17:30:00', '18:00:00'),
 ('Trajet Nord', '["Sidi Maarouf", "Californie", "Oasis", "Ain Sebaa"]', '07:00:00', '08:00:00', '16:45:00', '17:30:00', '07:45:00', '08:30:00', '17:15:00', '18:00:00'),
 ('Trajet Sud', '["Hay Hassani", "Oulfa", "Sbata", "Hay Mohammadi"]', '07:15:00', '08:00:00', '16:50:00', '17:35:00', '08:00:00', '08:45:00', '17:20:00', '18:05:00');
 
--- 3.7. Créer les bus
+-- 3.8. Créer les bus
 INSERT INTO bus (numero, marque, modele, annee_fabrication, capacite, chauffeur_id, responsable_id, trajet_id, statut) VALUES
 ('BUS-001', 'Mercedes', 'Sprinter', 2020, 50, 1, 1, 1, 'Actif'),    -- Chauffeur: Ahmed (chauffeur_id=1), Responsable: Nadia (responsable_id=1)
 ('BUS-002', 'Volvo', '9700', 2019, 45, 2, 1, 1, 'Actif'),           -- Chauffeur: Youssef (chauffeur_id=2), Responsable: Nadia
 ('BUS-003', 'Iveco', 'Daily', 2021, 35, 3, 2, 2, 'Actif'),          -- Chauffeur: Karim (chauffeur_id=3), Responsable: Omar (responsable_id=2)
 ('BUS-004', 'Mercedes', 'Sprinter', 2022, 50, NULL, 2, 3, 'Actif'); -- Pas de chauffeur assigné, Responsable: Omar
 
--- 3.8. Créer des élèves (référence maintenant tuteurs au lieu de utilisateurs)
+-- 3.9. Créer des élèves (référence maintenant tuteurs au lieu de utilisateurs)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES
 -- Élèves de Mohammed Alami (tuteur_id = 1)
 ('Alami', 'Yasmine', '2012-03-15', '123 Rue Maarif, Casablanca', '0612345679', 'mohammed.alami@email.ma', 'CE2', 1, 'Actif'),
@@ -354,14 +480,14 @@ INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, emai
 ('Benjelloun', 'Salma', '2011-06-10', '45 Boulevard Gauthier, Casablanca', '0612345680', 'fatima.benjelloun@email.ma', 'CM1', 2, 'Actif'),
 ('Benjelloun', 'Mehdi', '2013-01-20', '45 Boulevard Gauthier, Casablanca', '0612345680', 'fatima.benjelloun@email.ma', 'CE1', 2, 'Actif');
 
--- 3.9. Créer des inscriptions
+-- 3.10. Créer des inscriptions
 INSERT INTO inscriptions (eleve_id, bus_id, date_inscription, date_debut, date_fin, statut, montant_mensuel) VALUES
 (1, 1, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 6 MONTH), 'Active', 400.00), -- Yasmine -> BUS-001
 (2, 1, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 6 MONTH), 'Active', 400.00), -- Karim -> BUS-001
 (3, 2, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 6 MONTH), 'Active', 400.00), -- Salma -> BUS-002
 (4, 3, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 6 MONTH), 'Active', 400.00); -- Mehdi -> BUS-003
 
--- 3.10. Créer des présences (pour tester)
+-- 3.11. Créer des présences (pour tester)
 INSERT INTO presences (eleve_id, date, present_matin, present_soir, bus_id, responsable_id, chauffeur_id, remarque) VALUES
 (1, CURDATE(), TRUE, TRUE, 1, 1, 1, 'Présent'),
 (2, CURDATE(), TRUE, TRUE, 1, 1, 1, 'Présent'),
@@ -370,12 +496,12 @@ INSERT INTO presences (eleve_id, date, present_matin, present_soir, bus_id, resp
 (1, DATE_SUB(CURDATE(), INTERVAL 1 DAY), TRUE, TRUE, 1, 1, 1, NULL),
 (2, DATE_SUB(CURDATE(), INTERVAL 1 DAY), TRUE, TRUE, 1, 1, 1, NULL);
 
--- 3.11. Créer des demandes (référence maintenant tuteurs)
+-- 3.12. Créer des demandes (référence maintenant tuteurs)
 INSERT INTO demandes (eleve_id, tuteur_id, type_demande, description, statut) VALUES
 (4, 2, 'inscription', 'Demande d\'inscription pour Mehdi Benjelloun', 'En attente'),
 (1, 1, 'modification', 'Changement de zone pour Yasmine Alami', 'En attente');
 
--- 3.12. Créer des notifications
+-- 3.13. Créer des notifications
 INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue) VALUES
 -- Notifications pour Admin (destinataire_id = 1 = administrateur.id)
 (1, 'admin', 'Nouvelle inscription', 'Nouvelle demande d\'inscription reçue pour Mehdi Benjelloun', 'info', FALSE),
@@ -394,7 +520,7 @@ INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, t
 (2, 'responsable', 'Zone Nord', 'Vous êtes responsable de la Zone Nord - 2 bus', 'info', FALSE),
 (2, 'responsable', 'Nouvelle inscription', 'Nouvel élève inscrit sur votre zone: Mehdi Benjelloun', 'info', FALSE);
 
--- 3.13. Créer des paiements
+-- 3.14. Créer des paiements
 INSERT INTO paiements (inscription_id, montant, mois, annee, date_paiement, mode_paiement, statut) VALUES
 (1, 400.00, MONTH(CURDATE()), YEAR(CURDATE()), DATE_SUB(CURDATE(), INTERVAL 5 DAY), 'Virement', 'Payé'),
 (1, 400.00, MONTH(DATE_ADD(CURDATE(), INTERVAL 1 MONTH)), YEAR(CURDATE()), NULL, NULL, 'En attente'),
@@ -402,12 +528,12 @@ INSERT INTO paiements (inscription_id, montant, mois, annee, date_paiement, mode
 (3, 400.00, MONTH(CURDATE()), YEAR(CURDATE()), DATE_SUB(CURDATE(), INTERVAL 7 DAY), 'Carte bancaire', 'Payé'),
 (4, 400.00, MONTH(CURDATE()), YEAR(CURDATE()), NULL, NULL, 'En attente');
 
--- 3.14. Créer des accidents (pour tester)
+-- 3.15. Créer des accidents (pour tester)
 INSERT INTO accidents (date, heure, bus_id, chauffeur_id, description, degats, lieu, gravite, blesses, date_creation) VALUES
 (DATE_SUB(CURDATE(), INTERVAL 30 DAY), '08:15:00', 2, 2, 'Collision mineure avec un poteau', 'Rétroviseur cassé', 'Boulevard Gauthier', 'Légère', FALSE, DATE_SUB(CURDATE(), INTERVAL 30 DAY)),
 (DATE_SUB(CURDATE(), INTERVAL 90 DAY), '17:20:00', 1, 1, 'Accrochage avec un véhicule', 'Rayure sur la portière arrière', 'Avenue 2 Mars', 'Légère', FALSE, DATE_SUB(CURDATE(), INTERVAL 90 DAY));
 
--- 3.15. Créer des relations CONDUIRE (chauffeurs-trajets)
+-- 3.16. Créer des relations CONDUIRE (chauffeurs-trajets)
 INSERT INTO conduire (chauffeur_id, trajet_id, bus_id, date_debut, date_fin, statut) VALUES
 (1, 1, 1, DATE_SUB(CURDATE(), INTERVAL 90 DAY), NULL, 'Actif'),  -- Ahmed conduit BUS-001 sur Trajet Centre
 (2, 1, 2, DATE_SUB(CURDATE(), INTERVAL 60 DAY), NULL, 'Actif'),  -- Youssef conduit BUS-002 sur Trajet Centre
@@ -430,6 +556,7 @@ SELECT 'Inscriptions:' as '', COUNT(*) as total FROM inscriptions;
 SELECT 'Paiements:' as '', COUNT(*) as total FROM paiements;
 SELECT 'Notifications:' as '', COUNT(*) as total FROM notifications;
 SELECT 'Accidents:' as '', COUNT(*) as total FROM accidents;
+SELECT 'Zones:' as '', COUNT(*) as total FROM zones;
 
 -- ============================================
 -- 5. IDENTIFIANTS DE CONNEXION

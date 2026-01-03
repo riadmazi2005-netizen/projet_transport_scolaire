@@ -61,7 +61,55 @@ try {
         $abonnement = $descriptionData['abonnement'] ?? 'Mensuel';
         
         $basePrice = ($typeTransport === 'Aller-Retour') ? 400 : 250;
-        $montantFacture = ($abonnement === 'Annuel') ? $basePrice * 10 : $basePrice;
+        $montantFactureInitial = ($abonnement === 'Annuel') ? $basePrice * 10 : $basePrice;
+        
+        // Calculer la réduction familiale
+        // Compter le nombre d'élèves déjà inscrits du tuteur (inscriptions actives + demandes payées/inscrites)
+        $tuteurId = $demandeActuelle['tuteur_id'];
+        $stmtCount = $pdo->prepare('
+            SELECT COUNT(DISTINCT e.id) as nombre_eleves_inscrits
+            FROM eleves e
+            WHERE e.tuteur_id = ?
+              AND (
+                  EXISTS (
+                      SELECT 1 FROM inscriptions i 
+                      WHERE i.eleve_id = e.id AND i.statut = "Active"
+                  )
+                  OR EXISTS (
+                      SELECT 1 FROM demandes d 
+                      WHERE d.eleve_id = e.id 
+                        AND d.type_demande = "inscription"
+                        AND d.statut IN ("Inscrit", "Payée")
+                        AND d.id != ?
+                  )
+              )
+        ');
+        $stmtCount->execute([$tuteurId, $data['id']]);
+        $resultCount = $stmtCount->fetch(PDO::FETCH_ASSOC);
+        $nombreElevesInscrits = intval($resultCount['nombre_eleves_inscrits'] ?? 0);
+        
+        // Appliquer la réduction selon le nombre d'élèves inscrits
+        // 0 élève inscrit → 1er élève → pas de réduction
+        // 1 élève inscrit → 2ème élève → 15% de réduction
+        // 2+ élèves inscrits → 3ème+ élève → 25% de réduction
+        $tauxReduction = 0;
+        if ($nombreElevesInscrits === 1) {
+            // 2ème élève : 15% de réduction
+            $tauxReduction = 0.15;
+        } elseif ($nombreElevesInscrits >= 2) {
+            // 3ème+ élève : 25% de réduction
+            $tauxReduction = 0.25;
+        }
+        
+        $montantFacture = $montantFactureInitial;
+        if ($tauxReduction > 0) {
+            $montantFacture = $montantFactureInitial * (1 - $tauxReduction);
+        }
+        
+        // Stocker les informations de réduction dans la description
+        $descriptionData['montant_avant_reduction'] = $montantFactureInitial;
+        $descriptionData['taux_reduction'] = $tauxReduction;
+        $descriptionData['montant_reduction'] = $tauxReduction > 0 ? ($montantFactureInitial - $montantFacture) : 0;
     }
     
     // Récupérer la raison du refus si fournie
@@ -75,6 +123,13 @@ try {
     // Mettre à jour la demande
     $updateFields = ['statut = ?', 'date_traitement = NOW()', 'traite_par = ?'];
     $updateValues = [$nouveauStatut, $data['traite_par'] ?? null];
+    
+    // Mettre à jour la description si elle contient des informations de réduction
+    if (isset($descriptionData['montant_avant_reduction'])) {
+        $description = json_encode($descriptionData);
+        $updateFields[] = 'description = ?';
+        $updateValues[] = $description;
+    }
     
     if ($codeVerification) {
         $updateFields[] = 'code_verification = ?';

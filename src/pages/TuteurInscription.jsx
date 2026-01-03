@@ -233,7 +233,7 @@ export default function TuteurInscription() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-lime-50 via-white to-lime-50 p-4 md:p-8">
       <div className="max-w-3xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -241,7 +241,7 @@ export default function TuteurInscription() {
           className="bg-white rounded-3xl shadow-xl overflow-hidden"
         >
           {/* Header */}
-          <div className="p-6 bg-gradient-to-r from-amber-500 to-yellow-500">
+          <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
             <button
               onClick={() => navigate(createPageUrl('TuteurDashboard'))}
               className="flex items-center gap-2 text-white/80 hover:text-white mb-4 transition-colors"
@@ -268,7 +268,7 @@ export default function TuteurInscription() {
                   >
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                       currentStep >= step.num 
-                        ? 'bg-amber-500 text-white' 
+                        ? 'bg-lime-500 text-white' 
                         : 'bg-gray-100 text-gray-400'
                     }`}>
                       {currentStep > step.num ? (
@@ -281,7 +281,7 @@ export default function TuteurInscription() {
                   </div>
                   {index < steps.length - 1 && (
                     <div className={`w-12 sm:w-24 h-1 mx-2 rounded ${
-                      currentStep > step.num ? 'bg-amber-500' : 'bg-gray-200'
+                      currentStep > step.num ? 'bg-lime-500' : 'bg-gray-200'
                     }`} />
                   )}
                 </div>
@@ -303,9 +303,9 @@ export default function TuteurInscription() {
                 animate={{ opacity: 1, x: 0 }}
                 className="space-y-6"
               >
-                <div className="bg-amber-50 rounded-2xl p-6 border border-amber-100">
+                <div className="bg-lime-50 rounded-2xl p-6 border border-lime-100">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                    <User className="w-5 h-5 text-amber-500" />
+                    <User className="w-5 h-5 text-lime-500" />
                     Informations du Tuteur
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -389,7 +389,7 @@ export default function TuteurInscription() {
                   type="button"
                   onClick={() => setCurrentStep(2)}
                   disabled={!formData.lien_parente || (formData.lien_parente === 'Autre' && !formData.lien_parente_custom.trim())}
-                  className="w-full h-12 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl"
+                  className="w-full h-12 bg-gradient-to-r from-lime-500 to-lime-600 hover:from-lime-600 hover:to-lime-700 text-white rounded-xl"
                 >
                   Continuer
                 </Button>
@@ -404,7 +404,7 @@ export default function TuteurInscription() {
                 className="space-y-5"
               >
                 <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5 text-amber-500" />
+                  <GraduationCap className="w-5 h-5 text-lime-500" />
                   Informations de l'Élève
                 </h3>
 
@@ -505,7 +505,7 @@ export default function TuteurInscription() {
 
                 <div>
                   <Label className="text-gray-700 font-medium flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-amber-500" />
+                    <MapPin className="w-4 h-4 text-lime-500" />
                     Ville *
                   </Label>
                   <Select 
@@ -528,7 +528,7 @@ export default function TuteurInscription() {
 
                 <div>
                   <Label className="text-gray-700 font-medium flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-amber-500" />
+                    <MapPin className="w-4 h-4 text-lime-500" />
                     Zone géographique *
                   </Label>
                   <Select 
@@ -555,7 +555,7 @@ export default function TuteurInscription() {
 
                 <div>
                   <Label className="text-gray-700 font-medium flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-amber-500" />
+                    <MapPin className="w-4 h-4 text-lime-500" />
                     Adresse *
                   </Label>
                   <Input
@@ -597,7 +597,7 @@ export default function TuteurInscription() {
                 className="space-y-5"
               >
                 <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <Bus className="w-5 h-5 text-amber-500" />
+                  <Bus className="w-5 h-5 text-lime-500" />
                   Informations de Transport
                 </h3>
 
@@ -655,7 +655,7 @@ export default function TuteurInscription() {
                 </div>
 
                 {/* Price Summary */}
-                <div className="bg-amber-50 rounded-2xl p-6 border border-amber-100">
+                <div className="bg-lime-50 rounded-2xl p-6 border border-lime-100">
                   <h4 className="font-semibold text-gray-800 mb-3">Récapitulatif</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">

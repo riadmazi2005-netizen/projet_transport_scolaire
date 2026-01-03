@@ -1,27 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { chauffeursAPI, busAPI } from '../services/apiService';
+import { chauffeursAPI, responsablesAPI, busAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  Users, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle, ArrowLeft, Bus
+  Users, UserCog, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle, ArrowLeft, Bus
 } from 'lucide-react';
 
-export default function AdminChauffeurs() {
+export default function AdminChauffeur() {
   const navigate = useNavigate();
   const [chauffeurs, setChauffeurs] = useState([]);
+  const [responsables, setResponsables] = useState([]);
+  const [buses, setBuses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const [activeTab, setActiveTab] = useState('chauffeurs');
+  const [showChauffeurForm, setShowChauffeurForm] = useState(false);
+  const [showResponsableForm, setShowResponsableForm] = useState(false);
+  const [editingChauffeur, setEditingChauffeur] = useState(null);
+  const [editingResponsable, setEditingResponsable] = useState(null);
   const [showPassword, setShowPassword] = useState({});
   const [error, setError] = useState(null);
 
-  const [form, setForm] = useState({
+  const [chauffeurForm, setChauffeurForm] = useState({
     nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: ''
+  });
+
+  const [responsableForm, setResponsableForm] = useState({
+    nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: ''
   });
 
   useEffect(() => {
@@ -32,77 +41,80 @@ export default function AdminChauffeurs() {
     setLoading(true);
     setError(null);
     try {
-      const [chauffeursRes, busesRes] = await Promise.all([
+      const [chauffeursRes, responsablesRes, busesRes] = await Promise.all([
         chauffeursAPI.getAll(),
+        responsablesAPI.getAll(),
         busAPI.getAll()
       ]);
       
       const chauffeursData = chauffeursRes?.data || chauffeursRes || [];
+      const responsablesData = responsablesRes?.data || responsablesRes || [];
       const busesData = busesRes?.data || busesRes || [];
       
-      // Enrichir les chauffeurs avec l'info du bus assigné (un seul bus maximum)
+      // Enrichir les chauffeurs avec l'info du bus assigné
       const chauffeursEnrichis = Array.isArray(chauffeursData) ? chauffeursData.map(c => {
         const busAssigne = Array.isArray(busesData) ? busesData.find(b => b.chauffeur_id === c.id) : null;
-        return {
-          ...c,
-          bus: busAssigne
-        };
+        return { ...c, bus: busAssigne };
+      }) : [];
+      
+      // Enrichir les responsables avec l'info du bus assigné
+      const responsablesEnrichis = Array.isArray(responsablesData) ? responsablesData.map(r => {
+        const busAssigne = Array.isArray(busesData) ? busesData.find(b => b.responsable_id === r.id) : null;
+        return { ...r, bus: busAssigne };
       }) : [];
       
       setChauffeurs(chauffeursEnrichis);
+      setResponsables(responsablesEnrichis);
+      setBuses(Array.isArray(busesData) ? busesData : []);
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
-      setError('Erreur lors du chargement des chauffeurs');
+      setError('Erreur lors du chargement des données');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async (e) => {
+  const handleSaveChauffeur = async (e) => {
     e.preventDefault();
     setError(null);
     
     try {
       let data;
       
-      if (editing) {
-        // En mode édition, on peut modifier email, téléphone, mot de passe et salaire
+      if (editingChauffeur) {
         data = {
-          email: form.email,
-          telephone: form.telephone
+          email: chauffeurForm.email,
+          telephone: chauffeurForm.telephone
         };
         
-        // Ajouter le mot de passe seulement s'il est rempli
-        if (form.mot_de_passe) {
-          data.mot_de_passe = form.mot_de_passe;
+        if (chauffeurForm.mot_de_passe) {
+          data.mot_de_passe = chauffeurForm.mot_de_passe;
         }
         
-        // Ajouter le salaire si fourni
-        if (form.salaire !== '' && form.salaire !== null && form.salaire !== undefined) {
-          data.salaire = parseFloat(form.salaire) || 0;
+        if (chauffeurForm.salaire !== '' && chauffeurForm.salaire !== null && chauffeurForm.salaire !== undefined) {
+          data.salaire = parseFloat(chauffeurForm.salaire) || 0;
         }
       } else {
-        // En mode création, envoyer toutes les données (sans permis)
         data = { 
-          nom: form.nom,
-          prenom: form.prenom,
-          email: form.email,
-          telephone: form.telephone,
-          mot_de_passe: form.mot_de_passe,
-          salaire: parseInt(form.salaire) || 0,
-          date_embauche: form.date_embauche || null,
+          nom: chauffeurForm.nom,
+          prenom: chauffeurForm.prenom,
+          email: chauffeurForm.email,
+          telephone: chauffeurForm.telephone,
+          mot_de_passe: chauffeurForm.mot_de_passe,
+          salaire: parseInt(chauffeurForm.salaire) || 0,
+          date_embauche: chauffeurForm.date_embauche || null,
           nombre_accidents: 0,
           statut: 'Actif'
         };
       }
       
-      if (editing) {
-        await chauffeursAPI.update(editing.id, data);
+      if (editingChauffeur) {
+        await chauffeursAPI.update(editingChauffeur.id, data);
       } else {
         await chauffeursAPI.create(data);
       }
       
-      resetForm();
+      resetChauffeurForm();
       await loadData();
     } catch (err) {
       console.error('Erreur lors de l\'enregistrement:', err);
@@ -110,7 +122,54 @@ export default function AdminChauffeurs() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleSaveResponsable = async (e) => {
+    e.preventDefault();
+    setError(null);
+    
+    try {
+      let data;
+      
+      if (editingResponsable) {
+        data = {
+          email: responsableForm.email,
+          telephone: responsableForm.telephone
+        };
+        
+        if (responsableForm.mot_de_passe) {
+          data.mot_de_passe = responsableForm.mot_de_passe;
+        }
+        
+        if (responsableForm.salaire !== '' && responsableForm.salaire !== null && responsableForm.salaire !== undefined) {
+          data.salaire = parseFloat(responsableForm.salaire) || 0;
+        }
+      } else {
+        data = { 
+          nom: responsableForm.nom,
+          prenom: responsableForm.prenom,
+          email: responsableForm.email,
+          telephone: responsableForm.telephone,
+          mot_de_passe: responsableForm.mot_de_passe,
+          salaire: parseFloat(responsableForm.salaire) || 0,
+          role: 'responsable',
+          statut: 'Actif'
+        };
+      }
+      
+      if (editingResponsable) {
+        await responsablesAPI.update(editingResponsable.id, data);
+      } else {
+        await responsablesAPI.create(data);
+      }
+      
+      resetResponsableForm();
+      await loadData();
+    } catch (err) {
+      console.error('Erreur lors de l\'enregistrement:', err);
+      setError('Erreur lors de l\'enregistrement du responsable: ' + (err.message || 'Erreur inconnue'));
+    }
+  };
+
+  const handleDeleteChauffeur = async (id) => {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce chauffeur ?')) {
       try {
         await chauffeursAPI.delete(id);
@@ -122,23 +181,54 @@ export default function AdminChauffeurs() {
     }
   };
 
-  const resetForm = () => {
-    setForm({ nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: '' });
-    setEditing(null);
-    setShowForm(false);
+  const handleDeleteResponsable = async (id) => {
+    if (confirm('Êtes-vous sûr de vouloir supprimer ce responsable ?')) {
+      try {
+        await responsablesAPI.delete(id);
+        await loadData();
+      } catch (err) {
+        console.error('Erreur lors de la suppression:', err);
+        setError('Erreur lors de la suppression du responsable');
+      }
+    }
   };
 
-  const editItem = (item) => {
-    setForm({
+  const resetChauffeurForm = () => {
+    setChauffeurForm({ nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: '' });
+    setEditingChauffeur(null);
+    setShowChauffeurForm(false);
+  };
+
+  const resetResponsableForm = () => {
+    setResponsableForm({ nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '' });
+    setEditingResponsable(null);
+    setShowResponsableForm(false);
+  };
+
+  const editChauffeur = (item) => {
+    setChauffeurForm({
       nom: item.nom || '',
       prenom: item.prenom || '',
       email: item.email || '',
       telephone: item.telephone || '',
-      mot_de_passe: '', // Ne pas pré-remplir le mot de passe pour la sécurité
+      mot_de_passe: '',
       salaire: item.salaire !== null && item.salaire !== undefined ? item.salaire.toString() : ''
     });
-    setEditing(item);
-    setShowForm(true);
+    setEditingChauffeur(item);
+    setShowChauffeurForm(true);
+  };
+
+  const editResponsable = (item) => {
+    setResponsableForm({
+      nom: item.nom || '',
+      prenom: item.prenom || '',
+      email: item.email || '',
+      telephone: item.telephone || '',
+      mot_de_passe: '',
+      salaire: item.salaire !== null && item.salaire !== undefined ? item.salaire.toString() : ''
+    });
+    setEditingResponsable(item);
+    setShowResponsableForm(true);
   };
 
   const togglePasswordVisibility = (id) => {
@@ -149,18 +239,18 @@ export default function AdminChauffeurs() {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-amber-700 border-t-transparent rounded-full animate-spin" />
         </div>
       </AdminLayout>
     );
   }
 
   return (
-    <AdminLayout title="Gestion des Chauffeurs">
-      <div className="mb-4">
+    <AdminLayout title="Chauffeur & Responsable Bus">
+      <div className="mb-6">
         <button
           onClick={() => navigate(createPageUrl('AdminDashboard'))}
-          className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+          className="flex items-center gap-2 text-gray-600 hover:text-amber-800 transition-colors font-medium"
         >
           <ArrowLeft className="w-4 h-4" />
           Retour au tableau de bord
@@ -168,195 +258,231 @@ export default function AdminChauffeurs() {
       </div>
       
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
-          {error}
+        <div className="bg-red-50 border-l-4 border-red-400 text-red-700 px-6 py-4 rounded-lg mb-6 shadow-sm">
+          <p className="font-medium">{error}</p>
         </div>
       )}
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-3xl shadow-xl overflow-hidden"
-      >
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-green-500 to-emerald-500">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Users className="w-6 h-6" />
+      {/* Tabs */}
+      <div className="flex gap-3 mb-8">
+        <Button
+          variant={activeTab === 'chauffeurs' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('chauffeurs')}
+          className={`rounded-xl font-semibold transition-all duration-300 ${
+            activeTab === 'chauffeurs' 
+              ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg shadow-emerald-200' 
+              : 'border-2 border-emerald-200 hover:border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+          }`}
+        >
+          <Users className="w-5 h-5 mr-2" />
+          Chauffeurs ({chauffeurs.length})
+        </Button>
+        <Button
+          variant={activeTab === 'responsables' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('responsables')}
+          className={`rounded-xl font-semibold transition-all duration-300 ${
+            activeTab === 'responsables' 
+              ? 'bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white shadow-lg shadow-violet-200' 
+              : 'border-2 border-violet-200 hover:border-violet-300 text-violet-700 hover:bg-violet-50'
+          }`}
+        >
+          <UserCog className="w-5 h-5 mr-2" />
+          Responsables Bus ({responsables.length})
+        </Button>
+      </div>
+
+      {/* Chauffeurs Tab */}
+      {activeTab === 'chauffeurs' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-emerald-100"
+        >
+          <div className="p-8 bg-gradient-to-r from-emerald-600 via-emerald-700 to-emerald-600 flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                <Users className="w-7 h-7 text-white" />
+              </div>
               Gestion des Chauffeurs
             </h2>
             <Button
-              onClick={() => setShowForm(true)}
-              className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+              onClick={() => setShowChauffeurForm(true)}
+              className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6 py-3"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Ajouter
+              <Plus className="w-5 h-5 mr-2" />
+              Ajouter un chauffeur
             </Button>
           </div>
 
-          {showForm && (
-            <div className="p-6 bg-green-50 border-b border-green-100">
-              <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {!editing && (
+          {showChauffeurForm && (
+            <div className="p-8 bg-gradient-to-br from-emerald-50 via-white to-emerald-50 border-b-2 border-emerald-200">
+              <form onSubmit={handleSaveChauffeur} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {!editingChauffeur && (
                   <>
                     <div>
-                      <Label>Nom</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Nom</Label>
                       <Input
-                        value={form.nom}
-                        onChange={(e) => setForm({ ...form, nom: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.nom}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, nom: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                         required
                       />
                     </div>
                     <div>
-                      <Label>Prénom</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Prénom</Label>
                       <Input
-                        value={form.prenom}
-                        onChange={(e) => setForm({ ...form, prenom: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.prenom}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, prenom: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                         required
                       />
                     </div>
                     <div>
-                      <Label>Email</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Email</Label>
                       <Input
                         type="email"
-                        value={form.email}
-                        onChange={(e) => setForm({ ...form, email: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.email}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, email: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                         required
                       />
                     </div>
                     <div>
-                      <Label>Téléphone</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Téléphone</Label>
                       <Input
-                        value={form.telephone}
-                        onChange={(e) => setForm({ ...form, telephone: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.telephone}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, telephone: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                         required
                       />
                     </div>
                     <div>
-                      <Label>Date d'embauche</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Date d'embauche</Label>
                       <Input
                         type="date"
-                        value={form.date_embauche}
-                        onChange={(e) => setForm({ ...form, date_embauche: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.date_embauche}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, date_embauche: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                       />
                     </div>
                     <div>
-                      <Label>Mot de passe</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Mot de passe</Label>
                       <Input
                         type="password"
-                        value={form.mot_de_passe}
-                        onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.mot_de_passe}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, mot_de_passe: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                         required
                       />
                     </div>
                     <div>
-                      <Label>Salaire (DH)</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Salaire (DH)</Label>
                       <Input
                         type="number"
-                        value={form.salaire}
-                        onChange={(e) => setForm({ ...form, salaire: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.salaire}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, salaire: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                         required
                       />
                     </div>
                   </>
                 )}
-                {editing && (
+                {editingChauffeur && (
                   <>
                     <div>
-                      <Label>Email</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Email</Label>
                       <Input
                         type="email"
-                        value={form.email}
-                        onChange={(e) => setForm({ ...form, email: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.email}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, email: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                         required
                       />
                     </div>
                     <div>
-                      <Label>Téléphone</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Téléphone</Label>
                       <Input
-                        value={form.telephone}
-                        onChange={(e) => setForm({ ...form, telephone: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.telephone}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, telephone: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                         required
                       />
                     </div>
                     <div>
-                      <Label>Salaire (DH)</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Salaire (DH)</Label>
                       <Input
                         type="number"
-                        value={form.salaire}
-                        onChange={(e) => setForm({ ...form, salaire: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.salaire}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, salaire: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                         required
                       />
                     </div>
                     <div>
-                      <Label>Mot de passe (laisser vide pour ne pas changer)</Label>
+                      <Label className="text-emerald-900 font-semibold mb-2 block">Mot de passe (laisser vide pour ne pas changer)</Label>
                       <Input
                         type="password"
-                        value={form.mot_de_passe}
-                        onChange={(e) => setForm({ ...form, mot_de_passe: e.target.value })}
-                        className="mt-1 rounded-xl"
+                        value={chauffeurForm.mot_de_passe}
+                        onChange={(e) => setChauffeurForm({ ...chauffeurForm, mot_de_passe: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-emerald-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 h-12"
                       />
                     </div>
                   </>
                 )}
-                <div className="md:col-span-3 flex gap-3 justify-end">
-                  <Button type="button" variant="outline" onClick={resetForm} className="rounded-xl">
-                    <X className="w-4 h-4 mr-2" />
+                <div className="md:col-span-3 flex gap-4 justify-end pt-4 border-t-2 border-emerald-200">
+                  <Button type="button" variant="outline" onClick={resetChauffeurForm} className="rounded-xl border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-semibold px-6">
+                    <X className="w-5 h-5 mr-2" />
                     Annuler
                   </Button>
-                  <Button type="submit" className="bg-green-500 hover:bg-green-600 text-white rounded-xl">
-                    <Save className="w-4 h-4 mr-2" />
-                    {editing ? 'Modifier' : 'Enregistrer'}
+                  <Button type="submit" className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6">
+                    <Save className="w-5 h-5 mr-2" />
+                    {editingChauffeur ? 'Modifier' : 'Enregistrer'}
                   </Button>
                 </div>
               </form>
             </div>
           )}
 
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-emerald-100">
             {chauffeurs.map((item) => (
-              <div key={item.id} className="p-6 hover:bg-green-50/50 transition-colors">
+              <motion.div 
+                key={item.id} 
+                className="p-8 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-white transition-all duration-300"
+                whileHover={{ x: 4 }}
+              >
                 <div className="flex justify-between items-start">
-                  <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center">
-                      <Users className="w-7 h-7 text-green-600" />
+                  <div className="flex items-start gap-6">
+                    <div className="w-20 h-20 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-2xl flex items-center justify-center shadow-lg">
+                      <Users className="w-10 h-10 text-white" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-gray-800">{item.prenom} {item.nom}</h3>
-                      <p className="text-gray-500">{item.telephone}</p>
-                      <div className="flex flex-wrap gap-2 mt-2 text-sm">
-                        <span className="px-2 py-1 bg-green-100 text-green-700 rounded-lg">
+                      <h3 className="text-2xl font-bold text-emerald-900 mb-3">{item.prenom} {item.nom}</h3>
+                      <p className="text-gray-500 mb-2">{item.telephone}</p>
+                      <div className="flex flex-wrap gap-3 mt-2">
+                        <span className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-semibold shadow-md">
                           {item.salaire !== null && item.salaire !== undefined ? parseFloat(item.salaire).toLocaleString('fr-FR') : '0'} DH
                         </span>
                         {item.bus && (
-                          <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg flex items-center gap-1">
-                            <Bus className="w-3 h-3" />
+                          <span className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-semibold shadow-md flex items-center gap-2">
+                            <Bus className="w-4 h-4" />
                             {item.bus.numero}
                           </span>
                         )}
-                        <span className={`px-2 py-1 rounded-lg ${
+                        <span className={`px-4 py-2 rounded-xl font-semibold shadow-md ${
                           item.nombre_accidents >= 3 
-                            ? 'bg-red-100 text-red-700' 
-                            : 'bg-gray-100 text-gray-700'
+                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
+                            : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
                         }`}>
                           {item.nombre_accidents || 0} accident(s)
                         </span>
                         {item.nombre_accidents >= 3 && (
-                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded-lg flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3" />
+                          <span className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold shadow-md flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4" />
                             Licenciement
                           </span>
                         )}
                       </div>
-                      <div className="mt-2">
+                      <div className="mt-3">
                         <label className="block text-sm font-medium text-gray-600 mb-1">Mot de passe:</label>
                         <div className="flex items-center gap-2">
                           <div className="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-gray-700 font-mono text-xs border border-gray-200 break-all max-w-md">
@@ -375,25 +501,252 @@ export default function AdminChauffeurs() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="icon" onClick={() => editItem(item)} className="rounded-xl border-gray-300 hover:bg-gray-100">
-                      <Edit className="w-4 h-4 text-gray-700" />
+                  <div className="flex gap-3">
+                    <Button variant="outline" size="icon" onClick={() => editChauffeur(item)} className="rounded-xl border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 w-11 h-11 shadow-md">
+                      <Edit className="w-5 h-5" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => handleDelete(item.id)} className="rounded-xl border-red-300 text-red-500 hover:bg-red-50 hover:border-red-400">
-                      <Trash2 className="w-4 h-4" />
+                    <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeur(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                      <Trash2 className="w-5 h-5" />
                     </Button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
             {chauffeurs.length === 0 && (
-              <div className="p-12 text-center text-gray-400">
-                <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Aucun chauffeur enregistré</p>
+              <div className="p-16 text-center">
+                <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Users className="w-10 h-10 text-emerald-600 opacity-60" />
+                </div>
+                <p className="text-emerald-700 font-semibold text-lg">Aucun chauffeur enregistré</p>
+                <p className="text-emerald-600 text-sm mt-2">Cliquez sur "Ajouter un chauffeur" pour commencer</p>
               </div>
             )}
           </div>
-      </motion.div>
+        </motion.div>
+      )}
+
+      {/* Responsables Tab */}
+      {activeTab === 'responsables' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-violet-100"
+        >
+          <div className="p-8 bg-gradient-to-r from-violet-600 via-violet-700 to-violet-600 flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                <UserCog className="w-7 h-7 text-white" />
+              </div>
+              Gestion des Responsables Bus
+            </h2>
+            <Button
+              onClick={() => setShowResponsableForm(true)}
+              className="bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6 py-3"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Ajouter un responsable
+            </Button>
+          </div>
+
+          {showResponsableForm && (
+            <div className="p-8 bg-gradient-to-br from-violet-50 via-white to-violet-50 border-b-2 border-violet-200">
+              <form onSubmit={handleSaveResponsable} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {!editingResponsable && (
+                  <>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Nom</Label>
+                      <Input
+                        value={responsableForm.nom}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, nom: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Prénom</Label>
+                      <Input
+                        value={responsableForm.prenom}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, prenom: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Email</Label>
+                      <Input
+                        type="email"
+                        value={responsableForm.email}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, email: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Téléphone</Label>
+                      <Input
+                        value={responsableForm.telephone}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, telephone: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Salaire (DH)</Label>
+                      <Input
+                        type="number"
+                        value={responsableForm.salaire}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, salaire: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Mot de passe</Label>
+                      <Input
+                        type="password"
+                        value={responsableForm.mot_de_passe}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, mot_de_passe: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+                {editingResponsable && (
+                  <>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Email</Label>
+                      <Input
+                        type="email"
+                        value={responsableForm.email}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, email: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Téléphone</Label>
+                      <Input
+                        value={responsableForm.telephone}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, telephone: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Salaire (DH)</Label>
+                      <Input
+                        type="number"
+                        value={responsableForm.salaire}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, salaire: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-violet-900 font-semibold mb-2 block">Mot de passe (laisser vide pour ne pas changer)</Label>
+                      <Input
+                        type="password"
+                        value={responsableForm.mot_de_passe}
+                        onChange={(e) => setResponsableForm({ ...responsableForm, mot_de_passe: e.target.value })}
+                        className="mt-1 rounded-xl border-2 border-violet-200 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 h-12"
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="md:col-span-3 flex gap-4 justify-end pt-4 border-t-2 border-violet-200">
+                  <Button type="button" variant="outline" onClick={resetResponsableForm} className="rounded-xl border-2 border-violet-300 text-violet-700 hover:bg-violet-50 font-semibold px-6">
+                    <X className="w-5 h-5 mr-2" />
+                    Annuler
+                  </Button>
+                  <Button type="submit" className="bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6">
+                    <Save className="w-5 h-5 mr-2" />
+                    {editingResponsable ? 'Modifier' : 'Enregistrer'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="divide-y divide-violet-100">
+            {responsables.map((item) => {
+              const isPasswordVisible = showPassword[item.id] || false;
+              const passwordValue = item.mot_de_passe_plain || item.user_password || item.mot_de_passe || 'N/A';
+              const passwordDisplay = isPasswordVisible ? passwordValue : '••••••••';
+              
+              return (
+                <motion.div 
+                  key={item.id} 
+                  className="p-8 hover:bg-gradient-to-r hover:from-violet-50 hover:to-white transition-all duration-300"
+                  whileHover={{ x: 4 }}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-start gap-6">
+                      <div className="w-20 h-20 bg-gradient-to-br from-violet-600 to-violet-700 rounded-2xl flex items-center justify-center shadow-lg">
+                        <UserCog className="w-10 h-10 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-violet-900 mb-3">{item.prenom} {item.nom}</h3>
+                        <p className="text-gray-500 mb-2">{item.telephone}</p>
+                        <div className="flex flex-wrap gap-3 mt-2">
+                          <span className="px-4 py-2 bg-gradient-to-r from-violet-500 to-violet-600 text-white rounded-xl font-semibold shadow-md">
+                            #{item.id}
+                          </span>
+                          {item.salaire !== null && item.salaire !== undefined && (
+                            <span className="px-4 py-2 bg-gradient-to-r from-violet-500 to-violet-600 text-white rounded-xl font-semibold shadow-md">
+                              {parseFloat(item.salaire).toLocaleString('fr-FR')} DH
+                            </span>
+                          )}
+                          {item.bus && (
+                            <span className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-semibold shadow-md flex items-center gap-2">
+                              <Bus className="w-4 h-4" />
+                              {item.bus.numero}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-gray-600 mb-1">Mot de passe:</label>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 px-3 py-2 bg-gray-50 rounded-lg text-gray-700 font-mono text-xs border border-gray-200 break-all max-w-md">
+                              {passwordDisplay}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => togglePasswordVisibility(item.id)}
+                              className="rounded-lg border-gray-300 hover:bg-gray-100 flex-shrink-0"
+                            >
+                              {isPasswordVisible ? <EyeOff className="w-4 h-4 text-gray-700" /> : <Eye className="w-4 h-4 text-gray-700" />}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="outline" size="icon" onClick={() => editResponsable(item)} className="rounded-xl border-2 border-violet-300 text-violet-700 hover:bg-violet-50 hover:border-violet-400 w-11 h-11 shadow-md">
+                        <Edit className="w-5 h-5" />
+                      </Button>
+                      <Button variant="outline" size="icon" onClick={() => handleDeleteResponsable(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                        <Trash2 className="w-5 h-5" />
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+            {responsables.length === 0 && (
+              <div className="p-16 text-center">
+                <div className="w-20 h-20 bg-violet-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <UserCog className="w-10 h-10 text-violet-600 opacity-60" />
+                </div>
+                <p className="text-violet-700 font-semibold text-lg">Aucun responsable enregistré</p>
+                <p className="text-violet-600 text-sm mt-2">Cliquez sur "Ajouter un responsable" pour commencer</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
     </AdminLayout>
   );
 }

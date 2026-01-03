@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle
+  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -26,6 +26,9 @@ export default function AdminAccidents() {
 
   useEffect(() => {
     loadData();
+    // Actualiser toutes les 30 secondes pour avoir des accidents à jour
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -176,14 +179,22 @@ export default function AdminAccidents() {
     <AdminLayout>
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-4">
+          <div className="mb-4 flex justify-between items-center">
             <button
               onClick={() => navigate(createPageUrl('AdminDashboard'))}
-              className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+              className="flex items-center gap-2 text-gray-600 hover:text-amber-800 transition-colors font-medium"
             >
               <ArrowLeft className="w-4 h-4" />
               Retour au tableau de bord
             </button>
+            <Button
+              onClick={loadData}
+              disabled={loading}
+              className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl font-semibold shadow-lg"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Actualiser
+            </Button>
           </div>
           
           {error && (

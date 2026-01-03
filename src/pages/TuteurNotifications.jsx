@@ -289,7 +289,7 @@ export default function TuteurNotifications() {
                           variant="ghost"
                           size="sm"
                           onClick={() => markAsRead(notif.id)}
-                          className="rounded-xl text-green-600 hover:text-green-700 hover:bg-green-50"
+                          className="rounded-xl text-lime-600 hover:text-lime-700 hover:bg-lime-50"
                           title="Marquer comme lu"
                         >
                           <CheckCircle className="w-5 h-5" />

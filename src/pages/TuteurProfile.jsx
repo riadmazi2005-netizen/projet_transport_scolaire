@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { tuteursAPI, authAPI } from '../services/apiService';
+import { tuteursAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,41 +47,44 @@ export default function TuteurProfile() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess(false);
     
     try {
       // Prepare data for update (exclude adresse as it's not in the database)
       const { adresse, ...updateData } = formData;
       
-      // Update tuteur via API
+      // Update tuteur via API - l'API attend l'ID utilisateur
       const response = await tuteursAPI.update(tuteurId, updateData);
       
-      // Update local session with the response data or form data
+      if (!response.success) {
+        throw new Error(response.message || 'Erreur lors de la mise à jour');
+      }
+      
+      // Update local session with the response data
       const session = JSON.parse(localStorage.getItem('tuteur_session'));
       const updatedSession = { 
         ...session, 
-        ...updateData,
+        ...(response.data || updateData),
         // Keep adresse in local storage if it was there, but don't send it to API
-        ...(adresse ? { adresse } : {})
+        ...(adresse ? { adresse } : {}),
+        // Keep type_id if it exists
+        ...(session.type_id ? { type_id: session.type_id } : {})
       };
       localStorage.setItem('tuteur_session', JSON.stringify(updatedSession));
-      
-      // Also update the 'user' in localStorage if using authAPI
-      const user = authAPI.getCurrentUser();
-      if (user) {
-        authAPI.saveUser({ ...user, ...updateData }, localStorage.getItem('token'));
-      }
       
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error('Erreur lors de la mise à jour:', err);
-      setError(err.message || 'Erreur lors de la mise à jour du profil. Veuillez réessayer.');
+      const errorMessage = err.response?.data?.message || err.message || 'Erreur lors de la mise à jour du profil. Veuillez réessayer.';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-lime-50 via-white to-lime-50 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -90,14 +93,14 @@ export default function TuteurProfile() {
         >
           <button
             onClick={() => navigate(createPageUrl('TuteurDashboard'))}
-            className="flex items-center gap-2 text-gray-500 hover:text-amber-600 mb-6 transition-colors"
+            className="flex items-center gap-2 text-gray-500 hover:text-lime-600 mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Retour au tableau de bord
           </button>
 
           <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <div className="w-20 h-20 bg-gradient-to-br from-lime-400 to-lime-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
               <Users className="w-10 h-10 text-white" />
             </div>
             <h2 className="text-2xl font-bold text-gray-800">Mon Profil</h2>
@@ -181,7 +184,7 @@ export default function TuteurProfile() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl font-semibold shadow-lg mt-4"
+              className="w-full h-12 bg-gradient-to-r from-lime-500 to-lime-600 hover:from-lime-600 hover:to-lime-700 text-white rounded-xl font-semibold shadow-lg mt-4"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

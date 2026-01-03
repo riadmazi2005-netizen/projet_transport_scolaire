@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, presencesAPI, paiementsAPI, accidentsAPI, busAPI, inscriptionsAPI, demandesAPI, tuteursAPI } from '../services/apiService';
+import { elevesAPI, presencesAPI, paiementsAPI, accidentsAPI, busAPI, inscriptionsAPI, demandesAPI, tuteursAPI, signalementsAPI, essenceAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,14 +33,35 @@ export default function AdminStats() {
     accidents: [],
     inscriptions: [],
     buses: [],
-    demandes: []
+    demandes: [],
+    signalements: [],
+    essence: [],
+    tuteurs: []
   });
 
   const COLORS = ['#F59E0B', '#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#EC4899'];
 
   useEffect(() => {
     loadData();
+    // Rafraîchir les données toutes les 30 secondes pour avoir des statistiques à jour
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
   }, []);
+
+  // Recharger les données quand les dates changent (avec un délai pour éviter trop de rechargements)
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  useEffect(() => {
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+      return;
+    }
+    if (dateDebut && dateFin) {
+      const timeoutId = setTimeout(() => {
+        loadData();
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [dateDebut, dateFin]);
 
   useEffect(() => {
     // Set dates based on preset
@@ -72,24 +93,28 @@ export default function AdminStats() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [elevesRes, paiementsRes, accidentsRes, busesRes, inscriptionsRes, demandesRes, tuteursRes] = await Promise.all([
+      const [elevesRes, paiementsRes, accidentsRes, busesRes, inscriptionsRes, demandesRes, tuteursRes, signalementsRes, essenceRes] = await Promise.allSettled([
         elevesAPI.getAll(),
         paiementsAPI.getAll(),
         accidentsAPI.getAll(),
         busAPI.getAll(),
         inscriptionsAPI.getAll(),
         demandesAPI.getAll(),
-        tuteursAPI.getAll()
+        tuteursAPI.getAll(),
+        signalementsAPI.getAll(),
+        essenceAPI.getAll()
       ]);
       
       // Extraire les données avec gestion de différents formats de réponse
-      const elevesArray = elevesRes?.data || elevesRes || [];
-      const paiementsArray = paiementsRes?.data || paiementsRes || [];
-      const accidents = accidentsRes?.data || accidentsRes || [];
-      const buses = busesRes?.data || busesRes || [];
-      const inscriptions = inscriptionsRes?.data || inscriptionsRes || [];
-      const demandesArray = demandesRes?.data || demandesRes || [];
-      const tuteursArray = tuteursRes?.data || tuteursRes || [];
+      const elevesArray = elevesRes.status === 'fulfilled' ? (elevesRes.value?.data || elevesRes.value || []) : [];
+      const paiementsArray = paiementsRes.status === 'fulfilled' ? (paiementsRes.value?.data || paiementsRes.value || []) : [];
+      const accidents = accidentsRes.status === 'fulfilled' ? (accidentsRes.value?.data || accidentsRes.value || []) : [];
+      const buses = busesRes.status === 'fulfilled' ? (busesRes.value?.data || busesRes.value || []) : [];
+      const inscriptions = inscriptionsRes.status === 'fulfilled' ? (inscriptionsRes.value?.data || inscriptionsRes.value || []) : [];
+      const demandesArray = demandesRes.status === 'fulfilled' ? (demandesRes.value?.data || demandesRes.value || []) : [];
+      const tuteursArray = tuteursRes.status === 'fulfilled' ? (tuteursRes.value?.data || tuteursRes.value || []) : [];
+      const signalements = signalementsRes.status === 'fulfilled' ? (signalementsRes.value?.data || signalementsRes.value || []) : [];
+      const essence = essenceRes.status === 'fulfilled' ? (essenceRes.value?.data || essenceRes.value || []) : [];
       
       // Filtrer uniquement les demandes d'inscription
       const demandesInscription = Array.isArray(demandesArray) ? demandesArray.filter(d => d.type_demande === 'inscription') : [];
@@ -136,19 +161,56 @@ export default function AdminStats() {
       
       const paiements = [...paiementsMensuels, ...demandesPayees];
       
-      // Note: presencesAPI n'est pas dans le SQL d'origine, 
-      // vous devrez peut-être créer une table presences ou utiliser une autre logique
+      // Charger les présences pour toute la période sélectionnée
       let presences = [];
       try {
-        const presencesRes = await presencesAPI.getByDate(new Date().toISOString().split('T')[0]);
-        presences = presencesRes?.data || presencesRes || [];
+        // Charger les présences pour chaque jour de la période
+        const startDate = new Date(dateDebut);
+        const endDate = new Date(dateFin);
+        const presencesPromises = [];
+        
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = format(d, 'yyyy-MM-dd');
+          presencesPromises.push(presencesAPI.getByDate(dateStr).catch(() => ({ data: [] })));
+        }
+        
+        const presencesResults = await Promise.allSettled(presencesPromises);
+        presences = presencesResults
+          .filter(result => result.status === 'fulfilled')
+          .flatMap(result => {
+            const data = result.value?.data || result.value || [];
+            return Array.isArray(data) ? data : [];
+          });
       } catch (err) {
         console.warn('Présences non disponibles:', err);
       }
       
-      setData({ eleves, presences, paiements, accidents, inscriptions, buses, demandes: demandesArray, tuteurs: tuteursArray });
+      setData({ 
+        eleves, 
+        presences, 
+        paiements, 
+        accidents, 
+        inscriptions, 
+        buses, 
+        demandes: demandesArray, 
+        tuteurs: tuteursArray,
+        signalements: Array.isArray(signalements) ? signalements : [],
+        essence: Array.isArray(essence) ? essence : []
+      });
     } catch (err) {
       console.error('Erreur lors du chargement des statistiques:', err);
+      setData({ 
+        eleves: [], 
+        presences: [], 
+        paiements: [], 
+        accidents: [], 
+        inscriptions: [], 
+        buses: [], 
+        demandes: [], 
+        tuteurs: [],
+        signalements: [],
+        essence: []
+      });
     } finally {
       setLoading(false);
     }

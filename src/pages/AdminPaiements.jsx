@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  CreditCard, Search, Filter, CheckCircle, Calendar, User, ArrowLeft
+  CreditCard, Search, Filter, CheckCircle, Calendar, User, ArrowLeft, RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -20,6 +20,7 @@ export default function AdminPaiements() {
   const [tuteurs, setTuteurs] = useState([]);
   const [inscriptions, setInscriptions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
@@ -37,6 +38,7 @@ export default function AdminPaiements() {
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const [paiementsRes, elevesRes, tuteursRes, inscriptionsRes, demandesRes] = await Promise.all([
         paiementsAPI.getAll(),
@@ -126,6 +128,11 @@ export default function AdminPaiements() {
       setInscriptions(Array.isArray(inscriptionsData) ? inscriptionsData : []);
     } catch (err) {
       console.error('Erreur lors du chargement des paiements:', err);
+      setError('Erreur lors du chargement des paiements. Veuillez réessayer.');
+      setPaiements([]);
+      setEleves([]);
+      setTuteurs([]);
+      setInscriptions([]);
     } finally {
       setLoading(false);
     }
@@ -168,6 +175,18 @@ export default function AdminPaiements() {
     return styles[mode] || 'bg-gray-100 text-gray-700';
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString; // Si la date est invalide, retourner la string originale
+      return format(date, 'dd MMM yyyy', { locale: fr });
+    } catch (error) {
+      console.error('Erreur de formatage de date:', error);
+      return dateString; // En cas d'erreur, retourner la string originale
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -197,6 +216,15 @@ export default function AdminPaiements() {
           Actualiser
         </Button>
       </div>
+      
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">
+            ×
+          </button>
+        </div>
+      )}
       
       {/* Summary Card */}
       <motion.div
@@ -305,7 +333,7 @@ export default function AdminPaiements() {
                         </span>
                         <p className="text-xs text-gray-400 mt-2 flex items-center justify-end gap-1">
                           <Calendar className="w-3 h-3" />
-                          {paiement.date_paiement && format(new Date(paiement.date_paiement), 'dd MMM yyyy', { locale: fr })}
+                          {formatDate(paiement.date_paiement)}
                         </p>
                       </div>
                     </div>

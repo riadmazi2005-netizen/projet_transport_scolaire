@@ -436,6 +436,7 @@ export const statistiquesAPI = {
 // ============================================
 
 export const essenceAPI = {
+  getAll: () => fetchAPI('/essence/getAll.php'),
   create: (data) => fetchAPI('/essence/create.php', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -471,9 +472,17 @@ export const checklistAPI = {
 // ============================================
 
 export const signalementsAPI = {
+  getAll: () => fetchAPI('/signalements/getAll.php'),
   create: (data) => fetchAPI('/signalements/create.php', {
     method: 'POST',
     body: JSON.stringify(data),
   }),
   getByChauffeur: (chauffeurId) => fetchAPI(`/signalements/getByChauffeur.php?chauffeur_id=${chauffeurId}`),
+  update: (id, data) => fetchAPI('/signalements/update.php', {
+    method: 'PUT',
+    body: JSON.stringify({ id, ...data }),
+  }),
+  delete: (id) => fetchAPI(`/signalements/delete.php?id=${id}`, {
+    method: 'DELETE',
+  }),
 };

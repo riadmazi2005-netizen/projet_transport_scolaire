@@ -127,20 +127,20 @@ export default function TuteurPaiement() {
   if (!demande) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-lime-50 via-white to-lime-50 p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-3xl shadow-xl overflow-hidden"
         >
-          <div className="p-6 bg-gradient-to-r from-green-500 to-emerald-500">
+          <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
             <button
               onClick={() => navigate(createPageUrl('TuteurDashboard'))}
               className="flex items-center gap-2 text-white/80 hover:text-white mb-4 transition-colors"
@@ -169,9 +169,9 @@ export default function TuteurPaiement() {
           ) : (
             <div className="p-6">
               {/* Facture */}
-              <div className="bg-amber-50 rounded-2xl p-6 mb-6 border border-amber-100">
+              <div className="bg-lime-50 rounded-2xl p-6 mb-6 border border-lime-100">
                 <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5 text-amber-500" />
+                  <GraduationCap className="w-5 h-5 text-lime-500" />
                   Facture
                 </h3>
                 <div className="space-y-3 text-sm">
@@ -249,7 +249,7 @@ export default function TuteurPaiement() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-14 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl font-semibold text-lg shadow-lg"
+                  className="w-full h-14 bg-gradient-to-r from-lime-500 to-lime-600 hover:from-lime-600 hover:to-lime-700 text-white rounded-xl font-semibold text-lg shadow-lg"
                 >
                   {loading ? (
                     <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />

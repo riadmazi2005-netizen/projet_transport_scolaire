@@ -665,7 +665,7 @@ export default function AdminInscriptions() {
                         </>
                       )}
 
-                      {(eleve.statut_demande === 'Payée' || eleve.statut_demande === 'En attente de paiement') && !eleve.inscription?.bus_id && (
+                      {eleve.statut_demande === 'Payée' && !eleve.inscription?.bus_id && (
                         <Button
                           onClick={() => handleVerifyZone(eleve)}
                           className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"

@@ -38,20 +38,17 @@ try {
     
     $id = $pdo->lastInsertId();
     
-    // Envoyer notification au responsable
-    $stmtBus = $pdo->prepare('SELECT responsable_id FROM bus WHERE id = ?');
+    // Récupérer les informations du bus et du chauffeur
+    $stmtBus = $pdo->prepare('SELECT numero, responsable_id FROM bus WHERE id = ?');
     $stmtBus->execute([$data['bus_id']]);
     $bus = $stmtBus->fetch(PDO::FETCH_ASSOC);
     
+    $stmtChauffeur = $pdo->prepare('SELECT u.prenom, u.nom FROM chauffeurs c JOIN utilisateurs u ON c.utilisateur_id = u.id WHERE c.id = ?');
+    $stmtChauffeur->execute([$data['chauffeur_id']]);
+    $chauffeur = $stmtChauffeur->fetch(PDO::FETCH_ASSOC);
+    
+    // Envoyer notification au responsable si existe
     if ($bus && $bus['responsable_id']) {
-        $stmtChauffeur = $pdo->prepare('SELECT u.prenom, u.nom FROM chauffeurs c JOIN utilisateurs u ON c.utilisateur_id = u.id WHERE c.id = ?');
-        $stmtChauffeur->execute([$data['chauffeur_id']]);
-        $chauffeur = $stmtChauffeur->fetch(PDO::FETCH_ASSOC);
-        
-        $stmtBusNum = $pdo->prepare('SELECT numero FROM bus WHERE id = ?');
-        $stmtBusNum->execute([$data['bus_id']]);
-        $busNum = $stmtBusNum->fetch(PDO::FETCH_ASSOC);
-        
         $stmtNotif = $pdo->prepare('
             INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
             VALUES (?, ?, ?, ?, ?)
@@ -60,7 +57,32 @@ try {
             $bus['responsable_id'],
             'responsable',
             'Prise d\'essence',
-            "Le chauffeur {$chauffeur['prenom']} {$chauffeur['nom']} (Bus {$busNum['numero']}) a effectué une prise d'essence de {$data['quantite_litres']}L pour {$data['prix_total']}DH.",
+            "Le chauffeur {$chauffeur['prenom']} {$chauffeur['nom']} (Bus {$bus['numero']}) a effectué une prise d'essence de {$data['quantite_litres']}L pour {$data['prix_total']}DH.",
+            'info'
+        ]);
+    }
+    
+    // Envoyer notification à tous les administrateurs
+    $stmtAdmins = $pdo->query('
+        SELECT a.utilisateur_id 
+        FROM administrateurs a
+    ');
+    $admins = $stmtAdmins->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($admins as $admin) {
+        $stmtNotif = $pdo->prepare('
+            INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
+            VALUES (?, ?, ?, ?, ?)
+        ');
+        $stmtNotif->execute([
+            $admin['utilisateur_id'],
+            'admin',
+            'Rapport de prise d\'essence',
+            "Le chauffeur {$chauffeur['prenom']} {$chauffeur['nom']} (Bus {$bus['numero']}) a effectué une prise d'essence.\n\n" .
+            "Quantité: {$data['quantite_litres']} L\n" .
+            "Prix total: {$data['prix_total']} DH\n" .
+            "Date: {$data['date']} à {$data['heure']}" .
+            ($data['station_service'] ? "\nStation: {$data['station_service']}" : ''),
             'info'
         ]);
     }

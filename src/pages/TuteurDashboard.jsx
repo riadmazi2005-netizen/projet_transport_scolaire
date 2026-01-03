@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI, inscriptionsAPI, paiementsAPI } from '../services/apiService';
+import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI, inscriptionsAPI, paiementsAPI, zonesAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { 
   Users, Bell, UserPlus, Edit, LogOut, GraduationCap, 
   Bus, CreditCard, Clock, CheckCircle, AlertCircle, Eye, XCircle,
-  TrendingUp, MapPin, Calendar, FileText, History, Trash2
+  TrendingUp, MapPin, Calendar, FileText, History, Trash2, RotateCcw, Repeat
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,17 @@ export default function TuteurDashboard() {
   const [paymentError, setPaymentError] = useState('');
   const [paiements, setPaiements] = useState([]);
   const [paiementsLoading, setPaiementsLoading] = useState(false);
+  const [showDesabonnementModal, setShowDesabonnementModal] = useState(false);
+  const [showChangementModal, setShowChangementModal] = useState(false);
+  const [selectedEleveForDesabonnement, setSelectedEleveForDesabonnement] = useState(null);
+  const [selectedEleveForChangement, setSelectedEleveForChangement] = useState(null);
+  const [desabonnementRaison, setDesabonnementRaison] = useState('');
+  const [changementForm, setChangementForm] = useState({
+    zone: '',
+    type_transport: '',
+    abonnement: ''
+  });
+  const [zones, setZones] = useState([]);
 
   useEffect(() => {
     const session = localStorage.getItem('tuteur_session');
@@ -45,7 +56,18 @@ export default function TuteurDashboard() {
     // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
     const tuteurId = tuteurData.type_id || tuteurData.id;
     loadData(tuteurId, tuteurData.id); // Passer aussi l'ID utilisateur
+    loadZones();
   }, [navigate]);
+
+  const loadZones = async () => {
+    try {
+      const zonesRes = await zonesAPI.getAll();
+      const zonesData = zonesRes?.data || zonesRes || [];
+      setZones(Array.isArray(zonesData) ? zonesData : []);
+    } catch (err) {
+      console.error('Erreur lors du chargement des zones:', err);
+    }
+  };
 
   const loadData = async (tuteurId, userId) => {
     setLoading(true);
@@ -207,6 +229,102 @@ export default function TuteurDashboard() {
     }
   };
 
+  const handleDesabonnement = async () => {
+    if (!selectedEleveForDesabonnement || !desabonnementRaison.trim()) {
+      alert('Veuillez saisir la raison du désabonnement');
+      return;
+    }
+
+    try {
+      const tuteurId = tuteur.type_id || tuteur.id;
+      
+      // Créer la demande de désinscription avec statut "Validée" pour annulation automatique
+      await demandesAPI.create({
+        eleve_id: selectedEleveForDesabonnement.id,
+        tuteur_id: tuteurId,
+        type_demande: 'desinscription',
+        description: JSON.stringify({
+          raison: desabonnementRaison
+        }),
+        statut: 'Validée' // Statut Validée pour annulation automatique
+      });
+
+      // Si l'élève a une inscription active, la mettre en "Terminée"
+      if (selectedEleveForDesabonnement.inscription?.id) {
+        try {
+          await inscriptionsAPI.update(selectedEleveForDesabonnement.inscription.id, {
+            statut: 'Terminée'
+          });
+        } catch (err) {
+          console.warn('Erreur lors de la mise à jour de l\'inscription:', err);
+        }
+      }
+
+      alert('Désabonnement effectué avec succès');
+      setShowDesabonnementModal(false);
+      setSelectedEleveForDesabonnement(null);
+      setDesabonnementRaison('');
+      await loadData(tuteurId, tuteur.id);
+    } catch (err) {
+      console.error('Erreur lors du désabonnement:', err);
+      alert('Erreur lors du désabonnement');
+    }
+  };
+
+  const handleChangementDemande = async () => {
+    if (!selectedEleveForChangement) {
+      return;
+    }
+
+    if (!changementForm.zone && !changementForm.type_transport && !changementForm.abonnement) {
+      alert('Veuillez sélectionner au moins un élément à modifier');
+      return;
+    }
+
+    try {
+      const tuteurId = tuteur.type_id || tuteur.id;
+      
+      // Récupérer les données actuelles de l'élève
+      const demandeActuelle = selectedEleveForChangement.demande_inscription;
+      let descriptionData = {};
+      if (demandeActuelle?.description) {
+        try {
+          descriptionData = typeof demandeActuelle.description === 'string'
+            ? JSON.parse(demandeActuelle.description)
+            : demandeActuelle.description;
+        } catch (err) {
+          console.warn('Erreur parsing description:', err);
+        }
+      }
+
+      // Mettre à jour seulement les champs modifiés
+      const nouvelleDescription = {
+        ...descriptionData,
+        type_transport: changementForm.type_transport || descriptionData.type_transport,
+        abonnement: changementForm.abonnement || descriptionData.abonnement,
+        zone: changementForm.zone || descriptionData.zone
+      };
+
+      await demandesAPI.create({
+        eleve_id: selectedEleveForChangement.id,
+        tuteur_id: tuteurId,
+        type_demande: 'modification',
+        zone_geographique: changementForm.zone || demandeActuelle?.zone_geographique,
+        description: JSON.stringify(nouvelleDescription),
+        statut: 'En attente'
+      });
+
+      alert('Demande de modification envoyée avec succès');
+      setShowChangementModal(false);
+      setSelectedEleveForChangement(null);
+      setChangementForm({ zone: '', type_transport: '', abonnement: '' });
+      await loadData(tuteurId, tuteur.id);
+    } catch (err) {
+      console.error('Erreur lors de la demande de changement:', err);
+      alert('Erreur lors de l\'envoi de la demande de modification');
+    }
+  };
+
   // Filtrer les élèves : exclure les refusées de la liste principale
   const elevesActifs = eleves.filter(e => e.statut_demande !== 'Refusée');
   const elevesRefuses = eleves.filter(e => e.statut_demande === 'Refusée');
@@ -253,9 +371,8 @@ export default function TuteurDashboard() {
             
             <div className="flex gap-3">
               <Button
-                variant="outline"
                 onClick={() => setShowNotifications(true)}
-                className="relative rounded-xl"
+                className="relative rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
               >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
@@ -266,7 +383,7 @@ export default function TuteurDashboard() {
               </Button>
               
               <Link to={createPageUrl('TuteurProfile')}>
-                <Button variant="outline" className="rounded-xl">
+                <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
                   <Edit className="w-5 h-5 mr-2" />
                   Profil
                 </Button>
@@ -311,52 +428,43 @@ export default function TuteurDashboard() {
           />
         </div>
 
-        {/* Actions */}
+        {/* Actions et Navigation - 6 boutons sur une seule ligne */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="mb-8 flex gap-4 flex-wrap"
-        >
-          <Link to={createPageUrl('TuteurInscription')}>
-            <Button className="bg-gradient-to-r from-lime-500 to-lime-500 hover:from-lime-600 hover:to-lime-600 text-white rounded-xl h-14 px-8 shadow-lg hover:shadow-xl transition-all">
-              <UserPlus className="w-5 h-5 mr-2" />
-              Inscrire un nouvel élève
-            </Button>
-          </Link>
-          <Link to={createPageUrl('TuteurDemandes')}>
-            <Button variant="outline" className="rounded-xl h-14 px-8 shadow-lg hover:shadow-xl transition-all">
-              <FileText className="w-5 h-5 mr-2" />
-              Mes Demandes
-            </Button>
-          </Link>
-          <Link to={createPageUrl('TuteurNotifications')}>
-            <Button variant="outline" className="rounded-xl h-14 px-8 shadow-lg hover:shadow-xl transition-all relative">
-              <Bell className="w-5 h-5 mr-2" />
-              Notifications
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-6 h-6 bg-lime-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
-                  {unreadCount}
-                </span>
-              )}
-            </Button>
-          </Link>
-        </motion.div>
-
-        {/* Tabs Navigation */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
           className="mb-6"
         >
-          <div className="bg-white rounded-2xl shadow-lg p-2 inline-flex gap-2">
+          <div className="bg-white rounded-2xl shadow-lg p-2 flex gap-2 flex-wrap">
+            <Link to={createPageUrl('TuteurInscription')}>
+              <Button className="rounded-xl px-6 py-3 transition-all font-semibold bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
+                <UserPlus className="w-5 h-5 mr-2" />
+                Inscrire un nouvel élève
+              </Button>
+            </Link>
+            <Link to={createPageUrl('TuteurDemandes')}>
+              <Button className="rounded-xl px-6 py-3 transition-all font-semibold bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
+                <FileText className="w-5 h-5 mr-2" />
+                Mes Demandes
+              </Button>
+            </Link>
+            <Link to={createPageUrl('TuteurNotifications')}>
+              <Button className="rounded-xl px-6 py-3 transition-all font-semibold relative bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
+                <Bell className="w-5 h-5 mr-2" />
+                Notifications
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                    {unreadCount}
+                  </span>
+                )}
+              </Button>
+            </Link>
             <Button
               onClick={() => setActiveTab('eleves')}
               className={`rounded-xl px-6 py-3 transition-all font-semibold ${
                 activeTab === 'eleves'
-                  ? 'bg-gradient-to-r from-lime-500 to-lime-600 text-white shadow-md'
-                  : 'bg-transparent text-lime-600 hover:bg-lime-50 border-2 border-lime-200'
+                  ? 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 shadow-md'
+                  : 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 opacity-75 hover:opacity-100'
               }`}
             >
               <GraduationCap className="w-5 h-5 mr-2" />
@@ -366,19 +474,19 @@ export default function TuteurDashboard() {
               onClick={() => setActiveTab('historique')}
               className={`rounded-xl px-6 py-3 transition-all font-semibold ${
                 activeTab === 'historique'
-                  ? 'bg-gradient-to-r from-lime-500 to-lime-600 text-white shadow-md'
-                  : 'bg-transparent text-lime-600 hover:bg-lime-50 border-2 border-lime-200'
+                  ? 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 shadow-md'
+                  : 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 opacity-75 hover:opacity-100'
               }`}
             >
-              <History className="w-5 h-5 mr-2" />
-              Historique ({elevesRefuses.length})
+              <XCircle className="w-5 h-5 mr-2" />
+              Demandes refusées ({elevesRefuses.length})
             </Button>
             <Button
               onClick={() => setActiveTab('paiements')}
               className={`rounded-xl px-6 py-3 transition-all font-semibold ${
                 activeTab === 'paiements'
-                  ? 'bg-gradient-to-r from-lime-500 to-lime-600 text-white shadow-md'
-                  : 'bg-transparent text-lime-600 hover:bg-lime-50 border-2 border-lime-200'
+                  ? 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 shadow-md'
+                  : 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 opacity-75 hover:opacity-100'
               }`}
             >
               <CreditCard className="w-5 h-5 mr-2" />
@@ -463,7 +571,7 @@ export default function TuteurDashboard() {
                       
                       {/* Bouton Détails - toujours visible */}
                       <Link to={createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`)}>
-                        <Button variant="outline" className="rounded-xl">
+                        <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
                           <Eye className="w-4 h-4 mr-2" />
                           Détails
                         </Button>
@@ -473,15 +581,14 @@ export default function TuteurDashboard() {
                       {(eleve.statut_demande === 'En cours de traitement' || eleve.statut_demande === 'En attente') && (
                         <>
                           <Link to={createPageUrl(`TuteurDemandes`)}>
-                            <Button variant="outline" className="rounded-xl">
+                            <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
                               <Edit className="w-4 h-4 mr-2" />
                               Modifier
                             </Button>
                           </Link>
                           <Button
-                            variant="outline"
                             onClick={() => handleCancelDemande(eleve)}
-                            className="rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50"
+                            className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
                           >
                             <XCircle className="w-4 h-4 mr-2" />
                             Annuler
@@ -506,7 +613,46 @@ export default function TuteurDashboard() {
                       
                       
                       {eleve.statut_demande === 'Inscrit' && (
-                        <span className="text-sm text-green-600 font-medium">Élève inscrit</span>
+                        <>
+                          <Button
+                            onClick={() => {
+                              setSelectedEleveForDesabonnement(eleve);
+                              setShowDesabonnementModal(true);
+                              setDesabonnementRaison('');
+                            }}
+                            className="rounded-xl bg-red-500 hover:bg-red-600 text-white border-2 border-red-600"
+                          >
+                            <LogOut className="w-4 h-4 mr-2" />
+                            Désabonnement
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              setSelectedEleveForChangement(eleve);
+                              setShowChangementModal(true);
+                              // Récupérer les valeurs actuelles
+                              const demandeActuelle = eleve.demande_inscription;
+                              let descriptionData = {};
+                              if (demandeActuelle?.description) {
+                                try {
+                                  descriptionData = typeof demandeActuelle.description === 'string'
+                                    ? JSON.parse(demandeActuelle.description)
+                                    : demandeActuelle.description;
+                                } catch (err) {
+                                  console.warn('Erreur parsing description:', err);
+                                }
+                              }
+                              setChangementForm({
+                                zone: '',
+                                type_transport: descriptionData.type_transport || '',
+                                abonnement: descriptionData.abonnement || ''
+                              });
+                            }}
+                            className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
+                          >
+                            <Repeat className="w-4 h-4 mr-2" />
+                            Demande de changement
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -527,16 +673,16 @@ export default function TuteurDashboard() {
           >
             <div className="p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <History className="w-6 h-6 text-lime-500" />
-                Historique des Inscriptions Refusées
+                <XCircle className="w-6 h-6 text-lime-500" />
+                Demandes Refusées
               </h2>
-              <p className="text-gray-500 mt-1">{elevesRefuses.length} inscription(s) refusée(s)</p>
+              <p className="text-gray-500 mt-1">{elevesRefuses.length} demande(s) refusée(s)</p>
             </div>
             
             {elevesRefuses.length === 0 ? (
               <div className="p-12 text-center">
-                <History className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">Aucune inscription refusée dans l'historique</p>
+                <XCircle className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-500">Aucune demande refusée</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
@@ -581,15 +727,14 @@ export default function TuteurDashboard() {
                       
                       <div className="flex flex-wrap items-center gap-3">
                         <Link to={createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`)}>
-                          <Button variant="outline" className="rounded-xl">
+                          <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
                             <Eye className="w-4 h-4 mr-2" />
                             Détails
                           </Button>
                         </Link>
                         <Button
-                          variant="outline"
                           onClick={() => handleDeleteEleve(eleve)}
-                          className="rounded-xl text-red-500 hover:text-red-600 hover:bg-red-50 border-red-300"
+                          className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           Supprimer
@@ -797,14 +942,13 @@ export default function TuteurDashboard() {
                 <div className="flex gap-3">
                   <Button
                     type="button"
-                    variant="outline"
                     onClick={() => {
                       setShowPaymentModal(false);
                       setSelectedEleveForPayment(null);
                       setPaymentCode('');
                       setPaymentError('');
                     }}
-                    className="flex-1 rounded-xl"
+                    className="flex-1 rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
                     disabled={paymentLoading}
                   >
                     Annuler
@@ -860,6 +1004,176 @@ export default function TuteurDashboard() {
                 </div>
               </div>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal de désabonnement */}
+      {showDesabonnementModal && selectedEleveForDesabonnement && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden"
+          >
+            <div className="p-6 bg-gradient-to-r from-red-500 to-red-600">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <LogOut className="w-6 h-6" />
+                  Désabonnement
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowDesabonnementModal(false);
+                    setSelectedEleveForDesabonnement(null);
+                    setDesabonnementRaison('');
+                  }}
+                  className="text-white hover:text-red-100 transition-colors"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleDesabonnement(); }} className="p-6 space-y-4">
+              <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                <p className="text-sm text-red-800">
+                  <strong>Attention :</strong> Vous êtes sur le point de demander le désabonnement pour <strong>{selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}</strong>.
+                </p>
+              </div>
+              <div>
+                <Label className="block text-sm font-medium text-gray-600 mb-1">Raison du désabonnement *</Label>
+                <Textarea
+                  value={desabonnementRaison}
+                  onChange={(e) => setDesabonnementRaison(e.target.value)}
+                  className="rounded-xl border-2 border-gray-200 focus:border-red-500 min-h-[100px]"
+                  placeholder="Veuillez indiquer la raison du désabonnement..."
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setShowDesabonnementModal(false);
+                    setSelectedEleveForDesabonnement(null);
+                    setDesabonnementRaison('');
+                  }}
+                  className="rounded-xl bg-gray-500 hover:bg-gray-600 text-white border-2 border-gray-600"
+                >
+                  Annuler
+                </Button>
+                <Button type="submit" className="rounded-xl bg-red-500 hover:bg-red-600 text-white border-2 border-red-600">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Confirmer le désabonnement
+                </Button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal de changement */}
+      {showChangementModal && selectedEleveForChangement && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Repeat className="w-6 h-6" />
+                  Demande de changement
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowChangementModal(false);
+                    setSelectedEleveForChangement(null);
+                    setChangementForm({ zone: '', type_transport: '', abonnement: '' });
+                  }}
+                  className="text-white hover:text-lime-100 transition-colors"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleChangementDemande(); }} className="p-6 space-y-4">
+              <div className="bg-lime-50 rounded-xl p-4 border border-lime-200">
+                <p className="text-sm text-lime-800">
+                  Demande de changement pour <strong>{selectedEleveForChangement.prenom} {selectedEleveForChangement.nom}</strong>.
+                </p>
+                <p className="text-xs text-lime-700 mt-2">Sélectionnez uniquement les éléments que vous souhaitez modifier.</p>
+              </div>
+
+              <div>
+                <Label className="block text-sm font-medium text-gray-600 mb-1">Zone géographique</Label>
+                <Select
+                  value={changementForm.zone}
+                  onValueChange={(value) => setChangementForm({ ...changementForm, zone: value })}
+                >
+                  <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-lime-500">
+                    <SelectValue placeholder="Sélectionnez une nouvelle zone (optionnel)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {zones.filter(z => z.actif !== false).map((zone) => (
+                      <SelectItem key={zone.id} value={zone.nom}>{zone.nom}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="block text-sm font-medium text-gray-600 mb-1">Type de transport</Label>
+                <Select
+                  value={changementForm.type_transport}
+                  onValueChange={(value) => setChangementForm({ ...changementForm, type_transport: value })}
+                >
+                  <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-lime-500">
+                    <SelectValue placeholder="Sélectionnez un nouveau type (optionnel)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Aller-Retour">Aller-Retour</SelectItem>
+                    <SelectItem value="Aller">Aller uniquement</SelectItem>
+                    <SelectItem value="Retour">Retour uniquement</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="block text-sm font-medium text-gray-600 mb-1">Type d'abonnement</Label>
+                <Select
+                  value={changementForm.abonnement}
+                  onValueChange={(value) => setChangementForm({ ...changementForm, abonnement: value })}
+                >
+                  <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-lime-500">
+                    <SelectValue placeholder="Sélectionnez un nouveau type d'abonnement (optionnel)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Mensuel">Mensuel</SelectItem>
+                    <SelectItem value="Annuel">Annuel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setShowChangementModal(false);
+                    setSelectedEleveForChangement(null);
+                    setChangementForm({ zone: '', type_transport: '', abonnement: '' });
+                  }}
+                  className="rounded-xl bg-gray-500 hover:bg-gray-600 text-white border-2 border-gray-600"
+                >
+                  Annuler
+                </Button>
+                <Button type="submit" className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
+                  <Repeat className="w-4 h-4 mr-2" />
+                  Envoyer la demande
+                </Button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}
