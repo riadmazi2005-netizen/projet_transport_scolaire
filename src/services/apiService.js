@@ -31,17 +31,19 @@ const fetchAPI = async (endpoint, options = {}) => {
     // Try to parse JSON response
     let data;
     const contentType = response.headers.get('content-type');
+    
+    // Lire le body une seule fois
+    const text = await response.text();
+    
     if (contentType && contentType.includes('application/json')) {
       try {
-        data = await response.json();
+        data = JSON.parse(text);
       } catch (jsonError) {
         console.error('[API] Error parsing JSON:', jsonError);
-        const text = await response.text();
         console.error('[API] Response text:', text);
         throw new Error('Réponse invalide du serveur. Le backend ne renvoie pas du JSON valide.');
       }
     } else {
-      const text = await response.text();
       console.error('[API] Non-JSON response:', text);
       throw new Error(text || 'Erreur lors de la requête');
     }

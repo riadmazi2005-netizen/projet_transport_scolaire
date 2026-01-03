@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import { accidentsAPI, busAPI, chauffeursAPI, notificationsAPI, elevesAPI, inscriptionsAPI, tuteursAPI } from '../services/apiService';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, RefreshCw
+  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, RefreshCw, ZoomIn, X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -23,12 +23,10 @@ export default function AdminAccidents() {
   const [selectedAccident, setSelectedAccident] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
 
   useEffect(() => {
     loadData();
-    // Actualiser toutes les 30 secondes pour avoir des accidents à jour
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -228,7 +226,6 @@ export default function AdminAccidents() {
               ) : (
                 accidents.map((accident) => {
                   const bus = buses.find(b => b.id === accident.bus_id);
-                  const chauffeur = chauffeurs.find(c => c.id === accident.chauffeur_id);
                   
                   return (
                     <div key={accident.id} className="p-6 hover:bg-red-50/50 transition-colors">
@@ -267,10 +264,16 @@ export default function AdminAccidents() {
                                 {bus.numero}
                               </div>
                             )}
-                            {chauffeur && (
+                            {(accident.chauffeur_prenom || accident.chauffeur_nom) && (
                               <div className="flex items-center gap-1">
                                 <User className="w-4 h-4 text-green-500" />
-                                {chauffeur.prenom} {chauffeur.nom}
+                                {accident.chauffeur_prenom || ''} {accident.chauffeur_nom || ''}
+                              </div>
+                            )}
+                            {(accident.responsable_prenom || accident.responsable_nom) && (
+                              <div className="flex items-center gap-1">
+                                <User className="w-4 h-4 text-blue-500" />
+                                {accident.responsable_prenom || ''} {accident.responsable_nom || ''} (Responsable)
                               </div>
                             )}
                             {accident.lieu && (
@@ -402,22 +405,25 @@ export default function AdminAccidents() {
                   ) : null;
                 })()}
 
-                {(() => {
-                  const chauffeur = chauffeurs.find(c => c.id === selectedAccident.chauffeur_id);
-                  return chauffeur ? (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Chauffeur</label>
-                      <div className="flex items-center gap-2">
-                        <p className="text-gray-800">{chauffeur.prenom} {chauffeur.nom}</p>
-                        {chauffeur.salaire !== null && chauffeur.salaire !== undefined && (
-                          <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-sm">
-                            {chauffeur.salaire || 0} DH
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ) : null;
-                })()}
+                {((selectedAccident.chauffeur_prenom || selectedAccident.chauffeur_nom) || selectedAccident.chauffeur_id) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Chauffeur</label>
+                    <p className="text-gray-800">
+                      {selectedAccident.chauffeur_prenom || ''} {selectedAccident.chauffeur_nom || ''}
+                      {!selectedAccident.chauffeur_prenom && !selectedAccident.chauffeur_nom && selectedAccident.chauffeur_id && 'Chauffeur ID: ' + selectedAccident.chauffeur_id}
+                    </p>
+                  </div>
+                )}
+                
+                {((selectedAccident.responsable_prenom || selectedAccident.responsable_nom) || selectedAccident.responsable_id) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Responsable</label>
+                    <p className="text-gray-800">
+                      {selectedAccident.responsable_prenom || ''} {selectedAccident.responsable_nom || ''}
+                      {!selectedAccident.responsable_prenom && !selectedAccident.responsable_nom && selectedAccident.responsable_id && 'Responsable ID: ' + selectedAccident.responsable_id}
+                    </p>
+                  </div>
+                )}
 
                 {selectedAccident.nombre_eleves !== null && selectedAccident.nombre_eleves !== undefined && (
                   <div>
@@ -472,18 +478,86 @@ export default function AdminAccidents() {
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {(() => {
-                      const photosArray = typeof selectedAccident.photos === 'string' 
-                        ? JSON.parse(selectedAccident.photos) 
-                        : selectedAccident.photos;
-                      return Array.isArray(photosArray) ? photosArray.map((photo, index) => (
-                        <div key={index} className="relative">
-                          <img 
-                            src={photo} 
-                            alt={`Photo ${index + 1}`}
-                            className="w-full h-32 object-cover rounded-xl border border-gray-200"
-                          />
-                        </div>
-                      )) : null;
+                      try {
+                        let photosArray = [];
+                        
+                        // Si c'est déjà un tableau
+                        if (Array.isArray(selectedAccident.photos)) {
+                          photosArray = selectedAccident.photos;
+                        } 
+                        // Si c'est une chaîne JSON
+                        else if (typeof selectedAccident.photos === 'string' && selectedAccident.photos.trim() !== '') {
+                          try {
+                            // Vérifier si la chaîne commence par [ ou {
+                            if (selectedAccident.photos.trim().startsWith('[') || selectedAccident.photos.trim().startsWith('{')) {
+                              const parsed = JSON.parse(selectedAccident.photos);
+                              if (Array.isArray(parsed)) {
+                                photosArray = parsed;
+                              } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
+                                photosArray = parsed.photos;
+                              }
+                            } else if (selectedAccident.photos.startsWith('data:image')) {
+                              // Si c'est une seule photo en base64
+                              photosArray = [selectedAccident.photos];
+                            }
+                          } catch (parseError) {
+                            console.error('Erreur parsing photos:', parseError);
+                            // Si le parsing échoue, essayer de traiter comme une seule photo
+                            if (selectedAccident.photos.startsWith('data:image')) {
+                              photosArray = [selectedAccident.photos];
+                            }
+                          }
+                        }
+                        
+                        // Filtrer et normaliser les photos valides
+                        const validPhotos = photosArray
+                          .map(photo => {
+                            if (typeof photo === 'string') {
+                              return photo;
+                            } else if (photo && typeof photo === 'object') {
+                              return photo.data || photo.src || photo.url || null;
+                            }
+                            return null;
+                          })
+                          .filter(photoSrc => {
+                            return photoSrc && 
+                                   typeof photoSrc === 'string' && 
+                                   photoSrc.trim() !== '' && 
+                                   photoSrc.startsWith('data:image');
+                          });
+                        
+                        if (validPhotos.length === 0) {
+                          return <p className="text-gray-500 text-sm">Aucune photo valide</p>;
+                        }
+                        
+                        return validPhotos.map((photoSrc, index) => (
+                          <motion.div
+                            key={index}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="relative group cursor-pointer"
+                            onClick={() => setSelectedPhoto(photoSrc)}
+                          >
+                            <div className="relative overflow-hidden rounded-xl border-2 border-gray-200 group-hover:border-red-400 transition-colors bg-white">
+                              <img 
+                                src={photoSrc} 
+                                alt={`Photo ${index + 1}`}
+                                className="w-full h-32 object-cover"
+                                onError={(e) => {
+                                  console.error('Erreur chargement image:', index);
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                          </motion.div>
+                        ));
+                      } catch (e) {
+                        console.error('Erreur traitement photos:', e);
+                        return <p className="text-gray-500 text-sm">Erreur lors du chargement des photos</p>;
+                      }
                     })()}
                   </div>
                 </div>
@@ -527,6 +601,36 @@ export default function AdminAccidents() {
           </motion.div>
         </div>
       )}
+
+      {/* Modal pour voir les photos en grand */}
+      <AnimatePresence>
+        {selectedPhoto && (
+          <div 
+            className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
+            onClick={() => setSelectedPhoto(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="relative max-w-5xl max-h-[90vh] w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 shadow-lg transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <img
+                src={selectedPhoto}
+                alt="Photo accident"
+                className="w-full h-auto rounded-lg shadow-2xl"
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </AdminLayout>
   );
 }

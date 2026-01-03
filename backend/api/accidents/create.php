@@ -46,102 +46,102 @@ try {
     
     $elevesConcernees = isset($data['eleves_concernees']) ? json_encode($data['eleves_concernees']) : null;
     
-    // Vérifier si la colonne responsable_id existe
-    $checkColumn = $pdo->query("SHOW COLUMNS FROM accidents LIKE 'responsable_id'");
-    $columnExists = $checkColumn->rowCount() > 0;
+    // Vérifier quelles colonnes existent dans la table accidents
+    $checkResponsable = $pdo->query("SHOW COLUMNS FROM accidents LIKE 'responsable_id'");
+    $hasResponsable = $checkResponsable->rowCount() > 0;
     
-    if ($columnExists) {
-        $stmt = $pdo->prepare('
-            INSERT INTO accidents (
-                date, heure, bus_id, chauffeur_id, responsable_id, description, degats, lieu, gravite, blesses,
-                nombre_eleves, nombre_blesses, photos, eleves_concernees, statut
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ');
-        
-        $stmt->execute([
-            $date,
-            $heure,
-            $bus_id,
-            $chauffeur_id,
-            $responsable_id,
-            $description,
-            $degats,
-            $lieu,
-            $gravite,
-            $blesses ? 1 : 0,
-            $nombre_eleves,
-            $nombre_blesses,
-            $photos,
-            $elevesConcernees,
-            'En attente' // Statut par défaut
-        ]);
-    } else {
-        $stmt = $pdo->prepare('
-            INSERT INTO accidents (
-                date, heure, bus_id, chauffeur_id, description, degats, lieu, gravite, blesses,
-                nombre_eleves, nombre_blesses, photos, eleves_concernees, statut
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ');
-        
-        $stmt->execute([
-            $date,
-            $heure,
-            $bus_id,
-            $chauffeur_id,
-            $description,
-            $degats,
-            $lieu,
-            $gravite,
-            $blesses ? 1 : 0,
-            $nombre_eleves,
-            $nombre_blesses,
-            $photos,
-            $elevesConcernees,
-            'En attente' // Statut par défaut
-        ]);
+    $checkPhotos = $pdo->query("SHOW COLUMNS FROM accidents LIKE 'photos'");
+    $hasPhotos = $checkPhotos->rowCount() > 0;
+    
+    $checkEleves = $pdo->query("SHOW COLUMNS FROM accidents LIKE 'eleves_concernees'");
+    $hasEleves = $checkEleves->rowCount() > 0;
+    
+    $checkStatut = $pdo->query("SHOW COLUMNS FROM accidents LIKE 'statut'");
+    $hasStatut = $checkStatut->rowCount() > 0;
+    
+    // Construire la requête INSERT dynamiquement selon les colonnes disponibles
+    $columns = ['date', 'heure', 'bus_id', 'chauffeur_id', 'description', 'degats', 'lieu', 'gravite', 'blesses', 'nombre_eleves', 'nombre_blesses'];
+    $values = [$date, $heure, $bus_id, $chauffeur_id, $description, $degats, $lieu, $gravite, $blesses ? 1 : 0, $nombre_eleves, $nombre_blesses];
+    $placeholders = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?'];
+    
+    if ($hasResponsable) {
+        $columns[] = 'responsable_id';
+        $values[] = $responsable_id;
+        $placeholders[] = '?';
     }
+    
+    if ($hasPhotos) {
+        $columns[] = 'photos';
+        $values[] = $photos;
+        $placeholders[] = '?';
+    }
+    
+    if ($hasEleves) {
+        $columns[] = 'eleves_concernees';
+        $values[] = $elevesConcernees;
+        $placeholders[] = '?';
+    }
+    
+    if ($hasStatut) {
+        $columns[] = 'statut';
+        $values[] = 'En attente';
+        $placeholders[] = '?';
+    }
+    
+    $sql = 'INSERT INTO accidents (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($values);
     
     $accidentId = $pdo->lastInsertId();
     
     // Mettre à jour le compteur d'accidents du chauffeur si un chauffeur est spécifié
+    // Vérifier d'abord si la colonne nombre_accidents existe
     if ($chauffeur_id) {
-        $stmt = $pdo->prepare('
-            UPDATE chauffeurs 
-            SET nombre_accidents = nombre_accidents + 1 
-            WHERE id = ?
-        ');
-        $stmt->execute([$chauffeur_id]);
-        
-        // Vérifier si le chauffeur a maintenant 3 accidents ou plus
-        $stmt = $pdo->prepare('SELECT nombre_accidents FROM chauffeurs WHERE id = ?');
-        $stmt->execute([$chauffeur_id]);
-        $chauffeur = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($chauffeur && $chauffeur['nombre_accidents'] >= 3) {
-            // Mettre le statut à Licencié
-            $stmt = $pdo->prepare('UPDATE chauffeurs SET statut = ? WHERE id = ?');
-            $stmt->execute(['Licencié', $chauffeur_id]);
-            
-            // Récupérer l'utilisateur_id du chauffeur pour la notification
-            $stmt = $pdo->prepare('SELECT utilisateur_id FROM chauffeurs WHERE id = ?');
-            $stmt->execute([$chauffeur_id]);
-            $chauffeurData = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($chauffeurData) {
+        try {
+            $checkCol = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'nombre_accidents'");
+            if ($checkCol->rowCount() > 0) {
                 $stmt = $pdo->prepare('
-                    INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
-                    VALUES (?, ?, ?, ?, ?)
+                    UPDATE chauffeurs 
+                    SET nombre_accidents = nombre_accidents + 1 
+                    WHERE id = ?
                 ');
-                $stmt->execute([
-                    $chauffeurData['utilisateur_id'],
-                    'chauffeur',
-                    'Licenciement',
-                    'Suite à votre 3ème accident, vous êtes licencié avec une amende de 1000 DH conformément au règlement.',
-                    'alerte'
-                ]);
+                $stmt->execute([$chauffeur_id]);
+                
+                // Vérifier si le chauffeur a maintenant 3 accidents ou plus
+                $stmt = $pdo->prepare('SELECT nombre_accidents FROM chauffeurs WHERE id = ?');
+                $stmt->execute([$chauffeur_id]);
+                $chauffeur = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($chauffeur && $chauffeur['nombre_accidents'] >= 3) {
+                    // Vérifier si la colonne statut existe
+                    $checkStatut = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'statut'");
+                    if ($checkStatut->rowCount() > 0) {
+                        $stmt = $pdo->prepare('UPDATE chauffeurs SET statut = ? WHERE id = ?');
+                        $stmt->execute(['Licencié', $chauffeur_id]);
+                    }
+                    
+                    // Récupérer l'utilisateur_id du chauffeur pour la notification
+                    $stmt = $pdo->prepare('SELECT utilisateur_id FROM chauffeurs WHERE id = ?');
+                    $stmt->execute([$chauffeur_id]);
+                    $chauffeurData = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($chauffeurData) {
+                        $stmt = $pdo->prepare('
+                            INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
+                            VALUES (?, ?, ?, ?, ?)
+                        ');
+                        $stmt->execute([
+                            $chauffeurData['utilisateur_id'],
+                            'chauffeur',
+                            'Licenciement',
+                            'Suite à votre 3ème accident, vous êtes licencié avec une amende de 1000 DH conformément au règlement.',
+                            'alerte'
+                        ]);
+                    }
+                }
             }
+        } catch (PDOException $e) {
+            // Ignorer l'erreur si la colonne n'existe pas
         }
     }
     
@@ -165,7 +165,12 @@ try {
     
     $declarant = '';
     if ($chauffeur_id) {
-        $stmt = $pdo->prepare('SELECT nom, prenom FROM chauffeurs WHERE id = ?');
+        $stmt = $pdo->prepare('
+            SELECT u.nom, u.prenom 
+            FROM chauffeurs c
+            INNER JOIN utilisateurs u ON c.utilisateur_id = u.id
+            WHERE c.id = ?
+        ');
         $stmt->execute([$chauffeur_id]);
         $chauffeurData = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($chauffeurData) {
@@ -214,13 +219,27 @@ try {
     $accident = $stmt->fetch(PDO::FETCH_ASSOC);
     
     // Décoder les photos si présentes
-    if ($accident['photos']) {
-        $accident['photos'] = json_decode($accident['photos'], true);
+    if (isset($accident['photos']) && $accident['photos']) {
+        try {
+            $decoded = json_decode($accident['photos'], true);
+            if ($decoded !== null) {
+                $accident['photos'] = $decoded;
+            }
+        } catch (Exception $e) {
+            // Garder la valeur originale si le décodage échoue
+        }
     }
     
     // Décoder les élèves concernés si présents
-    if ($accident['eleves_concernees']) {
-        $accident['eleves_concernees'] = json_decode($accident['eleves_concernees'], true);
+    if (isset($accident['eleves_concernees']) && $accident['eleves_concernees']) {
+        try {
+            $decoded = json_decode($accident['eleves_concernees'], true);
+            if ($decoded !== null) {
+                $accident['eleves_concernees'] = $decoded;
+            }
+        } catch (Exception $e) {
+            // Garder la valeur originale si le décodage échoue
+        }
     }
     
     echo json_encode([
@@ -229,6 +248,13 @@ try {
     ]);
 } catch (PDOException $e) {
     http_response_code(500);
+    error_reporting(0);
+    ini_set('display_errors', 0);
+    echo json_encode(['success' => false, 'message' => 'Erreur lors de la création: ' . $e->getMessage()]);
+} catch (Exception $e) {
+    http_response_code(500);
+    error_reporting(0);
+    ini_set('display_errors', 0);
     echo json_encode(['success' => false, 'message' => 'Erreur lors de la création: ' . $e->getMessage()]);
 }
 ?>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  AlertTriangle, Calendar, Bus, User, ArrowLeft, Eye, CheckCircle, X, Wrench, Clock, AlertCircle
+  AlertTriangle, Calendar, Bus, User, ArrowLeft, Eye, CheckCircle, X, Wrench, Clock, AlertCircle, Image as ImageIcon, ZoomIn
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -23,12 +23,10 @@ export default function AdminProblemes() {
   const [error, setError] = useState(null);
   const [filterStatut, setFilterStatut] = useState('all');
   const [filterUrgence, setFilterUrgence] = useState('all');
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
 
   useEffect(() => {
     loadData();
-    // Actualiser toutes les 30 secondes
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -381,16 +379,58 @@ export default function AdminProblemes() {
                   <p className="text-gray-800 bg-gray-50 p-4 rounded-xl">{selectedSignalement.description}</p>
                 </div>
 
-                {selectedSignalement.photo && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-2">Photo</label>
-                    <img 
-                      src={selectedSignalement.photo} 
-                      alt="Photo du problème"
-                      className="w-full h-64 object-cover rounded-xl border border-gray-200"
-                    />
-                  </div>
-                )}
+                {selectedSignalement.photos && (() => {
+                  try {
+                    let photos = [];
+                    if (Array.isArray(selectedSignalement.photos)) {
+                      photos = selectedSignalement.photos;
+                    } else if (typeof selectedSignalement.photos === 'string') {
+                      photos = JSON.parse(selectedSignalement.photos);
+                    }
+                    
+                    if (Array.isArray(photos) && photos.length > 0) {
+                      return (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
+                            <ImageIcon className="w-4 h-4" />
+                            Photos ({photos.length})
+                          </label>
+                          <div className="grid grid-cols-3 gap-3">
+                            {photos.map((photo, index) => {
+                              const photoSrc = typeof photo === 'string' 
+                                ? photo 
+                                : (photo?.data || photo?.src || photo);
+                              
+                              if (!photoSrc) return null;
+                              
+                              return (
+                                <div
+                                  key={index}
+                                  className="relative group cursor-pointer"
+                                  onClick={() => setSelectedPhoto(photoSrc)}
+                                >
+                                  <div className="relative overflow-hidden rounded-lg border-2 border-gray-200 group-hover:border-orange-400 transition-colors">
+                                    <img
+                                      src={photoSrc}
+                                      alt={`Photo problème ${index + 1}`}
+                                      className="w-full h-32 object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                      <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    }
+                  } catch (e) {
+                    console.error('Erreur parsing photos:', e);
+                  }
+                  return null;
+                })()}
 
                 {selectedSignalement.date_resolution && (
                   <div>
@@ -428,6 +468,34 @@ export default function AdminProblemes() {
                 )}
               </div>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal pour voir les photos en grand */}
+      {selectedPhoto && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="relative max-w-5xl max-h-[90vh] w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedPhoto(null)}
+              className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 shadow-lg transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={selectedPhoto}
+              alt="Photo problème"
+              className="w-full h-auto rounded-lg shadow-2xl"
+            />
           </motion.div>
         </div>
       )}

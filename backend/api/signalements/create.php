@@ -19,19 +19,63 @@ try {
         exit;
     }
     
-    $stmt = $pdo->prepare('
-        INSERT INTO signalements_maintenance (chauffeur_id, bus_id, type_probleme, description, urgence, statut)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ');
+    // Vérifier si la colonne photos existe et l'ajouter si nécessaire
+    try {
+        $checkColumn = $pdo->query("SHOW COLUMNS FROM signalements_maintenance LIKE 'photos'");
+        $hasPhotosColumn = $checkColumn && $checkColumn->rowCount() > 0;
+        
+        // Si la colonne n'existe pas, l'ajouter avec LONGTEXT pour supporter les grandes images
+        if (!$hasPhotosColumn) {
+            $pdo->exec("ALTER TABLE signalements_maintenance ADD COLUMN photos LONGTEXT NULL COMMENT 'JSON array of base64 encoded photos'");
+            $hasPhotosColumn = true;
+        } else {
+            // Vérifier si c'est TEXT et le modifier en LONGTEXT si nécessaire
+            $checkType = $pdo->query("SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'signalements_maintenance' AND COLUMN_NAME = 'photos'");
+            $typeRow = $checkType->fetch(PDO::FETCH_ASSOC);
+            if ($typeRow && $typeRow['DATA_TYPE'] === 'text') {
+                $pdo->exec("ALTER TABLE signalements_maintenance MODIFY COLUMN photos LONGTEXT NULL COMMENT 'JSON array of base64 encoded photos'");
+            }
+        }
+    } catch (PDOException $e) {
+        // Si erreur, on continue sans la colonne photos
+        $hasPhotosColumn = false;
+    }
     
-    $stmt->execute([
-        $data['chauffeur_id'],
-        $data['bus_id'],
-        $data['type_probleme'],
-        $data['description'],
-        $data['urgence'] ?? 'moyenne',
-        'en_attente'
-    ]);
+    // Préparer les photos (JSON encode)
+    $photos = isset($data['photos']) && is_array($data['photos']) && count($data['photos']) > 0
+        ? json_encode($data['photos'])
+        : null;
+    
+    if ($hasPhotosColumn) {
+        $stmt = $pdo->prepare('
+            INSERT INTO signalements_maintenance (chauffeur_id, bus_id, type_probleme, description, urgence, statut, photos)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ');
+        
+        $stmt->execute([
+            $data['chauffeur_id'],
+            $data['bus_id'],
+            $data['type_probleme'],
+            $data['description'],
+            $data['urgence'] ?? 'moyenne',
+            'en_attente',
+            $photos
+        ]);
+    } else {
+        $stmt = $pdo->prepare('
+            INSERT INTO signalements_maintenance (chauffeur_id, bus_id, type_probleme, description, urgence, statut)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ');
+        
+        $stmt->execute([
+            $data['chauffeur_id'],
+            $data['bus_id'],
+            $data['type_probleme'],
+            $data['description'],
+            $data['urgence'] ?? 'moyenne',
+            'en_attente'
+        ]);
+    }
     
     $id = $pdo->lastInsertId();
     
@@ -61,11 +105,21 @@ try {
                 INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
                 VALUES (?, ?, ?, ?, ?)
             ');
+            $message = "Le chauffeur {$chauffeur['prenom']} {$chauffeur['nom']} a signalé un problème sur le bus {$bus['numero']}.\n\n";
+            $message .= "Type: " . ucfirst($data['type_probleme']) . "\n";
+            $message .= "Urgence: {$urgenceText}\n";
+            $message .= "Description: {$data['description']}";
+            
+            // Ajouter une mention si des photos sont incluses
+            if (isset($data['photos']) && is_array($data['photos']) && count($data['photos']) > 0) {
+                $message .= "\n\n📷 " . count($data['photos']) . " photo(s) jointe(s)";
+            }
+            
             $stmtNotif->execute([
                 $admin['id'],
                 'admin',
                 'Problème signalé - ' . $urgenceText,
-                "Le chauffeur {$chauffeur['prenom']} {$chauffeur['nom']} a signalé un problème sur le bus {$bus['numero']}.\n\nType: " . ucfirst($data['type_probleme']) . "\nUrgence: {$urgenceText}\nDescription: {$data['description']}",
+                $message,
                 $data['urgence'] === 'haute' ? 'alerte' : 'avertissement'
             ]);
         }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import { 
@@ -16,7 +16,7 @@ import {
   checklistAPI,
   signalementsAPI
 } from '../services/apiService';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,11 +25,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Bus, Bell, LogOut, Users, AlertCircle, DollarSign,
   Navigation, User, CheckCircle, Calendar, MapPin, Plus, X, Search,
-  Fuel, FileText, ClipboardCheck, Wrench, Clock, TrendingUp
+  Fuel, FileText, ClipboardCheck, Wrench, Clock, TrendingUp, Building2, AlertTriangle, Image as ImageIcon, Trash2, ZoomIn
 } from 'lucide-react';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
-import { format } from 'date-fns';
+import { format, startOfMonth, subMonths, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function ChauffeurDashboard() {
@@ -59,6 +59,7 @@ export default function ChauffeurDashboard() {
     nombre_eleves: '',
     nombre_blesses: '0'
   });
+  const [accidentPhotos, setAccidentPhotos] = useState([]);
   
   // États pour les nouvelles fonctionnalités
   const [showEssenceForm, setShowEssenceForm] = useState(false);
@@ -66,8 +67,27 @@ export default function ChauffeurDashboard() {
   const [showChecklistForm, setShowChecklistForm] = useState(false);
   const [showSignalementForm, setShowSignalementForm] = useState(false);
   const [priseEssence, setPriseEssence] = useState([]);
+  const [essenceDateFilter, setEssenceDateFilter] = useState('all');
+  const [essenceSearchTerm, setEssenceSearchTerm] = useState('');
   const [rapportsTrajet, setRapportsTrajet] = useState([]);
   const [signalements, setSignalements] = useState([]);
+  const [signalementFilter, setSignalementFilter] = useState('all');
+  const [signalementUrgenceFilter, setSignalementUrgenceFilter] = useState('all');
+  const [signalementPhotos, setSignalementPhotos] = useState([]);
+  const [selectedSignalementPhoto, setSelectedSignalementPhoto] = useState(null);
+  
+  // États pour les notifications toast
+  const [toastMessage, setToastMessage] = useState(null);
+  const [toastType, setToastType] = useState('success'); // 'success', 'error', 'info'
+  
+  // Fonction pour afficher un toast
+  const showToast = (message, type = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 4000); // Disparaît après 4 secondes
+  };
   
   // Formulaires
   const [essenceForm, setEssenceForm] = useState({
@@ -75,7 +95,6 @@ export default function ChauffeurDashboard() {
     heure: format(new Date(), 'HH:mm'),
     quantite_litres: '',
     prix_total: '',
-    kilometrage_actuel: '',
     station_service: ''
   });
   
@@ -107,6 +126,50 @@ export default function ChauffeurDashboard() {
     description: '',
     urgence: 'moyenne'
   });
+
+  // Fonction pour compresser une image
+  const compressImage = (file, maxWidth = 1200, maxHeight = 1200, quality = 0.7) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculer les nouvelles dimensions
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convertir en base64 avec compression
+          const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+          resolve({
+            data: compressedBase64,
+            name: file.name,
+            type: 'image/jpeg'
+          });
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   useEffect(() => {
     const session = localStorage.getItem('chauffeur_session');
@@ -223,6 +286,13 @@ export default function ChauffeurDashboard() {
       try {
         const signalementsResponse = await signalementsAPI.getByChauffeur(chauffeurId);
         const signalementsData = signalementsResponse?.data || signalementsResponse || [];
+        console.log('Signalements chargés:', signalementsData);
+        // Log pour déboguer les photos
+        signalementsData.forEach((sig, idx) => {
+          if (sig.photos) {
+            console.log(`Signalement ${idx} a des photos:`, typeof sig.photos, Array.isArray(sig.photos) ? sig.photos.length : 'non-array');
+          }
+        });
         setSignalements(signalementsData);
       } catch (err) {
         console.error('Erreur chargement signalements:', err);
@@ -553,41 +623,128 @@ export default function ChauffeurDashboard() {
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {accidents.map((accident) => (
-                  <div key={accident.id} className="p-6">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          accident.gravite === 'Grave' ? 'bg-red-100 text-red-700' :
-                          accident.gravite === 'Moyenne' ? 'bg-green-100 text-green-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {accident.gravite}
-                        </span>
+                {accidents.map((accident) => {
+                  // Parser les photos si présentes
+                  let photos = [];
+                  if (accident.photos) {
+                    try {
+                      if (Array.isArray(accident.photos)) {
+                        photos = accident.photos;
+                      } else if (typeof accident.photos === 'string') {
+                        const parsed = JSON.parse(accident.photos);
+                        if (Array.isArray(parsed)) {
+                          photos = parsed;
+                        }
+                      }
+                    } catch (e) {
+                      console.error('Erreur parsing photos accident:', e);
+                    }
+                  }
+                  
+                  const validPhotos = photos.filter(photo => {
+                    const photoSrc = typeof photo === 'string' ? photo : (photo?.data || photo?.src || photo);
+                    return photoSrc && typeof photoSrc === 'string' && photoSrc.startsWith('data:image');
+                  });
+                  
+                  return (
+                    <div key={accident.id} className="p-6 hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            accident.gravite === 'Grave' ? 'bg-red-100 text-red-700 border border-red-300' :
+                            accident.gravite === 'Moyenne' ? 'bg-orange-100 text-orange-700 border border-orange-300' :
+                            'bg-green-100 text-green-700 border border-green-300'
+                          }`}>
+                            {accident.gravite}
+                          </span>
+                          {accident.statut && (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              accident.statut === 'Validé' ? 'bg-green-100 text-green-700' :
+                              accident.statut === 'En attente' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {accident.statut}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500 flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          {format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr })}
+                          {accident.heure && ` à ${accident.heure}`}
+                        </p>
                       </div>
-                      <p className="text-sm text-gray-500">
-                        {format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr })}
-                        {accident.heure && ` à ${accident.heure}`}
-                      </p>
+                      <h3 className="font-semibold text-gray-800 mb-3">{accident.description}</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-3">
+                        {accident.lieu && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-gray-400" />
+                            <span className="text-gray-500">Lieu:</span>
+                            <span className="ml-1 font-medium text-gray-800">{accident.lieu}</span>
+                          </div>
+                        )}
+                        {accident.degats && (
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-gray-400" />
+                            <span className="text-gray-500">Dégâts:</span>
+                            <span className="ml-1 font-medium text-gray-800">{accident.degats}</span>
+                          </div>
+                        )}
+                        {accident.nombre_eleves !== null && (
+                          <div className="flex items-center gap-2">
+                            <Users className="w-4 h-4 text-gray-400" />
+                            <span className="text-gray-500">Élèves dans le bus:</span>
+                            <span className="ml-1 font-medium text-gray-800">{accident.nombre_eleves}</span>
+                          </div>
+                        )}
+                        {accident.nombre_blesses > 0 && (
+                          <div className="flex items-center gap-2 text-red-600">
+                            <AlertCircle className="w-4 h-4" />
+                            <span className="font-medium">Blessés: {accident.nombre_blesses}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Photos si disponibles */}
+                      {validPhotos.length > 0 && (
+                        <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                          <div className="flex items-center gap-2 mb-3">
+                            <ImageIcon className="w-4 h-4 text-red-600" />
+                            <span className="text-sm font-semibold text-gray-700">Photos ({validPhotos.length})</span>
+                          </div>
+                          <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                            {validPhotos.map((photoSrc, photoIndex) => (
+                              <motion.div
+                                key={photoIndex}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="relative group cursor-pointer"
+                                onClick={() => setSelectedSignalementPhoto(photoSrc)}
+                              >
+                                <div className="relative overflow-hidden rounded-lg border-2 border-red-300 group-hover:border-red-500 transition-colors bg-white">
+                                  <img
+                                    src={photoSrc}
+                                    alt={`Photo accident ${photoIndex + 1}`}
+                                    className="w-full h-20 object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                    <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {accident.blesses && (
+                        <div className="mt-3 p-3 bg-red-50 rounded-xl text-red-700 text-sm border border-red-200">
+                          <AlertCircle className="w-4 h-4 inline mr-2" />
+                          Des blessés ont été signalés
+                        </div>
+                      )}
                     </div>
-                    <h3 className="font-semibold text-gray-800 mb-2">{accident.description}</h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">Lieu:</span>
-                        <span className="ml-2 font-medium">{accident.lieu || 'Non spécifié'}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Dégâts:</span>
-                        <span className="ml-2 font-medium">{accident.degats}</span>
-                      </div>
-                    </div>
-                    {accident.blesses && (
-                      <div className="mt-3 p-3 bg-red-50 rounded-xl text-red-700 text-sm">
-                        ⚠️ Des blessés ont été signalés
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -596,170 +753,639 @@ export default function ChauffeurDashboard() {
         {/* Section Essence */}
         {activeTab === 'essence' && (
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-green-50 to-emerald-50">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <Fuel className="w-6 h-6 text-green-500" />
                 Gestion de l'Essence
+                <span className="ml-3 text-sm font-normal text-gray-500">({priseEssence.length} prises)</span>
               </h2>
               <Button
                 onClick={() => setShowEssenceForm(true)}
-                className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Nouvelle prise d'essence
               </Button>
             </div>
             
-            {/* Statistiques */}
-            <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4 bg-green-50">
-              <div className="bg-white rounded-xl p-4">
-                <p className="text-sm text-gray-500">Prises ce mois</p>
-                <p className="text-2xl font-bold text-gray-800">{priseEssence.filter(e => {
-                  const date = new Date(e.date);
-                  const now = new Date();
-                  return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-                }).length}</p>
-              </div>
-              <div className="bg-white rounded-xl p-4">
-                <p className="text-sm text-gray-500">Total litres</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {priseEssence.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0).toFixed(1)} L
+            {/* Statistiques améliorées */}
+            <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4 bg-gradient-to-br from-green-50 via-emerald-50 to-green-50">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-green-500"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-gray-500 font-medium">Prises ce mois</p>
+                  <Calendar className="w-5 h-5 text-green-500" />
+                </div>
+                <p className="text-3xl font-bold text-gray-800">
+                  {priseEssence.filter(e => {
+                    const date = new Date(e.date);
+                    const now = new Date();
+                    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                  }).length}
                 </p>
-              </div>
-              <div className="bg-white rounded-xl p-4">
-                <p className="text-sm text-gray-500">Coût total</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {priseEssence.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0).toFixed(2)} DH
+              </motion.div>
+              
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-emerald-500"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-gray-500 font-medium">Total litres</p>
+                  <Fuel className="w-5 h-5 text-emerald-500" />
+                </div>
+                <p className="text-3xl font-bold text-gray-800">
+                  {priseEssence.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0).toFixed(1)} <span className="text-lg text-gray-500">L</span>
                 </p>
-              </div>
-              <div className="bg-white rounded-xl p-4">
-                <p className="text-sm text-gray-500">Moyenne/L</p>
-                <p className="text-2xl font-bold text-gray-800">
+              </motion.div>
+              
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-green-600"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-gray-500 font-medium">Coût total</p>
+                  <DollarSign className="w-5 h-5 text-green-600" />
+                </div>
+                <p className="text-3xl font-bold text-gray-800">
+                  {priseEssence.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0).toFixed(2)} <span className="text-lg text-gray-500">DH</span>
+                </p>
+              </motion.div>
+              
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-emerald-600"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-gray-500 font-medium">Prix moyen/L</p>
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                </div>
+                <p className="text-3xl font-bold text-gray-800">
                   {priseEssence.length > 0 
                     ? (priseEssence.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0) / 
                        priseEssence.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0)).toFixed(2)
-                    : '0.00'} DH
+                    : '0.00'} <span className="text-lg text-gray-500">DH</span>
                 </p>
-              </div>
+              </motion.div>
             </div>
 
-            {/* Historique */}
-            <div className="divide-y divide-gray-100">
-              {priseEssence.length === 0 ? (
-                <div className="p-12 text-center text-gray-400">
-                  <Fuel className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucune prise d'essence enregistrée</p>
-                </div>
-              ) : (
-                priseEssence.sort((a, b) => new Date(b.date + ' ' + b.heure) - new Date(a.date + ' ' + a.heure)).map((essence) => (
-                  <div key={essence.id} className="p-6 hover:bg-green-50/50 transition-colors">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <Fuel className="w-5 h-5 text-green-500" />
-                          <h3 className="font-semibold text-gray-800">
-                            {format(new Date(essence.date), 'dd MMMM yyyy', { locale: fr })} à {essence.heure}
-                          </h3>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-500">Quantité:</span>
-                            <span className="ml-2 font-medium">{essence.quantite_litres} L</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Prix:</span>
-                            <span className="ml-2 font-medium">{essence.prix_total} DH</span>
-                          </div>
-                          {essence.kilometrage_actuel && (
-                            <div>
-                              <span className="text-gray-500">Kilométrage:</span>
-                              <span className="ml-2 font-medium">{essence.kilometrage_actuel} km</span>
-                            </div>
-                          )}
-                          {essence.station_service && (
-                            <div>
-                              <span className="text-gray-500">Station:</span>
-                              <span className="ml-2 font-medium">{essence.station_service}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+            {/* Historique amélioré avec filtres */}
+            <div className="p-6">
+              {/* Filtres */}
+              {priseEssence.length > 0 && (
+                <div className="mb-6 flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-green-100">
+                  <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                    <Input
+                      type="text"
+                      placeholder="Rechercher par station..."
+                      value={essenceSearchTerm}
+                      onChange={(e) => setEssenceSearchTerm(e.target.value)}
+                      className="rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500"
+                    />
+                    <Select value={essenceDateFilter} onValueChange={setEssenceDateFilter}>
+                      <SelectTrigger className="w-full md:w-[200px] rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500">
+                        <SelectValue placeholder="Filtrer par date" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Toutes les prises</SelectItem>
+                        <SelectItem value="thisMonth">Ce mois</SelectItem>
+                        <SelectItem value="lastMonth">Mois dernier</SelectItem>
+                        <SelectItem value="last3Months">3 derniers mois</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                ))
+                  {essenceSearchTerm || essenceDateFilter !== 'all' ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setEssenceSearchTerm('');
+                        setEssenceDateFilter('all');
+                      }}
+                      className="rounded-xl border-green-200 text-green-600 hover:bg-green-50"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Réinitialiser
+                    </Button>
+                  ) : null}
+                </div>
               )}
+
+              {/* Liste filtrée */}
+              {(() => {
+                // Filtrer les prises d'essence
+                let filteredEssence = [...priseEssence];
+
+                // Filtre par date
+                if (essenceDateFilter !== 'all') {
+                  const now = new Date();
+                  const filterDate = (() => {
+                    switch (essenceDateFilter) {
+                      case 'thisMonth':
+                        return { start: startOfMonth(now), end: now };
+                      case 'lastMonth':
+                        const lastMonth = subMonths(now, 1);
+                        return { start: startOfMonth(lastMonth), end: endOfDay(subMonths(startOfMonth(now), 1)) };
+                      case 'last3Months':
+                        return { start: subMonths(now, 3), end: now };
+                      default:
+                        return null;
+                    }
+                  })();
+
+                  if (filterDate) {
+                    filteredEssence = filteredEssence.filter(e => {
+                      const date = new Date(e.date);
+                      return isWithinInterval(date, filterDate);
+                    });
+                  }
+                }
+
+                // Filtre par recherche (station)
+                if (essenceSearchTerm) {
+                  filteredEssence = filteredEssence.filter(e =>
+                    e.station_service?.toLowerCase().includes(essenceSearchTerm.toLowerCase())
+                  );
+                }
+
+                // Trier par date
+                filteredEssence.sort((a, b) => new Date(b.date + ' ' + b.heure) - new Date(a.date + ' ' + a.heure));
+
+                if (filteredEssence.length === 0) {
+                  return (
+                    <motion.div 
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="p-12 text-center"
+                    >
+                      <Fuel className="w-16 h-16 mx-auto text-green-300 mb-4" />
+                      <p className="text-gray-500 font-medium">Aucune prise d'essence trouvée</p>
+                      <p className="text-sm text-gray-400 mt-1">
+                        {essenceSearchTerm || essenceDateFilter !== 'all' 
+                          ? 'Essayez de modifier vos filtres' 
+                          : 'Commencez par enregistrer votre première prise d\'essence'}
+                      </p>
+                    </motion.div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    <div className="text-sm text-gray-500 mb-2">
+                      {filteredEssence.length} prise{filteredEssence.length > 1 ? 's' : ''} trouvée{filteredEssence.length > 1 ? 's' : ''}
+                    </div>
+                    <AnimatePresence>
+                      {filteredEssence.map((essence, index) => {
+                      const prixParLitre = parseFloat(essence.prix_total) / parseFloat(essence.quantite_litres);
+                      const isThisMonth = (() => {
+                        const date = new Date(essence.date);
+                        const now = new Date();
+                        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                      })();
+                      
+                      return (
+                        <motion.div
+                          key={essence.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -20 }}
+                          transition={{ duration: 0.3, delay: index * 0.05 }}
+                          className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl shadow-md hover:shadow-lg transition-all overflow-hidden"
+                        >
+                          <div className="p-5">
+                            <div className="flex justify-between items-start mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-green-100 text-green-600">
+                                  <Fuel className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h3 className="font-semibold text-gray-800 text-lg">
+                                      {format(new Date(essence.date), 'dd MMMM yyyy', { locale: fr })}
+                                    </h3>
+                                    {isThisMonth && (
+                                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                        Ce mois
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <Clock className="w-4 h-4" />
+                                    <span>{essence.heure}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Informations principales */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                              <div className="bg-white rounded-lg p-3 border border-green-100">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Fuel className="w-4 h-4 text-green-500" />
+                                  <span className="text-xs text-gray-500 font-medium">Quantité</span>
+                                </div>
+                                <p className="text-xl font-bold text-gray-800">
+                                  {parseFloat(essence.quantite_litres).toFixed(1)} <span className="text-sm text-gray-500">L</span>
+                                </p>
+                              </div>
+                              
+                              <div className="bg-white rounded-lg p-3 border border-green-100">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <DollarSign className="w-4 h-4 text-green-600" />
+                                  <span className="text-xs text-gray-500 font-medium">Prix total</span>
+                                </div>
+                                <p className="text-xl font-bold text-gray-800">
+                                  {parseFloat(essence.prix_total).toFixed(2)} <span className="text-sm text-gray-500">DH</span>
+                                </p>
+                              </div>
+                              
+                              <div className="bg-white rounded-lg p-3 border border-green-100">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <TrendingUp className="w-4 h-4 text-emerald-500" />
+                                  <span className="text-xs text-gray-500 font-medium">Prix/L</span>
+                                </div>
+                                <p className="text-xl font-bold text-gray-800">
+                                  {prixParLitre.toFixed(2)} <span className="text-sm text-gray-500">DH</span>
+                                </p>
+                              </div>
+                              
+                              {essence.station_service && (
+                                <div className="bg-white rounded-lg p-3 border border-green-100">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Building2 className="w-4 h-4 text-emerald-600" />
+                                    <span className="text-xs text-gray-500 font-medium">Station</span>
+                                  </div>
+                                  <p className="text-sm font-semibold text-gray-800 truncate">
+                                    {essence.station_service}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+                );
+              })()}
             </div>
           </div>
         )}
 
         {/* Section Signalements */}
-        {/* Section Signalements */}
         {activeTab === 'signalements' && (
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Wrench className="w-6 h-6 text-green-500" />
-                Signalements de Problèmes
-              </h2>
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-green-50 to-emerald-50">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <Wrench className="w-6 h-6 text-green-500" />
+                  Signalements de Problèmes
+                </h2>
               <Button
                 onClick={() => setShowSignalementForm(true)}
-                className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Signaler un problème
               </Button>
             </div>
-            
-            <div className="divide-y divide-gray-100">
-              {signalements.length === 0 ? (
-                <div className="p-12 text-center text-gray-400">
-                  <Wrench className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucun signalement enregistré</p>
+
+            {/* Filtres */}
+            {signalements.length > 0 && (
+              <div className="p-6 bg-white border-b border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                  <Select value={signalementFilter} onValueChange={setSignalementFilter}>
+                    <SelectTrigger className="w-full md:w-[200px] rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500">
+                      <SelectValue placeholder="Filtrer par statut" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      <SelectItem value="en_attente">En attente</SelectItem>
+                      <SelectItem value="en_cours">En cours</SelectItem>
+                      <SelectItem value="resolu">Résolu</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={signalementUrgenceFilter} onValueChange={setSignalementUrgenceFilter}>
+                    <SelectTrigger className="w-full md:w-[200px] rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500">
+                      <SelectValue placeholder="Filtrer par urgence" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toutes les urgences</SelectItem>
+                      <SelectItem value="haute">Haute</SelectItem>
+                      <SelectItem value="moyenne">Moyenne</SelectItem>
+                      <SelectItem value="faible">Faible</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                signalements.sort((a, b) => new Date(b.date_creation) - new Date(a.date_creation)).map((signalement) => (
-                  <div key={signalement.id} className="p-6 hover:bg-green-50/50 transition-colors">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          signalement.type_probleme === 'mecanique' ? 'bg-red-100 text-red-700' :
-                          signalement.type_probleme === 'eclairage' ? 'bg-emerald-100 text-emerald-700' :
-                          signalement.type_probleme === 'portes' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {signalement.type_probleme === 'mecanique' ? 'Mécanique' :
-                           signalement.type_probleme === 'eclairage' ? 'Éclairage' :
-                           signalement.type_probleme === 'portes' ? 'Portes' :
-                           signalement.type_probleme === 'climatisation' ? 'Climatisation' :
-                           signalement.type_probleme === 'pneus' ? 'Pneus' : 'Autre'}
-                        </span>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          signalement.urgence === 'haute' ? 'bg-red-100 text-red-700' :
-                          signalement.urgence === 'moyenne' ? 'bg-green-100 text-green-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
-                          {signalement.urgence === 'haute' ? 'Haute' :
-                           signalement.urgence === 'moyenne' ? 'Moyenne' : 'Faible'}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          signalement.statut === 'resolu' ? 'bg-green-100 text-green-700' :
-                          signalement.statut === 'en_cours' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {signalement.statut === 'resolu' ? 'Résolu' :
-                           signalement.statut === 'en_cours' ? 'En cours' : 'En attente'}
-                        </span>
-                        <p className="text-sm text-gray-500">
-                          {format(new Date(signalement.date_creation), 'dd/MM/yyyy', { locale: fr })}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-gray-800 mb-2">{signalement.description}</p>
+                {(signalementFilter !== 'all' || signalementUrgenceFilter !== 'all') && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSignalementFilter('all');
+                      setSignalementUrgenceFilter('all');
+                    }}
+                    className="rounded-xl border-green-200 text-green-600 hover:bg-green-50"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Réinitialiser
+                  </Button>
+                )}
+              </div>
+            )}
+            
+            {/* Liste des signalements */}
+            <div className="p-6">
+              {(() => {
+                let filteredSignalements = [...signalements];
+
+                // Filtre par statut
+                if (signalementFilter !== 'all') {
+                  filteredSignalements = filteredSignalements.filter(s => s.statut === signalementFilter);
+                }
+
+                // Filtre par urgence
+                if (signalementUrgenceFilter !== 'all') {
+                  filteredSignalements = filteredSignalements.filter(s => s.urgence === signalementUrgenceFilter);
+                }
+
+                // Trier par date
+                filteredSignalements.sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0));
+
+                if (filteredSignalements.length === 0) {
+                  return (
+                    <motion.div 
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="p-12 text-center"
+                    >
+                      <Wrench className="w-16 h-16 mx-auto text-green-300 mb-4" />
+                      <p className="text-gray-500 font-medium">Aucun signalement trouvé</p>
+                      <p className="text-sm text-gray-400 mt-1">
+                        {signalementFilter !== 'all' || signalementUrgenceFilter !== 'all'
+                          ? 'Essayez de modifier vos filtres'
+                          : 'Commencez par signaler votre premier problème'}
+                      </p>
+                    </motion.div>
+                  );
+                }
+
+                const getTypeColor = (type) => {
+                  switch (type) {
+                    case 'mecanique': return { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: 'text-red-500', badge: 'bg-red-100 text-red-700' };
+                    case 'eclairage': return { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', icon: 'text-yellow-500', badge: 'bg-yellow-100 text-yellow-700' };
+                    case 'portes': return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', icon: 'text-blue-500', badge: 'bg-blue-100 text-blue-700' };
+                    case 'climatisation': return { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', icon: 'text-cyan-500', badge: 'bg-cyan-100 text-cyan-700' };
+                    case 'pneus': return { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', icon: 'text-orange-500', badge: 'bg-orange-100 text-orange-700' };
+                    default: return { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', icon: 'text-gray-500', badge: 'bg-gray-100 text-gray-700' };
+                  }
+                };
+
+                const getUrgenceColor = (urgence) => {
+                  switch (urgence) {
+                    case 'haute': return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300', icon: 'text-red-500' };
+                    case 'moyenne': return { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300', icon: 'text-yellow-500' };
+                    default: return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300', icon: 'text-green-500' };
+                  }
+                };
+
+                const getStatutColor = (statut) => {
+                  switch (statut) {
+                    case 'resolu': return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' };
+                    case 'en_cours': return { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' };
+                    default: return { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
+                  }
+                };
+
+                const getTypeLabel = (type) => {
+                  const labels = {
+                    'mecanique': 'Mécanique',
+                    'eclairage': 'Éclairage',
+                    'portes': 'Portes',
+                    'climatisation': 'Climatisation',
+                    'pneus': 'Pneus',
+                    'autre': 'Autre'
+                  };
+                  return labels[type] || type;
+                };
+
+                return (
+                  <div className="space-y-4">
+                    <AnimatePresence>
+                      {filteredSignalements.map((signalement, index) => {
+                        const typeColors = getTypeColor(signalement.type_probleme);
+                        const urgenceColors = getUrgenceColor(signalement.urgence);
+                        const statutColors = getStatutColor(signalement.statut);
+
+                        return (
+                          <motion.div
+                            key={signalement.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ duration: 0.3, delay: index * 0.05 }}
+                            className={`${typeColors.bg} ${typeColors.border} border-2 rounded-2xl shadow-md hover:shadow-lg transition-all overflow-hidden`}
+                          >
+                            <div className="p-5">
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="flex items-center gap-3">
+                                  <div className={`p-2 rounded-lg ${typeColors.bg} ${typeColors.icon}`}>
+                                    <Wrench className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <h3 className="font-semibold text-gray-800 text-lg">
+                                        {getTypeLabel(signalement.type_probleme)}
+                                      </h3>
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeColors.badge} border ${typeColors.border}`}>
+                                        {getTypeLabel(signalement.type_probleme)}
+                                      </span>
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${urgenceColors.bg} ${urgenceColors.text} border ${urgenceColors.border} flex items-center gap-1`}>
+                                        {signalement.urgence === 'haute' && <AlertTriangle className="w-3 h-3" />}
+                                        {signalement.urgence === 'haute' ? 'URGENT' : signalement.urgence === 'moyenne' ? 'Moyenne' : 'Faible'}
+                                      </span>
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statutColors.bg} ${statutColors.text} border ${statutColors.border}`}>
+                                        {signalement.statut === 'resolu' ? 'Résolu' : signalement.statut === 'en_cours' ? 'En cours' : 'En attente'}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                                      <Clock className="w-4 h-4" />
+                                      <span>
+                                        {signalement.date_creation ? format(new Date(signalement.date_creation), 'dd MMMM yyyy à HH:mm', { locale: fr }) : 'Date inconnue'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Description */}
+                              <div className="bg-white rounded-lg p-4 border border-gray-200 mb-4">
+                                <p className="text-gray-800 leading-relaxed">{signalement.description}</p>
+                              </div>
+
+                              {/* Photos si disponibles */}
+                              {(() => {
+                                try {
+                                  // Vérifier si signalement.photos existe et n'est pas null/undefined
+                                  if (!signalement.photos || signalement.photos === null || signalement.photos === 'null' || signalement.photos === '') {
+                                    return null;
+                                  }
+                                  
+                                  let photos = [];
+                                  
+                                  // Si c'est déjà un tableau
+                                  if (Array.isArray(signalement.photos)) {
+                                    photos = signalement.photos;
+                                  } 
+                                  // Si c'est une chaîne JSON
+                                  else if (typeof signalement.photos === 'string' && signalement.photos.trim() !== '') {
+                                    try {
+                                      // Essayer de parser la chaîne JSON
+                                      let parsed = signalement.photos;
+                                      
+                                      // Si la chaîne commence par "[" ou "{", c'est du JSON
+                                      if (parsed.trim().startsWith('[') || parsed.trim().startsWith('{')) {
+                                        parsed = JSON.parse(parsed);
+                                      }
+                                      
+                                      // Si le résultat est un tableau, on l'utilise
+                                      if (Array.isArray(parsed)) {
+                                        photos = parsed;
+                                      } 
+                                      // Si c'est un objet avec une propriété qui est un tableau
+                                      else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
+                                        photos = parsed.photos;
+                                      }
+                                      // Si c'est une chaîne simple (une seule photo)
+                                      else if (typeof parsed === 'string' && parsed.startsWith('data:image')) {
+                                        photos = [parsed];
+                                      }
+                                    } catch (parseError) {
+                                      // Si le parsing échoue, essayer de traiter comme une chaîne simple
+                                      if (signalement.photos.startsWith('data:image')) {
+                                        photos = [signalement.photos];
+                                      } else {
+                                        console.error('Erreur parsing photos:', parseError);
+                                        return null;
+                                      }
+                                    }
+                                  } else {
+                                    return null;
+                                  }
+                                  
+                                  // Vérifier que photos est un tableau non vide
+                                  if (!Array.isArray(photos) || photos.length === 0) {
+                                    return null;
+                                  }
+                                  
+                                  // Filtrer et normaliser les photos valides
+                                  const validPhotos = photos
+                                    .map(photo => {
+                                      // Extraire la source de la photo
+                                      if (typeof photo === 'string') {
+                                        return photo;
+                                      } else if (photo && typeof photo === 'object') {
+                                        return photo.data || photo.src || photo.url || null;
+                                      }
+                                      return null;
+                                    })
+                                    .filter(photoSrc => {
+                                      // Vérifier que c'est une chaîne valide qui commence par data:image
+                                      return photoSrc && 
+                                             typeof photoSrc === 'string' && 
+                                             photoSrc.trim() !== '' && 
+                                             photoSrc.startsWith('data:image');
+                                    });
+                                  
+                                  if (validPhotos.length === 0) {
+                                    return null;
+                                  }
+                                  
+                                  return (
+                                    <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <ImageIcon className="w-5 h-5 text-green-600" />
+                                        <span className="text-sm font-semibold text-gray-700">Photos ({validPhotos.length})</span>
+                                      </div>
+                                      <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                        {validPhotos.map((photoSrc, photoIndex) => (
+                                          <motion.div
+                                            key={photoIndex}
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            className="relative group cursor-pointer"
+                                            onClick={() => setSelectedSignalementPhoto(photoSrc)}
+                                          >
+                                            <div className="relative overflow-hidden rounded-lg border-2 border-green-300 group-hover:border-green-500 transition-colors bg-white shadow-md">
+                                              <img
+                                                src={photoSrc}
+                                                alt={`Photo problème ${photoIndex + 1}`}
+                                                className="w-full h-24 object-cover"
+                                                onError={(e) => {
+                                                  console.error('Erreur chargement image:', photoIndex);
+                                                  e.target.style.display = 'none';
+                                                }}
+                                              />
+                                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                                <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                              </div>
+                                            </div>
+                                          </motion.div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                } catch (e) {
+                                  console.error('Erreur parsing photos:', e, signalement);
+                                  return null;
+                                }
+                              })()}
+
+                              {/* Informations supplémentaires */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                {signalement.bus_numero && (
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Bus className="w-4 h-4 text-gray-400" />
+                                      <span className="text-xs text-gray-500 font-medium">Bus</span>
+                                    </div>
+                                    <p className="text-sm font-semibold text-gray-800">{signalement.bus_numero}</p>
+                                  </div>
+                                )}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <AlertTriangle className={`w-4 h-4 ${urgenceColors.icon}`} />
+                                    <span className="text-xs text-gray-500 font-medium">Urgence</span>
+                                  </div>
+                                  <p className={`text-sm font-semibold ${urgenceColors.text}`}>
+                                    {signalement.urgence === 'haute' ? 'Haute' : signalement.urgence === 'moyenne' ? 'Moyenne' : 'Faible'}
+                                  </p>
+                                </div>
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <CheckCircle className={`w-4 h-4 ${statutColors.text}`} />
+                                    <span className="text-xs text-gray-500 font-medium">Statut</span>
+                                  </div>
+                                  <p className={`text-sm font-semibold ${statutColors.text}`}>
+                                    {signalement.statut === 'resolu' ? 'Résolu' : signalement.statut === 'en_cours' ? 'En cours' : 'En attente'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
                   </div>
-                ))
-              )}
+                );
+              })()}
             </div>
           </div>
         )}
@@ -781,7 +1407,12 @@ export default function ChauffeurDashboard() {
                   Déclarer un Accident
                 </h2>
                 <button
-                  onClick={() => setShowAccidentForm(false)}
+                  onClick={() => {
+                    // Nettoyer les URLs des prévisualisations
+                    accidentPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                    setAccidentPhotos([]);
+                    setShowAccidentForm(false);
+                  }}
                   className="text-white hover:text-red-100 transition-colors"
                 >
                   <X className="w-6 h-6" />
@@ -792,6 +1423,20 @@ export default function ChauffeurDashboard() {
             <form onSubmit={async (e) => {
               e.preventDefault();
               try {
+                // Vérifier la taille totale des fichiers
+                const totalSize = accidentPhotos.reduce((sum, photo) => sum + photo.file.size, 0);
+                const maxSize = 10 * 1024 * 1024; // 10 MB max
+                
+                if (totalSize > maxSize) {
+                  showToast('La taille totale des photos dépasse 10 MB. Veuillez réduire le nombre ou la taille des images.', 'error');
+                  return;
+                }
+
+                // Compresser et convertir les photos en base64
+                const photosBase64 = await Promise.all(
+                  accidentPhotos.map(photo => compressImage(photo.file))
+                );
+
                 const accidentData = {
                   date: accidentForm.date,
                   heure: accidentForm.heure,
@@ -803,7 +1448,8 @@ export default function ChauffeurDashboard() {
                   gravite: accidentForm.gravite,
                   nombre_eleves: accidentForm.nombre_eleves ? parseInt(accidentForm.nombre_eleves) : null,
                   nombre_blesses: accidentForm.nombre_blesses ? parseInt(accidentForm.nombre_blesses) : 0,
-                  blesses: parseInt(accidentForm.nombre_blesses) > 0
+                  blesses: parseInt(accidentForm.nombre_blesses) > 0,
+                  photos: photosBase64.length > 0 ? photosBase64.map(p => p.data) : null
                 };
 
                 await accidentsAPI.create(accidentData);
@@ -818,11 +1464,14 @@ export default function ChauffeurDashboard() {
                   nombre_eleves: '',
                   nombre_blesses: '0'
                 });
+                // Nettoyer les URLs des prévisualisations
+                accidentPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                setAccidentPhotos([]);
                 await loadData(chauffeur);
-                alert('Accident déclaré avec succès');
+                showToast('Accident déclaré avec succès ! L\'administrateur a été notifié.', 'success');
               } catch (err) {
                 console.error('Erreur déclaration accident:', err);
-                alert('Erreur lors de la déclaration: ' + (err.message || 'Erreur inconnue'));
+                showToast('Erreur lors de la déclaration: ' + (err.message || 'Erreur inconnue'), 'error');
               }
             }} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -911,16 +1560,101 @@ export default function ChauffeurDashboard() {
                 <Textarea
                   value={accidentForm.degats}
                   onChange={(e) => setAccidentForm({...accidentForm, degats: e.target.value})}
-                  className="mt-1 rounded-xl"
+                  className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                   rows={2}
                   placeholder="Décrivez les dégâts matériels..."
                 />
               </div>
+              
+              {/* Upload de photos */}
+              <div>
+                <Label>Photos (optionnel) - Max 5 photos, 5 MB par photo, 10 MB total</Label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    const remainingSlots = 5 - accidentPhotos.length;
+                    
+                    if (files.length > remainingSlots) {
+                      showToast(`Vous ne pouvez ajouter que ${remainingSlots} photo(s) supplémentaire(s)`, 'error');
+                      return;
+                    }
+                    
+                    const filesToAdd = files.slice(0, remainingSlots);
+                    
+                    // Vérifier la taille de chaque fichier (max 5 MB par fichier)
+                    const maxFileSize = 5 * 1024 * 1024; // 5 MB
+                    const validFiles = filesToAdd.filter(file => {
+                      if (file.size > maxFileSize) {
+                        showToast(`L'image ${file.name} est trop grande (max 5 MB)`, 'error');
+                        return false;
+                      }
+                      return true;
+                    });
+                    
+                    const newPhotos = validFiles.map(file => ({
+                      file: file,
+                      preview: URL.createObjectURL(file)
+                    }));
+                    setAccidentPhotos([...accidentPhotos, ...newPhotos]);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                  id="accident-photos-upload"
+                />
+                <label
+                  htmlFor="accident-photos-upload"
+                  className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <ImageIcon className="w-5 h-5 text-gray-400" />
+                  <span className="text-sm text-gray-600">Cliquez pour ajouter des photos</span>
+                </label>
+                
+                {/* Prévisualisation des photos */}
+                {accidentPhotos.length > 0 && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-600">
+                        {accidentPhotos.length} photo{accidentPhotos.length > 1 ? 's' : ''} sélectionnée{accidentPhotos.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
+                      {accidentPhotos.map((photo, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={photo.preview}
+                            alt={`Photo ${index + 1}`}
+                            className="w-full h-16 object-cover rounded-lg border border-gray-300"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              URL.revokeObjectURL(photo.preview);
+                              setAccidentPhotos(accidentPhotos.filter((_, i) => i !== index));
+                            }}
+                            className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-100 shadow-md hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               <div className="flex gap-3 justify-end pt-4 border-t">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowAccidentForm(false)}
+                  onClick={() => {
+                    // Nettoyer les URLs des prévisualisations
+                    accidentPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                    setAccidentPhotos([]);
+                    setShowAccidentForm(false);
+                  }}
                   className="rounded-xl"
                 >
                   <X className="w-4 h-4 mr-2" />
@@ -968,7 +1702,6 @@ export default function ChauffeurDashboard() {
                   heure: essenceForm.heure,
                   quantite_litres: parseFloat(essenceForm.quantite_litres),
                   prix_total: parseFloat(essenceForm.prix_total),
-                  kilometrage_actuel: essenceForm.kilometrage_actuel ? parseInt(essenceForm.kilometrage_actuel) : null,
                   station_service: essenceForm.station_service || null
                 };
                 
@@ -979,19 +1712,18 @@ export default function ChauffeurDashboard() {
                   const essenceData = essenceResponse?.data || essenceResponse || [];
                   setPriseEssence(essenceData);
                   
-                  alert('Prise d\'essence enregistrée avec succès ! Le responsable a été notifié.');
+                  showToast('Prise d\'essence enregistrée avec succès ! L\'administrateur a été notifié.', 'success');
                   setShowEssenceForm(false);
                   setEssenceForm({
                     date: format(new Date(), 'yyyy-MM-dd'),
                     heure: format(new Date(), 'HH:mm'),
                     quantite_litres: '',
                     prix_total: '',
-                    kilometrage_actuel: '',
                     station_service: ''
                   });
                 }
               } catch (err) {
-                alert('Erreur: ' + (err.message || 'Erreur inconnue'));
+                showToast('Erreur: ' + (err.message || 'Erreur inconnue'), 'error');
               }
             }} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -1010,10 +1742,6 @@ export default function ChauffeurDashboard() {
                 <div>
                   <Label>Prix total (DH) *</Label>
                   <Input type="number" step="0.01" value={essenceForm.prix_total} onChange={(e) => setEssenceForm({...essenceForm, prix_total: e.target.value})} className="mt-1 rounded-xl" required />
-                </div>
-                <div>
-                  <Label>Kilométrage actuel</Label>
-                  <Input type="number" value={essenceForm.kilometrage_actuel} onChange={(e) => setEssenceForm({...essenceForm, kilometrage_actuel: e.target.value})} className="mt-1 rounded-xl" />
                 </div>
                 <div>
                   <Label>Station-service</Label>
@@ -1039,15 +1767,23 @@ export default function ChauffeurDashboard() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-md w-full"
+            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col"
           >
-            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-green-500 to-emerald-600">
+            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-green-500 to-emerald-600 flex-shrink-0">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <Wrench className="w-6 h-6" />
                   Signaler un Problème
                 </h2>
-                <button onClick={() => setShowSignalementForm(false)} className="text-white hover:text-green-100">
+                <button 
+                  onClick={() => {
+                    // Nettoyer les URLs des prévisualisations
+                    signalementPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                    setSignalementPhotos([]);
+                    setShowSignalementForm(false);
+                  }} 
+                  className="text-white hover:text-green-100"
+                >
                   <X className="w-6 h-6" />
                 </button>
               </div>
@@ -1055,12 +1791,27 @@ export default function ChauffeurDashboard() {
             <form onSubmit={async (e) => {
               e.preventDefault();
               try {
+                // Vérifier la taille totale des fichiers
+                const totalSize = signalementPhotos.reduce((sum, photo) => sum + photo.file.size, 0);
+                const maxSize = 10 * 1024 * 1024; // 10 MB max
+                
+                if (totalSize > maxSize) {
+                  showToast('La taille totale des photos dépasse 10 MB. Veuillez réduire le nombre ou la taille des images.', 'error');
+                  return;
+                }
+
+                // Compresser et convertir les photos en base64
+                const photosBase64 = await Promise.all(
+                  signalementPhotos.map(photo => compressImage(photo.file))
+                );
+
                 const signalementData = {
                   chauffeur_id: chauffeur?.id || chauffeur?.type_id,
                   bus_id: bus?.id,
                   type_probleme: signalementForm.type_probleme,
                   description: signalementForm.description,
-                  urgence: signalementForm.urgence
+                  urgence: signalementForm.urgence,
+                  photos: photosBase64.length > 0 ? photosBase64.map(p => p.data) : null
                 };
                 
                 const response = await signalementsAPI.create(signalementData);
@@ -1070,60 +1821,184 @@ export default function ChauffeurDashboard() {
                   const signalementsData = signalementsResponse?.data || signalementsResponse || [];
                   setSignalements(signalementsData);
                   
-                  alert('Problème signalé avec succès ! Le responsable a été notifié.');
+                  showToast('Problème signalé avec succès ! L\'administrateur a été notifié.', 'success');
                   setShowSignalementForm(false);
                   setSignalementForm({
                     type_probleme: 'mecanique',
                     description: '',
                     urgence: 'moyenne'
                   });
+                  // Nettoyer les URLs des prévisualisations
+                  signalementPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                  setSignalementPhotos([]);
                 }
               } catch (err) {
-                alert('Erreur: ' + (err.message || 'Erreur inconnue'));
+                showToast('Erreur: ' + (err.message || 'Erreur inconnue'), 'error');
               }
-            }} className="p-6 space-y-4">
-              <div>
-                <Label>Type de problème *</Label>
-                <Select value={signalementForm.type_probleme} onValueChange={(v) => setSignalementForm({...signalementForm, type_probleme: v})}>
-                  <SelectTrigger className="mt-1 rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="mecanique">Mécanique</SelectItem>
-                    <SelectItem value="eclairage">Éclairage</SelectItem>
-                    <SelectItem value="portes">Portes</SelectItem>
-                    <SelectItem value="climatisation">Climatisation</SelectItem>
-                    <SelectItem value="pneus">Pneus</SelectItem>
-                    <SelectItem value="autre">Autre</SelectItem>
-                  </SelectContent>
-                </Select>
+            }} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 pb-2">
+                <div>
+                  <Label>Type de problème *</Label>
+                  <Select value={signalementForm.type_probleme} onValueChange={(v) => setSignalementForm({...signalementForm, type_probleme: v})}>
+                    <SelectTrigger className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mecanique">Mécanique</SelectItem>
+                      <SelectItem value="eclairage">Éclairage</SelectItem>
+                      <SelectItem value="portes">Portes</SelectItem>
+                      <SelectItem value="climatisation">Climatisation</SelectItem>
+                      <SelectItem value="pneus">Pneus</SelectItem>
+                      <SelectItem value="autre">Autre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Urgence *</Label>
+                  <Select value={signalementForm.urgence} onValueChange={(v) => setSignalementForm({...signalementForm, urgence: v})}>
+                    <SelectTrigger className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="faible">Faible</SelectItem>
+                      <SelectItem value="moyenne">Moyenne</SelectItem>
+                      <SelectItem value="haute">Haute</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Description *</Label>
+                  <Textarea value={signalementForm.description} onChange={(e) => setSignalementForm({...signalementForm, description: e.target.value})} className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500" rows={4} required placeholder="Décrivez le problème en détail..." />
+                </div>
+                
+                {/* Upload de photos */}
+                <div>
+                <Label>Photos (optionnel) - Max 5 photos, 5 MB par photo, 10 MB total</Label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    const remainingSlots = 5 - signalementPhotos.length;
+                    
+                    if (files.length > remainingSlots) {
+                      showToast(`Vous ne pouvez ajouter que ${remainingSlots} photo(s) supplémentaire(s)`, 'error');
+                      return;
+                    }
+                    
+                    const filesToAdd = files.slice(0, remainingSlots);
+                    
+                    // Vérifier la taille de chaque fichier (max 5 MB par fichier)
+                    const maxFileSize = 5 * 1024 * 1024; // 5 MB
+                    const validFiles = filesToAdd.filter(file => {
+                      if (file.size > maxFileSize) {
+                        showToast(`L'image ${file.name} est trop grande (max 5 MB)`, 'error');
+                        return false;
+                      }
+                      return true;
+                    });
+                    
+                    const newPhotos = validFiles.map(file => ({
+                      file: file,
+                      preview: URL.createObjectURL(file)
+                    }));
+                    setSignalementPhotos([...signalementPhotos, ...newPhotos]);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                  id="signalement-photos-upload"
+                />
+                <label
+                  htmlFor="signalement-photos-upload"
+                  className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
+                >
+                  <ImageIcon className="w-5 h-5 text-gray-400" />
+                  <span className="text-sm text-gray-600">Cliquez pour ajouter des photos</span>
+                </label>
+                
+                {/* Prévisualisation des photos */}
+                {signalementPhotos.length > 0 && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-600">
+                        {signalementPhotos.length} photo{signalementPhotos.length > 1 ? 's' : ''} sélectionnée{signalementPhotos.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
+                      {signalementPhotos.map((photo, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={photo.preview}
+                            alt={`Photo ${index + 1}`}
+                            className="w-full h-16 object-cover rounded-lg border border-gray-300"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              URL.revokeObjectURL(photo.preview);
+                              setSignalementPhotos(signalementPhotos.filter((_, i) => i !== index));
+                            }}
+                            className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-100 shadow-md hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                </div>
               </div>
-              <div>
-                <Label>Urgence *</Label>
-                <Select value={signalementForm.urgence} onValueChange={(v) => setSignalementForm({...signalementForm, urgence: v})}>
-                  <SelectTrigger className="mt-1 rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="faible">Faible</SelectItem>
-                    <SelectItem value="moyenne">Moyenne</SelectItem>
-                    <SelectItem value="haute">Haute</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Description *</Label>
-                <Textarea value={signalementForm.description} onChange={(e) => setSignalementForm({...signalementForm, description: e.target.value})} className="mt-1 rounded-xl" rows={4} required placeholder="Décrivez le problème en détail..." />
-              </div>
-              <div className="flex gap-3 justify-end pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => setShowSignalementForm(false)} className="rounded-xl">
+              
+              {/* Boutons fixes en bas - toujours visibles */}
+              <div className="p-4 border-t-2 border-gray-200 bg-gradient-to-r from-gray-50 to-white rounded-b-3xl flex gap-3 justify-end flex-shrink-0 sticky bottom-0 z-10 shadow-lg">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    // Nettoyer les URLs des prévisualisations
+                    signalementPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                    setSignalementPhotos([]);
+                    setShowSignalementForm(false);
+                  }} 
+                  className="rounded-xl border-2 border-gray-300 hover:border-gray-400 px-6 py-2.5 font-semibold shadow-sm hover:shadow-md transition-all"
+                >
                   <X className="w-4 h-4 mr-2" /> Annuler
                 </Button>
-                <Button type="submit" className="bg-green-500 hover:bg-green-600 text-white rounded-xl">
+                <Button type="submit" className="bg-green-500 hover:bg-green-600 text-white rounded-xl px-6 py-2.5 font-semibold shadow-lg hover:shadow-xl transition-all">
                   <Wrench className="w-4 h-4 mr-2" /> Signaler
                 </Button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal pour voir les photos en grand */}
+      {selectedSignalementPhoto && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedSignalementPhoto(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="relative max-w-5xl max-h-[90vh] w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedSignalementPhoto(null)}
+              className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 shadow-lg transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={selectedSignalementPhoto}
+              alt="Photo problème"
+              className="w-full h-auto rounded-lg shadow-2xl"
+            />
           </motion.div>
         </div>
       )}
@@ -1142,6 +2017,37 @@ export default function ChauffeurDashboard() {
           }
         }}
       />
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className={`fixed bottom-6 right-6 z-50 max-w-md w-full shadow-2xl rounded-xl overflow-hidden ${
+              toastType === 'success' 
+                ? 'bg-green-500' 
+                : toastType === 'error' 
+                ? 'bg-red-500' 
+                : 'bg-blue-500'
+            }`}
+          >
+            <div className="p-4 flex items-center gap-3">
+              {toastType === 'success' && <CheckCircle className="w-5 h-5 text-white flex-shrink-0" />}
+              {toastType === 'error' && <AlertCircle className="w-5 h-5 text-white flex-shrink-0" />}
+              {toastType === 'info' && <AlertCircle className="w-5 h-5 text-white flex-shrink-0" />}
+              <p className="text-white font-medium flex-1">{toastMessage}</p>
+              <button
+                onClick={() => setToastMessage(null)}
+                className="text-white hover:text-gray-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
     </>
   );

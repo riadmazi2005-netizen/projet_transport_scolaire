@@ -21,8 +21,8 @@ try {
     }
     
     $stmt = $pdo->prepare('
-        INSERT INTO prise_essence (chauffeur_id, bus_id, date, heure, quantite_litres, prix_total, kilometrage_actuel, station_service)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO prise_essence (chauffeur_id, bus_id, date, heure, quantite_litres, prix_total, station_service)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ');
     
     $stmt->execute([
@@ -32,7 +32,6 @@ try {
         $data['heure'],
         $data['quantite_litres'],
         $data['prix_total'],
-        $data['kilometrage_actuel'] ?? null,
         $data['station_service'] ?? null
     ]);
     

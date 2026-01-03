@@ -10,12 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   UserCog, Bell, LogOut, Bus, Users, AlertCircle,
-  DollarSign, User, Edit, CheckCircle, Plus, X, MessageSquare, Send, Navigation, MapPin, Image, Trash2, Phone, Check, Calendar, Mail
+  DollarSign, User, Edit, CheckCircle, Plus, X, MessageSquare, Send, Navigation, MapPin, Image as ImageIcon, Trash2, Phone, Check, Calendar, Mail, Clock, Users as UsersIcon, AlertTriangle, FileText, ZoomIn
 } from 'lucide-react';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
 import PresenceList from '../components/ui/PresenceList';
 import { format, subDays, startOfMonth, subMonths } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 export default function ResponsableDashboard() {
   const navigate = useNavigate();
@@ -43,6 +44,8 @@ export default function ResponsableDashboard() {
   });
   const [accidents, setAccidents] = useState([]);
   const [showAccidentForm, setShowAccidentForm] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [expandedAccident, setExpandedAccident] = useState(null);
   const [accidentForm, setAccidentForm] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     heure: format(new Date(), 'HH:mm'),
@@ -273,11 +276,14 @@ export default function ResponsableDashboard() {
       
       // Charger les accidents déclarés par ce responsable
       try {
+        console.log('Chargement accidents pour responsable_id:', responsableId);
         const accidentsResponse = await accidentsAPI.getByResponsable(responsableId);
+        console.log('Réponse accidents:', accidentsResponse);
         const accidentsData = accidentsResponse?.data || accidentsResponse || [];
+        console.log('Accidents chargés:', accidentsData);
         setAccidents(Array.isArray(accidentsData) ? accidentsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)) : []);
       } catch (err) {
-        console.warn('Erreur chargement accidents:', err);
+        console.error('Erreur chargement accidents:', err);
         setAccidents([]);
       }
       
@@ -1091,14 +1097,15 @@ export default function ResponsableDashboard() {
 
         {activeTab === 'accidents' && (
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-red-50 to-rose-50">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <AlertCircle className="w-6 h-6 text-red-500" />
                 Historique des Accidents
+                <span className="ml-3 text-sm font-normal text-gray-500">({accidents.length})</span>
               </h2>
               <Button
                 onClick={() => setShowAccidentForm(true)}
-                className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                className="bg-red-500 hover:bg-red-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Déclarer un accident
@@ -1106,82 +1113,258 @@ export default function ResponsableDashboard() {
             </div>
             {accidents.length === 0 ? (
               <div className="p-12 text-center">
-                <CheckCircle className="w-16 h-16 mx-auto text-purple-300 mb-4" />
-                <p className="text-gray-500">Aucun accident enregistré</p>
-                <p className="text-sm text-gray-400 mt-1">Continuez à être vigilant !</p>
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <CheckCircle className="w-16 h-16 mx-auto text-purple-300 mb-4" />
+                  <p className="text-gray-500 font-medium">Aucun accident enregistré</p>
+                  <p className="text-sm text-gray-400 mt-1">Continuez à être vigilant !</p>
+                </motion.div>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
-                {accidents.map((accident) => (
-                  <div key={accident.id} className="p-6">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          accident.gravite === 'Grave' ? 'bg-red-100 text-red-700' :
-                          accident.gravite === 'Moyenne' ? 'bg-purple-100 text-purple-700' :
-                          'bg-purple-100 text-purple-700'
-                        }`}>
-                          {accident.gravite}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500">
-                        {format(new Date(accident.date), 'dd MMMM yyyy')}
-                        {accident.heure && ` à ${accident.heure}`}
-                      </p>
-                    </div>
-                    <h3 className="font-semibold text-gray-800 mb-2">{accident.description}</h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm mb-3">
-                      <div>
-                        <span className="text-gray-500">Lieu:</span>
-                        <span className="ml-2 font-medium">{accident.lieu || 'Non spécifié'}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Dégâts:</span>
-                        <span className="ml-2 font-medium">{accident.degats || 'Non spécifiés'}</span>
-                      </div>
-                    </div>
-                    
-                    {/* Affichage des photos si disponibles */}
-                    {accident.photos && (() => {
-                      try {
-                        const photos = JSON.parse(accident.photos);
-                        if (Array.isArray(photos) && photos.length > 0) {
-                          return (
-                            <div className="mt-4">
-                              <p className="text-sm text-gray-500 mb-2 flex items-center gap-2">
-                                <Image className="w-4 h-4" />
-                                Photos ({photos.length})
-                              </p>
-                              <div className="grid grid-cols-3 gap-2">
-                                {photos.map((photo, index) => (
-                                  <div key={index} className="relative group">
-                                    <img
-                                      src={photo.data || photo}
-                                      alt={`Photo accident ${index + 1}`}
-                                      className="w-full h-20 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
-                                      onClick={() => {
-                                        // Ouvrir l'image en grand
-                                        const newWindow = window.open();
-                                        if (newWindow) {
-                                          newWindow.document.write(`<img src="${photo.data || photo}" style="max-width:100%; height:auto;" />`);
-                                        }
-                                      }}
-                                    />
-                                  </div>
-                                ))}
+              <div className="p-6 space-y-4">
+                <AnimatePresence>
+                  {accidents.map((accident, index) => {
+                    // Parser les photos
+                    let photos = [];
+                    try {
+                      if (accident.photos) {
+                        if (Array.isArray(accident.photos)) {
+                          photos = accident.photos;
+                        } else if (typeof accident.photos === 'string') {
+                          photos = JSON.parse(accident.photos);
+                        }
+                      }
+                    } catch (e) {
+                      console.error('Erreur parsing photos:', e);
+                    }
+
+                    const isExpanded = expandedAccident === accident.id;
+                    const graviteColors = {
+                      'Grave': { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', badge: 'bg-red-100 text-red-700', icon: 'text-red-500' },
+                      'Moyenne': { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700', icon: 'text-orange-500' },
+                      'Légère': { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700', icon: 'text-purple-500' }
+                    };
+                    const colors = graviteColors[accident.gravite] || graviteColors['Légère'];
+
+                    return (
+                      <motion.div
+                        key={accident.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className={`${colors.bg} ${colors.border} border-2 rounded-2xl shadow-md hover:shadow-lg transition-all overflow-hidden`}
+                      >
+                        {/* En-tête de la carte */}
+                        <div className="p-5">
+                          <div className="flex justify-between items-start mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg ${colors.bg} ${colors.icon}`}>
+                                <AlertTriangle className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${colors.badge} border ${colors.border}`}>
+                                    {accident.gravite}
+                                  </span>
+                                  {accident.statut && (
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                      accident.statut === 'Traité' ? 'bg-green-100 text-green-700' :
+                                      accident.statut === 'En cours' ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-gray-100 text-gray-700'
+                                    }`}>
+                                      {accident.statut}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                                  <Clock className="w-4 h-4" />
+                                  <span>
+                                    {accident.date ? format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr }) : 'Date inconnue'}
+                                    {accident.heure && ` à ${accident.heure}`}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          );
-                        }
-                      } catch (e) {
-                        console.error('Erreur parsing photos:', e);
-                      }
-                      return null;
-                    })()}
-                  </div>
-                ))}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setExpandedAccident(isExpanded ? null : accident.id)}
+                              className="text-gray-500 hover:text-gray-700"
+                            >
+                              {isExpanded ? <X className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                            </Button>
+                          </div>
+
+                          {/* Description principale */}
+                          <p className={`font-semibold ${colors.text} mb-4 text-base leading-relaxed`}>
+                            {accident.description}
+                          </p>
+
+                          {/* Informations principales */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                            {accident.lieu && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <MapPin className="w-4 h-4 text-gray-400" />
+                                <div>
+                                  <span className="text-gray-500 text-xs">Lieu</span>
+                                  <p className="font-medium text-gray-800">{accident.lieu}</p>
+                                </div>
+                              </div>
+                            )}
+                            {accident.bus_numero && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Bus className="w-4 h-4 text-gray-400" />
+                                <div>
+                                  <span className="text-gray-500 text-xs">Bus</span>
+                                  <p className="font-medium text-gray-800">{accident.bus_numero}</p>
+                                </div>
+                              </div>
+                            )}
+                            {accident.nombre_eleves !== null && accident.nombre_eleves !== undefined && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <UsersIcon className="w-4 h-4 text-gray-400" />
+                                <div>
+                                  <span className="text-gray-500 text-xs">Élèves</span>
+                                  <p className="font-medium text-gray-800">{accident.nombre_eleves}</p>
+                                </div>
+                              </div>
+                            )}
+                            {accident.nombre_blesses > 0 && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <AlertCircle className="w-4 h-4 text-red-400" />
+                                <div>
+                                  <span className="text-gray-500 text-xs">Blessés</span>
+                                  <p className="font-medium text-red-600">{accident.nombre_blesses}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Section dépliable avec détails */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="pt-4 border-t border-gray-200 space-y-3">
+                                  {accident.degats && (
+                                    <div className="flex items-start gap-2 text-sm">
+                                      <FileText className="w-4 h-4 text-gray-400 mt-0.5" />
+                                      <div>
+                                        <span className="text-gray-500">Dégâts: </span>
+                                        <span className="font-medium text-gray-800">{accident.degats}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {accident.chauffeur_nom && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <User className="w-4 h-4 text-gray-400" />
+                                      <div>
+                                        <span className="text-gray-500">Chauffeur: </span>
+                                        <span className="font-medium text-gray-800">
+                                          {accident.chauffeur_prenom} {accident.chauffeur_nom}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {accident.eleves_concernees && (
+                                    <div className="flex items-start gap-2 text-sm">
+                                      <UsersIcon className="w-4 h-4 text-gray-400 mt-0.5" />
+                                      <div>
+                                        <span className="text-gray-500">Élèves concernés: </span>
+                                        <span className="font-medium text-gray-800">{accident.eleves_concernees}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          {/* Photos */}
+                          {photos.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <ImageIcon className="w-4 h-4" />
+                                  <span className="font-medium">Photos ({photos.length})</span>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                {photos.map((photo, photoIndex) => {
+                                  const photoSrc = typeof photo === 'string' 
+                                    ? photo 
+                                    : (photo?.data || photo?.src || photo);
+                                  
+                                  if (!photoSrc) return null;
+                                  
+                                  return (
+                                    <motion.div
+                                      key={photoIndex}
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      className="relative group cursor-pointer"
+                                      onClick={() => setSelectedPhoto(photoSrc)}
+                                    >
+                                      <div className="relative overflow-hidden rounded-lg border-2 border-gray-200 group-hover:border-purple-400 transition-colors">
+                                        <img
+                                          src={photoSrc}
+                                          alt={`Photo accident ${photoIndex + 1}`}
+                                          className="w-full h-24 object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                          <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Modal pour voir les photos en grand */}
+        {selectedPhoto && (
+          <div 
+            className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setSelectedPhoto(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="relative max-w-5xl max-h-[90vh] w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 shadow-lg transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <img
+                src={selectedPhoto}
+                alt="Photo accident"
+                className="w-full h-auto rounded-lg shadow-2xl"
+              />
+            </motion.div>
           </div>
         )}
 
@@ -1233,11 +1416,16 @@ export default function ResponsableDashboard() {
                   accidentPhotos.map(photo => compressImage(photo.file))
                 );
                 
+                // Calculer le responsable_id de la même manière que dans loadData
+                const responsableSession = localStorage.getItem('responsable_session');
+                const responsableDataForId = responsableSession ? JSON.parse(responsableSession) : responsable;
+                const responsableId = responsableDataForId?.type_id || responsableDataForId?.id || responsable?.type_id || responsable?.id || null;
+                
                 const accidentData = {
                   date: accidentForm.date,
                   heure: accidentForm.heure,
                   bus_id: bus?.id || null,
-                  responsable_id: responsable?.id || responsable?.type_id || null,
+                  responsable_id: responsableId,
                   lieu: accidentForm.lieu,
                   description: accidentForm.description,
                   degats: accidentForm.degats || null,
@@ -1265,7 +1453,14 @@ export default function ResponsableDashboard() {
                   nombre_eleves: '',
                   nombre_blesses: '0'
                 });
-                await loadData(responsable);
+                // Recharger les données, en utilisant responsableData pour avoir le bon type_id
+                const responsableSessionReload = localStorage.getItem('responsable_session');
+                if (responsableSessionReload) {
+                  const responsableDataReload = JSON.parse(responsableSessionReload);
+                  await loadData(responsableDataReload);
+                } else {
+                  await loadData(responsable);
+                }
                 showToast('Accident déclaré avec succès', 'success');
               } catch (err) {
                 console.error('Erreur déclaration accident:', err);
@@ -1409,7 +1604,7 @@ export default function ResponsableDashboard() {
                     htmlFor="accident-photos-upload"
                     className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors"
                   >
-                    <Image className="w-5 h-5 text-gray-400" />
+                    <ImageIcon className="w-5 h-5 text-gray-400" />
                     <span className="text-sm text-gray-600">Cliquez pour ajouter des photos</span>
                   </label>
                   

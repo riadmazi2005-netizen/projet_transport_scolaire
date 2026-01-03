@@ -18,6 +18,16 @@ try {
     ');
     $signalements = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // Décoder les photos pour chaque signalement
+    foreach ($signalements as &$signalement) {
+        if (isset($signalement['photos']) && $signalement['photos']) {
+            $decoded = json_decode($signalement['photos'], true);
+            if ($decoded !== null) {
+                $signalement['photos'] = $decoded;
+            }
+        }
+    }
+    
     echo json_encode([
         'success' => true,
         'data' => $signalements
