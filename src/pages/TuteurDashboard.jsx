@@ -860,7 +860,6 @@ function TuteurDashboardContent() {
             )}
           </motion.div>
         )}
-      </div>
 
       {/* NotificationPanel retiré - les notifications sont gérées par le sidebar */}
 
@@ -1180,7 +1179,7 @@ function TuteurDashboardContent() {
           </motion.div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

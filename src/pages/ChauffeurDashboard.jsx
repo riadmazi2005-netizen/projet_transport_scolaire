@@ -31,8 +31,9 @@ import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
 import { format, startOfMonth, subMonths, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import ChauffeurLayout from '../components/ChauffeurLayout';
 
-export default function ChauffeurDashboard() {
+function ChauffeurDashboardContent() {
   const navigate = useNavigate();
   const [chauffeur, setChauffeur] = useState(null);
   const [bus, setBus] = useState(null);
@@ -42,7 +43,6 @@ export default function ChauffeurDashboard() {
   const [presences, setPresences] = useState([]);
   const [accidents, setAccidents] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('bus');
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -183,6 +183,8 @@ export default function ChauffeurDashboard() {
     loadData(chauffeurData);
   }, [navigate]);
 
+  // handleLogout est maintenant géré par ChauffeurLayout
+
   const loadData = async (chauffeurData) => {
     try {
       // Charger les données complètes du chauffeur depuis l'API
@@ -312,23 +314,7 @@ export default function ChauffeurDashboard() {
     }
   }, [selectedDate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('chauffeur_session');
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate(createPageUrl('Home'));
-  };
-
-  const markNotificationAsRead = async (notifId) => {
-    try {
-      await notificationsAPI.marquerLue(notifId);
-      setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, lue: true } : n));
-    } catch (err) {
-      console.error('Erreur marquage notification:', err);
-    }
-  };
-
-  const unreadCount = notifications.filter(n => !n.lue).length;
+  // Les notifications sont maintenant gérées par ChauffeurLayout
 
   const getPresenceForDate = (eleveId, date) => {
     return presences.find(p => p.eleve_id === eleveId && p.date === date);
@@ -356,51 +342,7 @@ export default function ChauffeurDashboard() {
           color: rgb(22 101 52) !important;
         }
       `}</style>
-    <div className="chauffeur-dashboard min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl p-6 mb-8"
-        >
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <Bus className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">
-                  {chauffeur?.prenom} {chauffeur?.nom}
-                </h1>
-                <p className="text-gray-500">Chauffeur</p>
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowNotifications(true)}
-                className="relative rounded-xl border-green-500 text-green-600 hover:bg-green-50 focus:ring-green-500"
-              >
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
-              
-              <Button 
-                variant="ghost" 
-                onClick={handleLogout}
-                className="text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl"
-              >
-                <LogOut className="w-5 h-5" />
-              </Button>
-            </div>
-          </div>
-        </motion.div>
+    <div className="chauffeur-dashboard">
 
         {/* Warning if 3 accidents */}
         {chauffeur?.nombre_accidents >= 3 && (
@@ -2003,21 +1945,6 @@ export default function ChauffeurDashboard() {
         </div>
       )}
 
-      <NotificationPanel
-        isOpen={showNotifications}
-        onClose={() => setShowNotifications(false)}
-        notifications={notifications}
-        onMarkAsRead={markNotificationAsRead}
-        onDelete={async (notifId) => {
-          try {
-            await notificationsAPI.delete(notifId);
-            setNotifications(prev => prev.filter(n => n.id !== notifId));
-          } catch (err) {
-            console.error('Erreur lors de la suppression de la notification:', err);
-          }
-        }}
-      />
-
       {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
@@ -2048,7 +1975,14 @@ export default function ChauffeurDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
     </>
+  );
+}
+
+export default function ChauffeurDashboard() {
+  return (
+    <ChauffeurLayout>
+      <ChauffeurDashboardContent />
+    </ChauffeurLayout>
   );
 }

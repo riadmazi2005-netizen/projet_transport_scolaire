@@ -204,7 +204,10 @@ export default function Home() {
             className="relative w-full"
             style={{ height: '70vh', minHeight: '500px' }}
           >
-            <AnimatedBusHero />
+            {/* <AnimatedBusHero /> */}
+            <div className="w-full h-full bg-gradient-to-b from-blue-100 via-orange-50 to-amber-50 flex items-center justify-center">
+              <p className="text-2xl font-bold text-gray-800">Bus Image</p>
+            </div>
             {/* Overlay avec texte */}
             <div className="absolute inset-0 bg-gradient-to-t from-amber-900/60 via-amber-900/20 to-transparent pointer-events-none" />
             <div className="absolute bottom-12 left-8 md:left-12 text-white pointer-events-none">

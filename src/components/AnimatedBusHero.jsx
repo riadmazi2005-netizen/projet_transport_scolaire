@@ -192,50 +192,38 @@ export default function AnimatedBusHero({ onBusClick }) {
             {/* Roues avec rotation */}
             <g>
               {/* Roue arrière */}
-              <motion.g
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                style={{ transformOrigin: '110px 150px' }}
-              >
-                <circle cx="110" cy="150" r="25" fill="#333" />
-                <circle cx="110" cy="150" r="18" fill="#666" />
-                <circle cx="110" cy="150" r="12" fill="#888" />
-                {[...Array(5)].map((_, i) => (
-                  <line
-                    key={`spoke-${i}`}
-                    x1="110"
-                    y1="150"
-                    x2="110"
-                    y2="135"
-                    stroke="#AAA"
-                    strokeWidth="2"
-                    transform={`rotate(${i * 72} 110 150)`}
-                  />
-                ))}
-              </motion.g>
+              <circle cx="110" cy="150" r="25" fill="#333" />
+              <circle cx="110" cy="150" r="18" fill="#666" />
+              <circle cx="110" cy="150" r="12" fill="#888" />
+              {[...Array(5)].map((_, i) => (
+                <line
+                  key={`spoke-${i}`}
+                  x1="110"
+                  y1="150"
+                  x2="110"
+                  y2="135"
+                  stroke="#AAA"
+                  strokeWidth="2"
+                  transform={`rotate(${i * 72} 110 150)`}
+                />
+              ))}
               
               {/* Roue avant */}
-              <motion.g
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                style={{ transformOrigin: '290px 150px' }}
-              >
-                <circle cx="290" cy="150" r="25" fill="#333" />
-                <circle cx="290" cy="150" r="18" fill="#666" />
-                <circle cx="290" cy="150" r="12" fill="#888" />
-                {[...Array(5)].map((_, i) => (
-                  <line
-                    key={`spoke-front-${i}`}
-                    x1="290"
-                    y1="150"
-                    x2="290"
-                    y2="135"
-                    stroke="#AAA"
-                    strokeWidth="2"
-                    transform={`rotate(${i * 72} 290 150)`}
-                  />
-                ))}
-              </motion.g>
+              <circle cx="290" cy="150" r="25" fill="#333" />
+              <circle cx="290" cy="150" r="18" fill="#666" />
+              <circle cx="290" cy="150" r="12" fill="#888" />
+              {[...Array(5)].map((_, i) => (
+                <line
+                  key={`spoke-front-${i}`}
+                  x1="290"
+                  y1="150"
+                  x2="290"
+                  y2="135"
+                  stroke="#AAA"
+                  strokeWidth="2"
+                  transform={`rotate(${i * 72} 290 150)`}
+                />
+              ))}
             </g>
           </svg>
         </motion.div>
