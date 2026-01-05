@@ -52,7 +52,7 @@ try {
     $id = $pdo->lastInsertId();
     $stmt = $pdo->prepare('SELECT * FROM bus WHERE id = ?');
     $stmt->execute([$id]);
-    $bus = $stmt->fetch();
+    $bus = $stmt->fetch(PDO::FETCH_ASSOC);
     
     echo json_encode([
         'success' => true,

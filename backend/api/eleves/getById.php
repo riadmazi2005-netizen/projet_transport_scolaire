@@ -12,7 +12,7 @@ if (!$id) {
 $pdo = getDBConnection();
 $stmt = $pdo->prepare('SELECT * FROM eleves WHERE id = ?');
 $stmt->execute([$id]);
-$eleve = $stmt->fetch();
+$eleve = $stmt->fetch(PDO::FETCH_ASSOC);
 
 if (!$eleve) {
     http_response_code(404);

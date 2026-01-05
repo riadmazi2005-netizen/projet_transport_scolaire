@@ -6,7 +6,8 @@ if (!$id) { http_response_code(400); echo json_encode(['success' => false, 'mess
 $pdo = getDBConnection();
 $stmt = $pdo->prepare('SELECT * FROM trajets WHERE id = ?');
 $stmt->execute([$id]);
-echo json_encode(['success' => true, 'data' => $stmt->fetch() ?: null]);
+$trajet = $stmt->fetch(PDO::FETCH_ASSOC);
+echo json_encode(['success' => true, 'data' => $trajet ?: null]);
 ?>
 
 

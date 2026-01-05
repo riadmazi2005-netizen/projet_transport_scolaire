@@ -8,7 +8,10 @@ try {
     $pdo = getDBConnection();
     $id = $data['id'];
     unset($data['id']);
-    if (isset($data['zones']) && is_array($data['zones'])) { $data['zones'] = implode(',', $data['zones']); }
+    // Gérer les zones : si c'est un tableau, le convertir en JSON
+    if (isset($data['zones']) && is_array($data['zones'])) { 
+        $data['zones'] = json_encode($data['zones']); 
+    }
     $fields = []; $values = [];
     foreach ($data as $key => $value) { $fields[] = "$key = ?"; $values[] = $value; }
     $values[] = $id;
@@ -16,7 +19,8 @@ try {
     $stmt->execute($values);
     $stmt = $pdo->prepare('SELECT * FROM trajets WHERE id = ?');
     $stmt->execute([$id]);
-    echo json_encode(['success' => true, 'data' => $stmt->fetch()]);
+    $trajet = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo json_encode(['success' => true, 'data' => $trajet]);
 } catch (PDOException $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Erreur lors de la mise à jour']);

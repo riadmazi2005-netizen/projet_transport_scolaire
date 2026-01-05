@@ -35,7 +35,7 @@ try {
     
     $stmt = $pdo->prepare('SELECT * FROM eleves WHERE id = ?');
     $stmt->execute([$id]);
-    $eleve = $stmt->fetch();
+    $eleve = $stmt->fetch(PDO::FETCH_ASSOC);
     
     echo json_encode([
         'success' => true,
