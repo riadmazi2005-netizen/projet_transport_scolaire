@@ -25,15 +25,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Bus, Bell, LogOut, Users, AlertCircle, DollarSign,
   Navigation, User, CheckCircle, Calendar, MapPin, Plus, X, Search,
-  Fuel, FileText, ClipboardCheck, Wrench, Clock, TrendingUp, Building2, AlertTriangle, Image as ImageIcon, Trash2, ZoomIn
+  Fuel, FileText, ClipboardCheck, Wrench, Clock, TrendingUp, Building2, AlertTriangle, Image as ImageIcon, Trash2, ZoomIn, UserCircle, Save
 } from 'lucide-react';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
 import { format, startOfMonth, subMonths, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import ChauffeurSidebar from '../components/ChauffeurSidebar';
 import ChauffeurLayout from '../components/ChauffeurLayout';
 
-function ChauffeurDashboardContent() {
+function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
   const navigate = useNavigate();
   const [chauffeur, setChauffeur] = useState(null);
   const [bus, setBus] = useState(null);
@@ -44,7 +45,6 @@ function ChauffeurDashboardContent() {
   const [accidents, setAccidents] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('bus');
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [showAccidentForm, setShowAccidentForm] = useState(false);
   const [searchEleve, setSearchEleve] = useState('');
@@ -75,6 +75,26 @@ function ChauffeurDashboardContent() {
   const [signalementUrgenceFilter, setSignalementUrgenceFilter] = useState('all');
   const [signalementPhotos, setSignalementPhotos] = useState([]);
   const [selectedSignalementPhoto, setSelectedSignalementPhoto] = useState(null);
+  
+  // État pour le formulaire de profil
+  const [profileForm, setProfileForm] = useState({
+    nom: '',
+    prenom: '',
+    email: '',
+    telephone: ''
+  });
+  
+  // Initialiser le formulaire de profil quand chauffeur est chargé
+  useEffect(() => {
+    if (chauffeur) {
+      setProfileForm({
+        nom: chauffeur.nom || '',
+        prenom: chauffeur.prenom || '',
+        email: chauffeur.email || '',
+        telephone: chauffeur.telephone || ''
+      });
+    }
+  }, [chauffeur]);
   
   // États pour les notifications toast
   const [toastMessage, setToastMessage] = useState(null);
@@ -182,6 +202,9 @@ function ChauffeurDashboardContent() {
     setChauffeur(chauffeurData);
     loadData(chauffeurData);
   }, [navigate]);
+  
+  // Vérifier si le chauffeur est licencié (3 accidents ou plus)
+  const isLicencie = chauffeur?.nombre_accidents >= 3 || accidents.length >= 3;
 
   // handleLogout est maintenant géré par ChauffeurLayout
 
@@ -244,7 +267,13 @@ function ChauffeurDashboardContent() {
       // Charger les accidents du chauffeur
       try {
         const accidentsData = await accidentsAPI.getByChauffeur(chauffeurId);
-        setAccidents(accidentsData?.data || accidentsData || []);
+        const accidentsList = accidentsData?.data || accidentsData || [];
+        setAccidents(accidentsList);
+        
+        // Vérifier si le chauffeur a 3 accidents ou plus et bloquer l'accès
+        if (accidentsList.length >= 3) {
+          // Le chauffeur est licencié, on ne fait rien de plus ici car l'alerte sera affichée
+        }
       } catch (err) {
         console.error('Erreur chargement accidents:', err);
       }
@@ -343,88 +372,248 @@ function ChauffeurDashboardContent() {
         }
       `}</style>
     <div className="chauffeur-dashboard">
-
-        {/* Warning if 3 accidents */}
-        {chauffeur?.nombre_accidents >= 3 && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-700"
-          >
-            <AlertCircle className="w-6 h-6 flex-shrink-0" />
-            <div>
-              <p className="font-semibold">Attention : Vous avez atteint 3 accidents</p>
-              <p className="text-sm">Selon le règlement, cela entraîne un licenciement et une amende de 1000 DH</p>
+        {/* Header */}
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-3xl shadow-xl p-6 mb-8"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <Users className="w-8 h-8 text-white" />
             </div>
-          </motion.div>
-        )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">
+                Bienvenue, {chauffeur?.prenom} {chauffeur?.nom}
+              </h1>
+              <p className="text-gray-500">{chauffeur?.email}</p>
+            </div>
+          </div>
+        </motion.div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <StatCard 
-            title="Mon Bus" 
-            value={bus?.numero || '-'} 
-            icon={Bus} 
-            color="green"
-          />
-          {(() => {
-            const essenceCeMois = priseEssence.filter(e => {
-              const date = new Date(e.date);
-              const now = new Date();
-              return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-            });
-            const totalLitres = essenceCeMois.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0);
-            const totalCout = essenceCeMois.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0);
-            const nbPrises = essenceCeMois.length;
-            
-            return (
+        {/* Content - Dashboard par défaut (stats seulement) */}
+        {activeTab === null && (
+          <>
+            {/* Alerte de licenciement si 3 accidents */}
+            {isLicencie && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 p-6 bg-red-50 border-2 border-red-500 rounded-xl text-red-700"
+              >
+                <div className="flex items-start gap-4">
+                  <AlertCircle className="w-8 h-8 flex-shrink-0 text-red-600" />
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold mb-2">Tu es licencié</h3>
+                    <p className="text-base mb-2">
+                      Tu as atteint 3 accidents. Selon le règlement, tu es licencié et tu dois payer une amende de 1000 DH à l'école.
+                    </p>
+                    <p className="text-base font-semibold text-red-800">
+                      Sinon l'école va te poursuivre.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <StatCard 
-                title="Essence (ce mois)" 
-                value={`${totalLitres.toFixed(1)} L`}
-                subtitle={nbPrises > 0 ? `${nbPrises} prise${nbPrises > 1 ? 's' : ''} • ${totalCout.toFixed(2)} DH` : 'Aucune prise'}
-                icon={Fuel} 
+                title="Mon Bus" 
+                value={bus?.numero || '-'} 
+                icon={Bus} 
                 color="green"
               />
-            );
-          })()}
-          <StatCard 
-            title="Mes Accidents" 
-            value={`${chauffeur?.nombre_accidents || 0} / 3`} 
-            icon={AlertCircle} 
-            color={chauffeur?.nombre_accidents >= 2 ? 'red' : 'green'}
-          />
-          <StatCard 
-            title="Mon Salaire" 
-            value={`${chauffeur?.salaire || 0} DH`} 
-            icon={DollarSign} 
-            color="green"
-          />
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {['bus', 'essence', 'signalements', 'accidents'].map((tab) => (
-            <Button
-              key={tab}
-              variant={activeTab === tab ? 'default' : 'outline'}
-              onClick={() => setActiveTab(tab)}
-              className={`rounded-xl whitespace-nowrap ${
-                activeTab === tab 
-                  ? tab === 'accidents'
-                    ? 'bg-red-500 hover:bg-red-600 text-white'
-                    : 'bg-green-500 hover:bg-green-600 text-white'
-                  : tab === 'accidents'
-                    ? 'border-red-500 text-red-600 hover:bg-red-50 focus:ring-red-500'
-                    : 'border-green-500 text-green-600 hover:bg-green-50 focus:ring-green-500'
-              }`}
+              {(() => {
+                const essenceCeMois = priseEssence.filter(e => {
+                  const date = new Date(e.date);
+                  const now = new Date();
+                  return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                });
+                const totalLitres = essenceCeMois.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0);
+                const totalCout = essenceCeMois.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0);
+                const nbPrises = essenceCeMois.length;
+                
+                return (
+                  <StatCard 
+                    title="Essence (ce mois)" 
+                    value={`${totalLitres.toFixed(1)} L`}
+                    subtitle={nbPrises > 0 ? `${nbPrises} prise${nbPrises > 1 ? 's' : ''} • ${totalCout.toFixed(2)} DH` : 'Aucune prise'}
+                    icon={Fuel} 
+                    color="green"
+                  />
+                );
+              })()}
+              <StatCard 
+                title="Mes Accidents" 
+                value={`${chauffeur?.nombre_accidents || 0} / 3`} 
+                icon={AlertCircle} 
+                color={chauffeur?.nombre_accidents >= 2 ? 'red' : 'green'}
+              />
+              <StatCard 
+                title="Mon Salaire" 
+                value={`${chauffeur?.salaire || 0} DH`} 
+                icon={DollarSign} 
+                color="green"
+              />
+            </div>
+            
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-3xl shadow-xl p-8"
             >
-              {tab === 'bus' && 'Mon Bus & Trajet'}
-              {tab === 'essence' && 'Essence'}
-              {tab === 'signalements' && 'Problèmes'}
-              {tab === 'accidents' && 'Mes Accidents'}
-            </Button>
-          ))}
-        </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+              <Bus className="w-6 h-6 text-green-500" />
+              Vue d'ensemble
+            </h2>
+            {bus && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-green-800 mb-4">Informations du Bus</h3>
+                  <div className="space-y-4">
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-600 mb-1">Numéro</span>
+                      <span className="text-2xl font-bold text-green-700">{bus.numero}</span>
+                    </div>
+                    {trajet && (
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-600 mb-1">Trajet</span>
+                        <span className="text-lg font-semibold text-gray-800">{trajet.nom || 'N/A'}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6 md:col-span-2">
+                  <h3 className="text-lg font-semibold text-green-800 mb-4">Informations Personnelles</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-600 mb-1">Nom complet</span>
+                      <span className="font-semibold text-gray-800">{chauffeur?.prenom} {chauffeur?.nom}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-600 mb-1">Email</span>
+                      <span className="font-semibold text-gray-800">{chauffeur?.email}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-600 mb-1">Téléphone</span>
+                      <span className="font-semibold text-gray-800">{chauffeur?.telephone}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm text-gray-600 mb-1">Salaire</span>
+                      <span className="font-semibold text-green-600 text-lg">{chauffeur?.salaire || 0} DH</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
+          </>
+        )}
+
+        {/* Content - Profil */}
+        {activeTab === 'profile' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-3xl shadow-xl p-8"
+          >
+            {/* Header */}
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <Users className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">Mon Profil</h2>
+              <p className="text-gray-500">Modifiez vos informations personnelles</p>
+            </div>
+
+            {/* Formulaire */}
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                if (!chauffeur?.id && !chauffeur?.type_id) {
+                  showToast('Erreur: ID chauffeur non trouvé', 'error');
+                  return;
+                }
+                
+                const chauffeurId = chauffeur?.id || chauffeur?.type_id;
+                const updateData = {
+                  nom: profileForm.nom,
+                  prenom: profileForm.prenom,
+                  email: profileForm.email,
+                  telephone: profileForm.telephone
+                };
+                
+                await chauffeursAPI.update(chauffeurId, updateData);
+                
+                // Recharger les données
+                const session = localStorage.getItem('chauffeur_session');
+                if (session) {
+                  const chauffeurData = JSON.parse(session);
+                  await loadData(chauffeurData);
+                }
+                
+                showToast('Profil mis à jour avec succès', 'success');
+              } catch (err) {
+                console.error('Erreur mise à jour profil:', err);
+                showToast('Erreur lors de la mise à jour: ' + (err.message || 'Erreur inconnue'), 'error');
+              }
+            }} className="space-y-6">
+              <div>
+                <Label htmlFor="nom">Nom</Label>
+                <Input
+                  id="nom"
+                  value={profileForm.nom}
+                  onChange={(e) => setProfileForm({...profileForm, nom: e.target.value})}
+                  className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="prenom">Prénom</Label>
+                <Input
+                  id="prenom"
+                  value={profileForm.prenom}
+                  onChange={(e) => setProfileForm({...profileForm, prenom: e.target.value})}
+                  className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={profileForm.email}
+                  onChange={(e) => setProfileForm({...profileForm, email: e.target.value})}
+                  className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="telephone">Téléphone</Label>
+                <Input
+                  id="telephone"
+                  value={profileForm.telephone}
+                  onChange={(e) => setProfileForm({...profileForm, telephone: e.target.value})}
+                  className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
+                  required
+                />
+              </div>
+              
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl py-6 text-lg font-semibold shadow-lg flex items-center justify-center gap-3"
+              >
+                <Save className="w-5 h-5" />
+                Enregistrer les modifications
+              </Button>
+            </form>
+          </motion.div>
+        )}
 
         {/* Content */}
         {activeTab === 'bus' && (
@@ -549,14 +738,34 @@ function ChauffeurDashboardContent() {
                 <AlertCircle className="w-6 h-6 text-red-500" />
                 Historique des Accidents
               </h2>
-              <Button
-                onClick={() => setShowAccidentForm(true)}
-                className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Déclarer un accident
-              </Button>
+              {!isLicencie && (
+                <Button
+                  onClick={() => setShowAccidentForm(true)}
+                  className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Déclarer un accident
+                </Button>
+              )}
             </div>
+            
+            {/* Alerte de licenciement dans la section accidents */}
+            {isLicencie && (
+              <div className="p-6 bg-red-50 border-b-2 border-red-500">
+                <div className="flex items-start gap-4">
+                  <AlertCircle className="w-8 h-8 flex-shrink-0 text-red-600" />
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold mb-2 text-red-800">Tu es licencié</h3>
+                    <p className="text-base mb-2 text-red-700">
+                      Tu as atteint 3 accidents. Selon le règlement, tu es licencié et tu dois payer une amende de 1000 DH à l'école.
+                    </p>
+                    <p className="text-base font-semibold text-red-900">
+                      Sinon l'école va te poursuivre.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             {accidents.length === 0 ? (
               <div className="p-12 text-center">
                 <CheckCircle className="w-16 h-16 mx-auto text-green-300 mb-4" />
@@ -1333,7 +1542,7 @@ function ChauffeurDashboardContent() {
         )}
 
       </div>
-
+      
       {/* Modal Déclaration Accident */}
       {showAccidentForm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1365,6 +1574,15 @@ function ChauffeurDashboardContent() {
             <form onSubmit={async (e) => {
               e.preventDefault();
               try {
+                // Vérifier le nombre d'accidents avant de permettre la déclaration
+                const currentAccidentsCount = accidents.length;
+                if (currentAccidentsCount >= 3) {
+                  showToast('Vous avez atteint 3 accidents. Vous êtes licencié et devez payer une amende de 1000 DH à l\'école. Sinon l\'école va vous poursuivre.', 'error');
+                  // Fermer le formulaire et bloquer l'accès
+                  setShowAccidentForm(false);
+                  return;
+                }
+                
                 // Vérifier la taille totale des fichiers
                 const totalSize = accidentPhotos.reduce((sum, photo) => sum + photo.file.size, 0);
                 const maxSize = 10 * 1024 * 1024; // 10 MB max
@@ -1394,7 +1612,7 @@ function ChauffeurDashboardContent() {
                   photos: photosBase64.length > 0 ? photosBase64.map(p => p.data) : null
                 };
 
-                await accidentsAPI.create(accidentData);
+                const response = await accidentsAPI.create(accidentData);
                 setShowAccidentForm(false);
                 setAccidentForm({
                   date: format(new Date(), 'yyyy-MM-dd'),
@@ -1410,7 +1628,14 @@ function ChauffeurDashboardContent() {
                 accidentPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
                 setAccidentPhotos([]);
                 await loadData(chauffeur);
-                showToast('Accident déclaré avec succès ! L\'administrateur a été notifié.', 'success');
+                
+                // Vérifier si c'est le 3ème accident
+                const newAccidentsCount = (chauffeur?.nombre_accidents || accidents.length) + 1;
+                if (newAccidentsCount >= 3) {
+                  showToast('Tu es licencié et tu dois payer une amende de 1000 DH à l\'école. Sinon l\'école va te poursuivre.', 'error');
+                } else {
+                  showToast('Accident déclaré avec succès ! L\'administrateur a été notifié.', 'success');
+                }
               } catch (err) {
                 console.error('Erreur déclaration accident:', err);
                 showToast('Erreur lors de la déclaration: ' + (err.message || 'Erreur inconnue'), 'error');
@@ -1980,9 +2205,11 @@ function ChauffeurDashboardContent() {
 }
 
 export default function ChauffeurDashboard() {
+  const [activeTab, setActiveTab] = React.useState(null); // null = dashboard avec stats seulement
+  
   return (
-    <ChauffeurLayout>
-      <ChauffeurDashboardContent />
+    <ChauffeurLayout activeTab={activeTab} setActiveTab={setActiveTab}>
+      <ChauffeurDashboardContent activeTab={activeTab} setActiveTab={setActiveTab} />
     </ChauffeurLayout>
   );
 }

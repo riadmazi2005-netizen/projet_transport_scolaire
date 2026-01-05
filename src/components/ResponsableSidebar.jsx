@@ -3,20 +3,32 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  UserCog,
-  Bell,
+  Home,
+  Check,
+  Users,
+  Bus,
+  MessageSquare,
+  AlertCircle,
   User,
   LogOut,
+  UserCog,
   Menu,
   X,
-  Home
+  Bell
 } from 'lucide-react';
 
-export default function ResponsableSidebar({ responsable, notifications = [], onLogout }) {
+export default function ResponsableSidebar({ responsable, notifications = [], onLogout, activeTab, setActiveTab, onCollapseChange }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  
+  // Notifier le parent du changement d'état collapsed
+  useEffect(() => {
+    if (onCollapseChange) {
+      onCollapseChange(isCollapsed);
+    }
+  }, [isCollapsed, onCollapseChange]);
 
   // Fermer le menu mobile sur les grands écrans
   useEffect(() => {
@@ -33,34 +45,70 @@ export default function ResponsableSidebar({ responsable, notifications = [], on
     {
       title: 'Dashboard',
       icon: Home,
-      link: 'ResponsableDashboard',
-      path: '/ResponsableDashboard'
+      id: null
+    },
+    {
+      title: 'Présences',
+      icon: Check,
+      id: 'presence'
+    },
+    {
+      title: 'Élèves',
+      icon: Users,
+      id: 'eleves'
+    },
+    {
+      title: 'Mon Bus',
+      icon: Bus,
+      id: 'bus'
+    },
+    {
+      title: 'Communication',
+      icon: MessageSquare,
+      id: 'communication'
+    },
+    {
+      title: 'Accidents',
+      icon: AlertCircle,
+      id: 'accidents'
+    },
+    {
+      title: 'Profil',
+      icon: User,
+      id: 'profile'
     },
   ];
 
   const handleNavigation = (item) => {
-    if (item.path) {
-      navigate(item.path);
-    } else {
-      navigate(createPageUrl(item.link));
+    if (setActiveTab) {
+      setActiveTab(item.id);
     }
-    setIsMobileOpen(false);
-  };
-
-  const isActive = (path) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/');
+    // Fermer le menu mobile après navigation
+    if (window.innerWidth < 1024) {
+      setIsMobileOpen(false);
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.lue).length;
 
   return (
     <>
-      {/* Mobile Menu Button */}
+      {/* Hamburger Menu Button - Visible sur tous les écrans */}
       <button
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-purple-500 text-white rounded-xl shadow-lg hover:bg-purple-600 transition-colors"
+        onClick={() => {
+          const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
+          if (isDesktop) {
+            // Desktop: toggle collapse
+            setIsCollapsed(!isCollapsed);
+            setIsMobileOpen(false);
+          } else {
+            // Mobile: toggle menu
+            setIsMobileOpen(!isMobileOpen);
+          }
+        }}
+        className="fixed top-4 left-4 z-50 p-2.5 bg-purple-500 text-white rounded-xl shadow-lg hover:bg-purple-600 transition-colors"
       >
-        {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        {(!isMobileOpen && isCollapsed) ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
       </button>
 
       {/* Overlay pour mobile */}
@@ -91,69 +139,52 @@ export default function ResponsableSidebar({ responsable, notifications = [], on
           ${isCollapsed ? 'items-center' : ''}
         `}
       >
-        {/* Header */}
-        <div className="p-4 border-b border-purple-200">
-          <div className="flex items-center justify-between">
-            {!isCollapsed && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center gap-3"
-              >
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <UserCog className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h2 className="font-bold text-gray-800 text-sm">Espace Responsable</h2>
-                  <p className="text-xs text-gray-500">Transport Scolaire</p>
-                </div>
-              </motion.div>
-            )}
-            {isCollapsed && (
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg mx-auto">
-                <UserCog className="w-6 h-6 text-white" />
-              </div>
-            )}
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="hidden lg:block p-2 hover:bg-purple-100 rounded-lg transition-colors text-gray-600 hover:text-purple-600"
-            >
-              {isCollapsed ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-
-        {/* User Info */}
+        {/* User Info - En haut */}
         {!isCollapsed && responsable && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="p-4 border-b border-purple-200"
+            className="p-4 border-b border-purple-200 mt-16"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+              <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
                 {responsable.prenom?.[0] || responsable.nom?.[0] || 'R'}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-800 text-sm truncate">
+                <p className="font-bold text-gray-800 text-base truncate">
                   {responsable.prenom} {responsable.nom}
                 </p>
-                <p className="text-xs text-gray-500 truncate">{responsable.email}</p>
+                <p className="text-sm text-gray-500 truncate">{responsable.email}</p>
               </div>
             </div>
           </motion.div>
+        )}
+        
+        {isCollapsed && responsable && (
+          <div className="mt-16 w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md mx-auto">
+            {responsable.prenom?.[0] || responsable.nom?.[0] || 'R'}
+          </div>
         )}
 
         {/* Navigation Menu */}
         <nav className="flex-1 overflow-y-auto py-4 px-2">
           <div className="space-y-1">
             {menuItems.map((item, index) => {
-              const active = isActive(item.path);
+              const active = activeTab === item.id;
               const Icon = item.icon;
+              const isAccidents = item.id === 'accidents';
+              
+              // Déterminer le badge à afficher
+              let badgeCount = 0;
+              if (item.id === 'communication') {
+                badgeCount = unreadCount;
+              }
+              
+              const showBadge = badgeCount > 0;
               
               return (
                 <motion.button
-                  key={item.link}
+                  key={item.id || 'dashboard'}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
@@ -162,7 +193,9 @@ export default function ResponsableSidebar({ responsable, notifications = [], on
                     w-full flex items-center gap-3 px-4 py-3 rounded-xl
                     transition-all duration-200
                     ${active
-                      ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg'
+                      ? isAccidents
+                        ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg'
+                        : 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg'
                       : 'text-gray-700 hover:bg-purple-100 hover:text-purple-700'
                     }
                     ${isCollapsed ? 'justify-center' : ''}
@@ -171,6 +204,11 @@ export default function ResponsableSidebar({ responsable, notifications = [], on
                 >
                   <div className="relative">
                     <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-gray-600'}`} />
+                    {showBadge && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                      </span>
+                    )}
                   </div>
                   {!isCollapsed && (
                     <span className="font-medium text-sm flex-1 text-left">{item.title}</span>
@@ -208,4 +246,3 @@ export default function ResponsableSidebar({ responsable, notifications = [], on
     </>
   );
 }
-

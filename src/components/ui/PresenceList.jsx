@@ -144,11 +144,6 @@ export default function PresenceList({
             <Check className="w-6 h-6" />
             Gestion des Présences
           </h3>
-          <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-full">
-            <span className="text-white text-sm font-medium">
-              Période: <span className="font-bold">{getCurrentPeriod() === 'matin' ? 'Matin' : 'Soir'}</span>
-            </span>
-          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

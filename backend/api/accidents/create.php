@@ -120,12 +120,18 @@ try {
                         $stmt->execute(['Licencié', $chauffeur_id]);
                     }
                     
-                    // Récupérer l'utilisateur_id du chauffeur pour la notification
-                    $stmt = $pdo->prepare('SELECT utilisateur_id FROM chauffeurs WHERE id = ?');
+                    // Récupérer les informations du chauffeur pour les notifications
+                    $stmt = $pdo->prepare('
+                        SELECT c.utilisateur_id, u.nom, u.prenom, c.id as chauffeur_id
+                        FROM chauffeurs c
+                        INNER JOIN utilisateurs u ON c.utilisateur_id = u.id
+                        WHERE c.id = ?
+                    ');
                     $stmt->execute([$chauffeur_id]);
                     $chauffeurData = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     if ($chauffeurData) {
+                        // Notification au chauffeur
                         $stmt = $pdo->prepare('
                             INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
                             VALUES (?, ?, ?, ?, ?)
@@ -134,9 +140,32 @@ try {
                             $chauffeurData['utilisateur_id'],
                             'chauffeur',
                             'Licenciement',
-                            'Suite à votre 3ème accident, vous êtes licencié avec une amende de 1000 DH conformément au règlement.',
+                            'Tu es licencié et tu dois payer une amende de 1000 DH à l\'école. Sinon l\'école va te poursuivre.',
                             'alerte'
                         ]);
+                        
+                        // Notification à tous les admins
+                        $stmt = $pdo->query('
+                            SELECT u.id 
+                            FROM utilisateurs u
+                            INNER JOIN administrateurs a ON a.utilisateur_id = u.id
+                        ');
+                        $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                        
+                        $chauffeurNom = $chauffeurData['prenom'] . ' ' . $chauffeurData['nom'];
+                        foreach ($admins as $admin) {
+                            $stmt = $pdo->prepare('
+                                INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
+                                VALUES (?, ?, ?, ?, ?)
+                            ');
+                            $stmt->execute([
+                                $admin['id'],
+                                'admin',
+                                'Chauffeur à licencier',
+                                'Le chauffeur ' . $chauffeurNom . ' a atteint 3 accidents et doit être licencié. Veuillez procéder au licenciement.',
+                                'alerte'
+                            ]);
+                        }
                     }
                 }
             }

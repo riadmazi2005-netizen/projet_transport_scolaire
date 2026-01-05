@@ -4,12 +4,13 @@ import { createPageUrl } from '../utils';
 import ChauffeurSidebar from './ChauffeurSidebar';
 import { notificationsAPI } from '../services/apiService';
 
-export default function ChauffeurLayout({ children, title = 'Espace Chauffeur' }) {
+export default function ChauffeurLayout({ children, title = 'Espace Chauffeur', activeTab, setActiveTab }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [chauffeur, setChauffeur] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     const session = localStorage.getItem('chauffeur_session');
@@ -70,9 +71,14 @@ export default function ChauffeurLayout({ children, title = 'Espace Chauffeur' }
         chauffeur={chauffeur}
         notifications={notifications}
         onLogout={handleLogout}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onCollapseChange={setSidebarCollapsed}
       />
       
-      <main className="lg:ml-[280px] min-h-screen p-4 md:p-8">
+      <main className={`min-h-screen p-4 md:p-8 pt-20 lg:pt-8 transition-all duration-300 ${
+        sidebarCollapsed ? 'lg:ml-[80px]' : 'lg:ml-[280px]'
+      }`}>
         <div className="max-w-7xl mx-auto">
           {children}
         </div>
