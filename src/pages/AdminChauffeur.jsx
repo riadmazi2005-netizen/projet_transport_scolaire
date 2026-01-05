@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { 
   Users, UserCog, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle, ArrowLeft, Bus
 } from 'lucide-react';
@@ -24,6 +25,8 @@ export default function AdminChauffeur() {
   const [editingResponsable, setEditingResponsable] = useState(null);
   const [showPassword, setShowPassword] = useState({});
   const [error, setError] = useState(null);
+  const [deleteChauffeurConfirm, setDeleteChauffeurConfirm] = useState({ show: false, id: null });
+  const [deleteResponsableConfirm, setDeleteResponsableConfirm] = useState({ show: false, id: null });
 
   const [chauffeurForm, setChauffeurForm] = useState({
     nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: ''
@@ -169,27 +172,39 @@ export default function AdminChauffeur() {
     }
   };
 
-  const handleDeleteChauffeur = async (id) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce chauffeur ?')) {
-      try {
-        await chauffeursAPI.delete(id);
-        await loadData();
-      } catch (err) {
-        console.error('Erreur lors de la suppression:', err);
-        setError('Erreur lors de la suppression du chauffeur');
-      }
+  const handleDeleteChauffeurClick = (id) => {
+    setDeleteChauffeurConfirm({ show: true, id });
+  };
+
+  const handleDeleteChauffeur = async () => {
+    if (!deleteChauffeurConfirm.id) return;
+    
+    try {
+      await chauffeursAPI.delete(deleteChauffeurConfirm.id);
+      await loadData();
+      setDeleteChauffeurConfirm({ show: false, id: null });
+    } catch (err) {
+      console.error('Erreur lors de la suppression:', err);
+      setError('Erreur lors de la suppression du chauffeur');
+      setDeleteChauffeurConfirm({ show: false, id: null });
     }
   };
 
-  const handleDeleteResponsable = async (id) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce responsable ?')) {
-      try {
-        await responsablesAPI.delete(id);
-        await loadData();
-      } catch (err) {
-        console.error('Erreur lors de la suppression:', err);
-        setError('Erreur lors de la suppression du responsable');
-      }
+  const handleDeleteResponsableClick = (id) => {
+    setDeleteResponsableConfirm({ show: true, id });
+  };
+
+  const handleDeleteResponsable = async () => {
+    if (!deleteResponsableConfirm.id) return;
+    
+    try {
+      await responsablesAPI.delete(deleteResponsableConfirm.id);
+      await loadData();
+      setDeleteResponsableConfirm({ show: false, id: null });
+    } catch (err) {
+      console.error('Erreur lors de la suppression:', err);
+      setError('Erreur lors de la suppression du responsable');
+      setDeleteResponsableConfirm({ show: false, id: null });
     }
   };
 
@@ -505,7 +520,7 @@ export default function AdminChauffeur() {
                     <Button variant="outline" size="icon" onClick={() => editChauffeur(item)} className="rounded-xl border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 w-11 h-11 shadow-md">
                       <Edit className="w-5 h-5" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeur(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                    <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeurClick(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
                       <Trash2 className="w-5 h-5" />
                     </Button>
                   </div>
@@ -727,7 +742,7 @@ export default function AdminChauffeur() {
                       <Button variant="outline" size="icon" onClick={() => editResponsable(item)} className="rounded-xl border-2 border-violet-300 text-violet-700 hover:bg-violet-50 hover:border-violet-400 w-11 h-11 shadow-md">
                         <Edit className="w-5 h-5" />
                       </Button>
-                      <Button variant="outline" size="icon" onClick={() => handleDeleteResponsable(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                      <Button variant="outline" size="icon" onClick={() => handleDeleteResponsableClick(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
                         <Trash2 className="w-5 h-5" />
                       </Button>
                     </div>
@@ -747,6 +762,30 @@ export default function AdminChauffeur() {
           </div>
         </motion.div>
       )}
+
+      {/* Dialog de confirmation de suppression de chauffeur */}
+      <ConfirmDialog
+        isOpen={deleteChauffeurConfirm.show}
+        title="Supprimer le chauffeur"
+        message="Êtes-vous sûr de vouloir supprimer ce chauffeur ? Cette action est irréversible."
+        onConfirm={handleDeleteChauffeur}
+        onCancel={() => setDeleteChauffeurConfirm({ show: false, id: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
+
+      {/* Dialog de confirmation de suppression de responsable */}
+      <ConfirmDialog
+        isOpen={deleteResponsableConfirm.show}
+        title="Supprimer le responsable"
+        message="Êtes-vous sûr de vouloir supprimer ce responsable ? Cette action est irréversible."
+        onConfirm={handleDeleteResponsable}
+        onCancel={() => setDeleteResponsableConfirm({ show: false, id: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
     </AdminLayout>
   );
 }

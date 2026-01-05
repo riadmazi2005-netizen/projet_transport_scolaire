@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import AlertDialog from '../components/ui/AlertDialog';
 import { 
   AlertTriangle, Calendar, Bus, User, ArrowLeft, Eye, CheckCircle, X, Wrench, Clock, AlertCircle, Image as ImageIcon, ZoomIn
 } from 'lucide-react';
@@ -24,6 +26,8 @@ export default function AdminProblemes() {
   const [filterStatut, setFilterStatut] = useState('all');
   const [filterUrgence, setFilterUrgence] = useState('all');
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+  const [alertDialog, setAlertDialog] = useState({ show: false, message: '', type: 'success' });
 
   useEffect(() => {
     loadData();
@@ -58,22 +62,30 @@ export default function AdminProblemes() {
     try {
       await signalementsAPI.update(signalementId, { statut: nouveauStatut });
       await loadData();
-      alert(`Signalement marqué comme ${nouveauStatut === 'resolu' ? 'résolu' : nouveauStatut === 'en_cours' ? 'en cours' : 'en attente'}`);
+      const statutText = nouveauStatut === 'resolu' ? 'résolu' : nouveauStatut === 'en_cours' ? 'en cours' : 'en attente';
+      setAlertDialog({ show: true, message: `Signalement marqué comme ${statutText}`, type: 'success' });
     } catch (err) {
       console.error('Erreur lors de la mise à jour:', err);
       setError('Erreur lors de la mise à jour du statut');
+      setAlertDialog({ show: true, message: 'Erreur lors de la mise à jour du statut', type: 'error' });
     }
   };
 
-  const handleDelete = async (signalementId) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce signalement ?')) {
-      try {
-        await signalementsAPI.delete(signalementId);
-        await loadData();
-      } catch (err) {
-        console.error('Erreur lors de la suppression:', err);
-        setError('Erreur lors de la suppression du signalement');
-      }
+  const handleDeleteClick = (signalementId) => {
+    setDeleteConfirm({ show: true, id: signalementId });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm.id) return;
+    
+    try {
+      await signalementsAPI.delete(deleteConfirm.id);
+      await loadData();
+      setDeleteConfirm({ show: false, id: null });
+    } catch (err) {
+      console.error('Erreur lors de la suppression:', err);
+      setError('Erreur lors de la suppression du signalement');
+      setDeleteConfirm({ show: false, id: null });
     }
   };
 
@@ -265,7 +277,7 @@ export default function AdminProblemes() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => handleDelete(signalement.id)}
+                      onClick={() => handleDeleteClick(signalement.id)}
                       className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md"
                     >
                       <X className="w-5 h-5" />
@@ -491,6 +503,26 @@ export default function AdminProblemes() {
           </motion.div>
         </div>
       )}
+
+      {/* Dialog de confirmation de suppression */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        title="Supprimer le signalement"
+        message="Êtes-vous sûr de vouloir supprimer ce signalement ? Cette action est irréversible."
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm({ show: false, id: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
+
+      {/* Dialog d'alerte */}
+      <AlertDialog
+        isOpen={alertDialog.show}
+        message={alertDialog.message}
+        type={alertDialog.type}
+        onClose={() => setAlertDialog({ show: false, message: '', type: 'success' })}
+      />
     </AdminLayout>
   );
 }

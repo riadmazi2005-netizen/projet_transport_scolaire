@@ -5,6 +5,7 @@ import { accidentsAPI, busAPI, chauffeursAPI, notificationsAPI, elevesAPI, inscr
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import AdminLayout from '../components/AdminLayout';
+import AlertDialog from '../components/ui/AlertDialog';
 import { 
   AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X
 } from 'lucide-react';
@@ -26,6 +27,7 @@ export default function AdminAccidents() {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [showLicencierModal, setShowLicencierModal] = useState(false);
   const [chauffeurToLicencier, setChauffeurToLicencier] = useState(null);
+  const [alertDialog, setAlertDialog] = useState({ show: false, message: '', type: 'success' });
 
   useEffect(() => {
     loadData();
@@ -69,10 +71,11 @@ export default function AdminAccidents() {
     try {
       await accidentsAPI.validate(accidentId);
       await loadData();
-      alert('Rapport validé avec succès');
+      setAlertDialog({ show: true, message: 'Rapport validé avec succès', type: 'success' });
     } catch (err) {
       console.error('Erreur lors de la validation:', err);
       setError('Erreur lors de la validation du rapport');
+      setAlertDialog({ show: true, message: 'Erreur lors de la validation du rapport', type: 'error' });
     }
   };
 
@@ -82,10 +85,11 @@ export default function AdminAccidents() {
       await loadData();
       setShowLicencierModal(false);
       setChauffeurToLicencier(null);
-      alert('Chauffeur licencié avec succès. Le responsable a été notifié.');
+      setAlertDialog({ show: true, message: 'Chauffeur licencié avec succès. Le responsable a été notifié.', type: 'success' });
     } catch (err) {
       console.error('Erreur lors du licenciement:', err);
       setError('Erreur lors du licenciement du chauffeur');
+      setAlertDialog({ show: true, message: 'Erreur lors du licenciement du chauffeur', type: 'error' });
     }
   };
 
@@ -162,10 +166,11 @@ export default function AdminAccidents() {
       });
       
       await Promise.all(notificationPromises);
-      alert(`Notifications envoyées à ${tuteursToNotify.length} tuteur(s)`);
+      setAlertDialog({ show: true, message: `Notifications envoyées à ${tuteursToNotify.length} tuteur(s)`, type: 'success' });
     } catch (err) {
       console.error('Erreur lors de l\'envoi des notifications:', err);
       setError('Erreur lors de l\'envoi des notifications aux tuteurs');
+      setAlertDialog({ show: true, message: 'Erreur lors de l\'envoi des notifications aux tuteurs', type: 'error' });
     }
   };
 
@@ -711,6 +716,14 @@ export default function AdminAccidents() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Dialog d'alerte */}
+      <AlertDialog
+        isOpen={alertDialog.show}
+        message={alertDialog.message}
+        type={alertDialog.type}
+        onClose={() => setAlertDialog({ show: false, message: '', type: 'success' })}
+      />
     </AdminLayout>
   );
 }

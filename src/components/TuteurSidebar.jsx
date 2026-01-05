@@ -12,7 +12,8 @@ import {
   Menu,
   X,
   Home,
-  MapPin
+  CreditCard,
+  XCircle
 } from 'lucide-react';
 
 export default function TuteurSidebar({ tuteur, notifications = [], newCounts = { inscriptions: 0, accidents: 0, paiements: 0, notifications: 0 }, onLogout }) {
@@ -62,13 +63,6 @@ export default function TuteurSidebar({ tuteur, notifications = [], newCounts = 
       badgeKey: 'notifications' // Badge pour notifications non lues
     },
     {
-      title: 'Zones',
-      icon: MapPin,
-      link: 'TuteurZones',
-      path: '/TuteurZones',
-      badgeKey: null // Pas de badge pour zones
-    },
-    {
       title: 'Profil',
       icon: User,
       link: 'TuteurProfile',
@@ -77,12 +71,43 @@ export default function TuteurSidebar({ tuteur, notifications = [], newCounts = 
     },
   ];
 
+  // Boutons d'onglets du dashboard (afficher uniquement si on est sur le dashboard)
+  const isDashboardActive = location.pathname === '/TuteurDashboard' || location.pathname.startsWith('/TuteurDashboard');
+  const urlParams = new URLSearchParams(location.search);
+  const currentTab = urlParams.get('tab') || 'eleves';
+
+  const dashboardTabs = [
+    {
+      title: 'Mes Enfants',
+      icon: GraduationCap,
+      tab: 'eleves',
+      badgeKey: null
+    },
+    {
+      title: 'Demandes refusées',
+      icon: XCircle,
+      tab: 'historique',
+      badgeKey: null
+    },
+    {
+      title: 'Paiements',
+      icon: CreditCard,
+      tab: 'paiements',
+      badgeKey: 'paiements'
+    }
+  ];
+
   const handleNavigation = (item) => {
     if (item.path) {
       navigate(item.path);
     } else {
       navigate(createPageUrl(item.link));
     }
+    setIsMobileOpen(false);
+  };
+
+  const handleTabNavigation = (tab) => {
+    navigate(`/TuteurDashboard?tab=${tab}`);
     setIsMobileOpen(false);
   };
 
@@ -186,6 +211,51 @@ export default function TuteurSidebar({ tuteur, notifications = [], newCounts = 
         {/* Navigation Menu */}
         <nav className="flex-1 overflow-y-auto py-4 px-2">
           <div className="space-y-1">
+            {/* Boutons d'onglets du dashboard - afficher uniquement sur dashboard */}
+            {isDashboardActive && !isCollapsed && (
+              <>
+                <div className="px-3 py-2 mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Onglets</p>
+                </div>
+                {dashboardTabs.map((tabItem, index) => {
+                  const isActive = currentTab === tabItem.tab;
+                  const Icon = tabItem.icon;
+                  const badgeCount = tabItem.badgeKey ? (newCounts[tabItem.badgeKey] || 0) : 0;
+                  const showBadge = badgeCount > 0;
+
+                  return (
+                    <motion.button
+                      key={`tab-${tabItem.tab}`}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      onClick={() => handleTabNavigation(tabItem.tab)}
+                      className={`
+                        w-full flex items-center gap-3 px-4 py-3 rounded-xl
+                        transition-all duration-200
+                        ${isActive
+                          ? 'bg-gradient-to-r from-lime-500 to-lime-600 text-white shadow-lg'
+                          : 'text-gray-700 hover:bg-lime-100 hover:text-lime-700'
+                        }
+                      `}
+                    >
+                      <div className="relative">
+                        <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                        {showBadge && !isActive && (
+                          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold w-5 h-5">
+                            {badgeCount > 99 ? '99+' : badgeCount}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-medium text-sm flex-1 text-left">{tabItem.title}</span>
+                    </motion.button>
+                  );
+                })}
+                <div className="px-3 py-2 mt-4 mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Navigation</p>
+                </div>
+              </>
+            )}
             {menuItems.map((item, index) => {
               const active = isActive(item.path);
               const Icon = item.icon;

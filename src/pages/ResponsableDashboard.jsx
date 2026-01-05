@@ -508,6 +508,20 @@ export default function ResponsableDashboard() {
     }
   };
 
+  const deleteAllNotifications = async () => {
+    if (!responsable) return;
+    
+    const responsableId = responsable.id || responsable.type_id;
+    if (!responsableId) return;
+
+    try {
+      await notificationsAPI.deleteAll(responsableId, 'responsable');
+      setNotifications([]);
+    } catch (err) {
+      console.error('Erreur lors de la suppression de toutes les notifications:', err);
+    }
+  };
+
   const handleTogglePresence = async (eleveId, periode, value) => {
     try {
       const existingPresence = presences.find(p => 
@@ -2082,6 +2096,7 @@ export default function ResponsableDashboard() {
             console.error('Erreur lors de la suppression de la notification:', err);
           }
         }}
+        onDeleteAll={deleteAllNotifications}
       />
 
       {/* Modal de confirmation de suppression */}

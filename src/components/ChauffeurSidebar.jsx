@@ -44,36 +44,59 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
     {
       title: 'Dashboard',
       icon: Home,
-      id: null
+      id: null,
+      link: null
     },
     {
       title: 'Mon Bus & Trajet',
       icon: Bus,
-      id: 'bus'
+      id: 'bus',
+      link: null
     },
     {
       title: 'Essence',
       icon: Fuel,
-      id: 'essence'
+      id: 'essence',
+      link: null
     },
     {
       title: 'Problèmes',
       icon: Wrench,
-      id: 'signalements'
+      id: 'signalements',
+      link: null
     },
     {
       title: 'Mes Accidents',
       icon: AlertCircle,
-      id: 'accidents'
+      id: 'accidents',
+      link: null
+    },
+    {
+      title: 'Notifications',
+      icon: Bell,
+      id: 'notifications',
+      link: 'ChauffeurNotifications'
     },
     {
       title: 'Profil',
       icon: User,
-      id: 'profile'
+      id: 'profile',
+      link: null
     },
   ];
 
   const handleNavigation = (item) => {
+    // Si l'élément a un lien, naviguer vers cette page
+    if (item.link) {
+      navigate(createPageUrl(item.link));
+      // Fermer le menu mobile après navigation
+      if (window.innerWidth < 1024) {
+        setIsMobileOpen(false);
+      }
+      return;
+    }
+    
+    // Sinon, utiliser le système d'onglets existant
     if (setActiveTab) {
       setActiveTab(item.id);
     }
@@ -167,6 +190,8 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
               const active = activeTab === item.id;
               const Icon = item.icon;
               const isAccidents = item.id === 'accidents';
+              const isNotifications = item.id === 'notifications';
+              const isActiveLink = isNotifications && location.pathname === '/ChauffeurNotifications';
               
               return (
                 <motion.button
@@ -178,7 +203,7 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
                   className={`
                     w-full flex items-center gap-3 px-4 py-3 rounded-xl
                     transition-all duration-200
-                    ${active
+                    ${active || isActiveLink
                       ? isAccidents
                         ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg'
                         : 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg'
@@ -189,7 +214,12 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
                   title={isCollapsed ? item.title : ''}
                 >
                   <div className="relative">
-                    <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-gray-600'}`} />
+                    <Icon className={`w-5 h-5 ${active || isActiveLink ? 'text-white' : 'text-gray-600'}`} />
+                    {isNotifications && unreadCount > 0 && (
+                      <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
                   </div>
                   {!isCollapsed && (
                     <span className="font-medium text-sm flex-1 text-left">{item.title}</span>

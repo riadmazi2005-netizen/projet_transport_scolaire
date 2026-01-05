@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import {
   Bus, Plus, Edit, Trash2, Navigation, MapPin, Save, X, ArrowLeft
 } from 'lucide-react';
@@ -26,6 +27,8 @@ export default function AdminBus() {
   const [editingTrajet, setEditingTrajet] = useState(null);
   const [error, setError] = useState(null);
   const [zones, setZones] = useState([]);
+  const [deleteBusConfirm, setDeleteBusConfirm] = useState({ show: false, id: null });
+  const [deleteTrajetConfirm, setDeleteTrajetConfirm] = useState({ show: false, id: null });
 
   const [busForm, setBusForm] = useState({
     numero: '', capacite: '', chauffeur_id: '', responsable_id: '', trajet_id: '', statut: 'Actif'
@@ -171,27 +174,39 @@ export default function AdminBus() {
     }
   };
 
-  const handleDeleteBus = async (busId) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce bus ?')) {
-      try {
-        await busAPI.delete(busId);
-        await loadData();
-      } catch (err) {
-        console.error('Erreur lors de la suppression:', err);
-        setError('Erreur lors de la suppression du bus');
-      }
+  const handleDeleteBusClick = (busId) => {
+    setDeleteBusConfirm({ show: true, id: busId });
+  };
+
+  const handleDeleteBus = async () => {
+    if (!deleteBusConfirm.id) return;
+    
+    try {
+      await busAPI.delete(deleteBusConfirm.id);
+      await loadData();
+      setDeleteBusConfirm({ show: false, id: null });
+    } catch (err) {
+      console.error('Erreur lors de la suppression:', err);
+      setError('Erreur lors de la suppression du bus');
+      setDeleteBusConfirm({ show: false, id: null });
     }
   };
 
-  const handleDeleteTrajet = async (trajetId) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce trajet ?')) {
-      try {
-        await trajetsAPI.delete(trajetId);
-        await loadData();
-      } catch (err) {
-        console.error('Erreur lors de la suppression:', err);
-        setError('Erreur lors de la suppression du trajet');
-      }
+  const handleDeleteTrajetClick = (trajetId) => {
+    setDeleteTrajetConfirm({ show: true, id: trajetId });
+  };
+
+  const handleDeleteTrajet = async () => {
+    if (!deleteTrajetConfirm.id) return;
+    
+    try {
+      await trajetsAPI.delete(deleteTrajetConfirm.id);
+      await loadData();
+      setDeleteTrajetConfirm({ show: false, id: null });
+    } catch (err) {
+      console.error('Erreur lors de la suppression:', err);
+      setError('Erreur lors de la suppression du trajet');
+      setDeleteTrajetConfirm({ show: false, id: null });
     }
   };
 
@@ -483,7 +498,7 @@ export default function AdminBus() {
                         <Button variant="outline" size="icon" onClick={() => editBus(bus)} className="rounded-xl border-2 border-amber-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400 w-11 h-11 shadow-md">
                           <Edit className="w-5 h-5" />
                         </Button>
-                        <Button variant="outline" size="icon" onClick={() => handleDeleteBus(bus.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                        <Button variant="outline" size="icon" onClick={() => handleDeleteBusClick(bus.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
                           <Trash2 className="w-5 h-5" />
                         </Button>
                       </div>
@@ -743,7 +758,7 @@ export default function AdminBus() {
                         <Button variant="outline" size="icon" onClick={() => editTrajet(trajet)} className="rounded-xl border-2 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 w-11 h-11 shadow-md">
                           <Edit className="w-5 h-5" />
                         </Button>
-                        <Button variant="outline" size="icon" onClick={() => handleDeleteTrajet(trajet.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                        <Button variant="outline" size="icon" onClick={() => handleDeleteTrajetClick(trajet.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
                           <Trash2 className="w-5 h-5" />
                         </Button>
                       </div>
@@ -763,6 +778,30 @@ export default function AdminBus() {
             </div>
         </motion.div>
       )}
+
+      {/* Dialog de confirmation de suppression de bus */}
+      <ConfirmDialog
+        isOpen={deleteBusConfirm.show}
+        title="Supprimer le bus"
+        message="Êtes-vous sûr de vouloir supprimer ce bus ? Cette action est irréversible."
+        onConfirm={handleDeleteBus}
+        onCancel={() => setDeleteBusConfirm({ show: false, id: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
+
+      {/* Dialog de confirmation de suppression de trajet */}
+      <ConfirmDialog
+        isOpen={deleteTrajetConfirm.show}
+        title="Supprimer le trajet"
+        message="Êtes-vous sûr de vouloir supprimer ce trajet ? Cette action est irréversible."
+        onConfirm={handleDeleteTrajet}
+        onCancel={() => setDeleteTrajetConfirm({ show: false, id: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
     </AdminLayout>
   );
 }

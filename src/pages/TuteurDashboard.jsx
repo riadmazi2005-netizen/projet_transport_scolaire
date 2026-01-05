@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI, inscriptionsAPI, paiementsAPI, zonesAPI, busAPI, trajetsAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
@@ -21,12 +21,25 @@ import AlertDialog from '../components/ui/AlertDialog';
 
 function TuteurDashboardContent() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [tuteur, setTuteur] = useState(null);
   const [eleves, setEleves] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inscriptionFilter, setInscriptionFilter] = useState('all');
-  const [activeTab, setActiveTab] = useState('eleves');
+  
+  // Récupérer l'onglet actif depuis les paramètres d'URL
+  const urlParams = new URLSearchParams(location.search);
+  const activeTabFromUrl = urlParams.get('tab') || 'eleves';
+  const [activeTab, setActiveTab] = useState(activeTabFromUrl);
+
+  // Synchroniser avec les paramètres d'URL
+  useEffect(() => {
+    const tab = urlParams.get('tab') || 'eleves';
+    if (tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [location.search]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedEleveForPayment, setSelectedEleveForPayment] = useState(null);
   const [paymentCode, setPaymentCode] = useState('');
@@ -567,7 +580,10 @@ function TuteurDashboardContent() {
         >
           <div className="bg-white rounded-2xl shadow-lg p-2 flex gap-2 flex-wrap">
             <Button
-              onClick={() => setActiveTab('eleves')}
+              onClick={() => {
+                setActiveTab('eleves');
+                navigate('/TuteurDashboard?tab=eleves');
+              }}
               className={`rounded-xl px-6 py-3 transition-all font-semibold ${
                 activeTab === 'eleves'
                   ? 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 shadow-md'
@@ -578,7 +594,10 @@ function TuteurDashboardContent() {
               Mes Enfants
             </Button>
             <Button
-              onClick={() => setActiveTab('historique')}
+              onClick={() => {
+                setActiveTab('historique');
+                navigate('/TuteurDashboard?tab=historique');
+              }}
               className={`rounded-xl px-6 py-3 transition-all font-semibold ${
                 activeTab === 'historique'
                   ? 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 shadow-md'
@@ -589,7 +608,10 @@ function TuteurDashboardContent() {
               Demandes refusées ({elevesRefuses.length})
             </Button>
             <Button
-              onClick={() => setActiveTab('paiements')}
+              onClick={() => {
+                setActiveTab('paiements');
+                navigate('/TuteurDashboard?tab=paiements');
+              }}
               className={`rounded-xl px-6 py-3 transition-all font-semibold ${
                 activeTab === 'paiements'
                   ? 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 shadow-md'

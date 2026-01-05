@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import ChauffeurLogin from './pages/ChauffeurLogin';
 import ChauffeurDashboard from './pages/ChauffeurDashboard';
+import ChauffeurNotifications from './pages/ChauffeurNotifications';
 import ResponsableLogin from './pages/ResponsableLogin';
 import ResponsableDashboard from './pages/ResponsableDashboard';
 import TuteurLogin from './pages/TuteurLogin';
@@ -17,7 +18,6 @@ import TuteurPaiement from './pages/TuteurPaiement';
 import TuteurEleveDetails from './pages/TuteurEleveDetails';
 import TuteurDemandes from './pages/TuteurDemandes';
 import TuteurNotifications from './pages/TuteurNotifications';
-import TuteurZones from './pages/TuteurZones';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminBus from './pages/AdminBus';
@@ -44,6 +44,7 @@ function App() {
         {/* Chauffeur Routes */}
         <Route path="/ChauffeurLogin" element={<ChauffeurLogin />} />
         <Route path="/ChauffeurDashboard" element={<ChauffeurDashboard />} />
+        <Route path="/ChauffeurNotifications" element={<ChauffeurNotifications />} />
 
         {/* Responsable Routes */}
         <Route path="/ResponsableLogin" element={<ResponsableLogin />} />
@@ -59,7 +60,6 @@ function App() {
         <Route path="/TuteurEleveDetails" element={<TuteurEleveDetails />} />
         <Route path="/TuteurDemandes" element={<TuteurDemandes />} />
         <Route path="/TuteurNotifications" element={<TuteurNotifications />} />
-        <Route path="/TuteurZones" element={<TuteurZones />} />
 
         {/* Admin Routes */}
         <Route path="/AdminLogin" element={<AdminLogin />} />
