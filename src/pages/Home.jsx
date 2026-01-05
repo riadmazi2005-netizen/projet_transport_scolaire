@@ -202,7 +202,7 @@ export default function Home() {
             style={{ height: '70vh', minHeight: '500px' }}
           >
             <img 
-              src="/bus-main.jpg" 
+              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/694e9878090ae6571e82701e/c7a2d12a6_WhatsAppImage2026-01-05at112241PM.jpg" 
               alt="Mohammed V School Bus - Transport Scolaire" 
               className="w-full h-full object-cover"
             />
