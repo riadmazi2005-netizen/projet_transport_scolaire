@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   UserCog, Bell, LogOut, Bus, Users, AlertCircle,
-  DollarSign, User, Edit, CheckCircle, Plus, X, MessageSquare, Send, Navigation, MapPin, Image as ImageIcon, Trash2, Phone, Check, Calendar, Mail, Clock, Users as UsersIcon, AlertTriangle, FileText, ZoomIn
+  DollarSign, User, Edit, CheckCircle, Plus, X, MessageSquare, Send, Navigation, MapPin, Image as ImageIcon, Trash2, Phone, Check, Calendar, Mail, Clock, Users as UsersIcon, AlertTriangle, FileText, ZoomIn, UserCircle, Save
 } from 'lucide-react';
+import ResponsableSidebar from '../components/ResponsableSidebar';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
 import PresenceList from '../components/ui/PresenceList';
@@ -29,19 +30,14 @@ export default function ResponsableDashboard() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('presence');
+  const [activeTab, setActiveTab] = useState(null); // null = dashboard avec stats seulement
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
   // États pour les filtres de la liste des élèves
   const [elevesDateFilter, setElevesDateFilter] = useState('today');
   const [elevesCustomDate, setElevesCustomDate] = useState('');
   const [elevesGroupFilter, setElevesGroupFilter] = useState('all');
   const [elevesSearchTerm, setElevesSearchTerm] = useState('');
-  const [elevesPeriodeFilter, setElevesPeriodeFilter] = useState(() => {
-    // Détecter automatiquement la période selon l'heure actuelle
-    const now = new Date();
-    const hour = now.getHours();
-    return hour < 13 ? 'matin' : 'soir';
-  });
   const [accidents, setAccidents] = useState([]);
   const [showAccidentForm, setShowAccidentForm] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
@@ -78,6 +74,26 @@ export default function ResponsableDashboard() {
   
   // État pour la confirmation de suppression
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, messageId: null });
+  
+  // État pour le formulaire de profil
+  const [profileForm, setProfileForm] = useState({
+    nom: '',
+    prenom: '',
+    email: '',
+    telephone: ''
+  });
+  
+  // Initialiser le formulaire de profil quand responsable est chargé
+  useEffect(() => {
+    if (responsable) {
+      setProfileForm({
+        nom: responsable.nom || '',
+        prenom: responsable.prenom || '',
+        email: responsable.email || '',
+        telephone: responsable.telephone || ''
+      });
+    }
+  }, [responsable]);
   
   useEffect(() => {
     const session = localStorage.getItem('responsable_session');
@@ -434,16 +450,16 @@ export default function ResponsableDashboard() {
   }, [elevesDateFilter, elevesCustomDate, activeTab, bus?.id, responsable?.type_id, responsable?.id]);
 
   // Composant pour les filtres de la liste des élèves
-  const ElevesListFilters = ({ dateFilter, setDateFilter, customDate, setCustomDate, groupFilter, setGroupFilter, searchTerm, setSearchTerm, periodeFilter, setPeriodeFilter }) => {
-    // Détecter automatiquement la période actuelle
-    const getCurrentPeriod = () => {
-      const now = new Date();
-      const hour = now.getHours();
-      return hour < 13 ? 'matin' : 'soir';
-    };
-    
+  const ElevesListFilters = ({ dateFilter, setDateFilter, customDate, setCustomDate, groupFilter, setGroupFilter, searchTerm, setSearchTerm }) => {
     return (
-    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <Input
+        placeholder="Rechercher un élève..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500"
+      />
+
       <Select value={dateFilter} onValueChange={setDateFilter}>
         <SelectTrigger className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500">
           <SelectValue placeholder="Date" />
@@ -479,27 +495,6 @@ export default function ResponsableDashboard() {
           <SelectItem value="B">Groupe B</SelectItem>
         </SelectContent>
       </Select>
-
-      <Select value={periodeFilter} onValueChange={setPeriodeFilter}>
-        <SelectTrigger className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500">
-          <SelectValue placeholder="Période" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="matin">
-            Matin {getCurrentPeriod() === 'matin' && '(Actuel)'}
-          </SelectItem>
-          <SelectItem value="soir">
-            Soir {getCurrentPeriod() === 'soir' && '(Actuel)'}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Input
-        placeholder="Rechercher un élève..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500"
-      />
     </div>
     );
   };
@@ -624,113 +619,236 @@ export default function ResponsableDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl p-6 mb-8"
-        >
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50">
+      <ResponsableSidebar
+        responsable={responsable}
+        notifications={notifications}
+        onLogout={handleLogout}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onCollapseChange={setSidebarCollapsed}
+      />
+      
+      <main className={`min-h-screen p-4 md:p-8 pt-20 lg:pt-8 transition-all duration-300 ${
+        sidebarCollapsed ? 'lg:ml-[80px]' : 'lg:ml-[280px]'
+      }`}>
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-3xl shadow-xl p-6 mb-8"
+          >
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <UserCog className="w-8 h-8 text-white" />
+                <Users className="w-8 h-8 text-white" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">
-                  {responsable?.prenom} {responsable?.nom}
+                  Bienvenue, {responsable?.prenom} {responsable?.nom}
                 </h1>
-                <p className="text-gray-500">Responsable Bus</p>
-                {responsable?.zone_responsabilite && (
-                  <p className="text-sm text-gray-400">{responsable.zone_responsabilite}</p>
-                )}
+                <p className="text-gray-500">{responsable?.email}</p>
               </div>
             </div>
-            
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowNotifications(true)}
-                className="relative rounded-xl border-purple-500 text-purple-600 hover:bg-purple-50 focus:ring-purple-500"
-              >
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
-              
-              <Button 
-                variant="ghost" 
-                onClick={handleLogout}
-                className="text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl"
-              >
-                <LogOut className="w-5 h-5" />
-              </Button>
+          </motion.div>
+
+        {/* Content - Dashboard par défaut (stats seulement) */}
+        {activeTab === null && (
+          <>
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <StatCard 
+                title="Mon Bus" 
+                value={bus?.numero || '-'} 
+                icon={Bus} 
+                color="purple"
+              />
+              <StatCard 
+                title="Élèves" 
+                value={eleves.length} 
+                icon={Users} 
+                color="purple"
+              />
+              <StatCard 
+                title="Accidents chauffeur" 
+                value={totalAccidents} 
+                icon={AlertCircle} 
+                color={totalAccidents >= 3 ? 'red' : 'purple'}
+              />
+              <StatCard 
+                title="Mon Salaire" 
+                value={`${responsable?.salaire || 0} DH`} 
+                icon={DollarSign} 
+                color="purple"
+              />
             </div>
-          </div>
-        </motion.div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <StatCard 
-            title="Mon Bus" 
-            value={bus?.numero || '-'} 
-            icon={Bus} 
-            color="purple"
-          />
-          <StatCard 
-            title="Élèves" 
-            value={eleves.length} 
-            icon={Users} 
-            color="purple"
-          />
-          <StatCard 
-            title="Accidents chauffeur" 
-            value={totalAccidents} 
-            icon={AlertCircle} 
-            color={totalAccidents >= 3 ? 'red' : 'purple'}
-          />
-          <StatCard 
-            title="Mon Salaire" 
-            value={`${responsable?.salaire || 0} DH`} 
-            icon={DollarSign} 
-            color="purple"
-          />
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {['presence', 'eleves', 'bus', 'communication', 'accidents'].map((tab) => (
-            <Button
-              key={tab}
-              type="button"
-              variant={activeTab === tab ? 'default' : 'outline'}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setActiveTab(tab);
-              }}
-              className={`rounded-xl whitespace-nowrap ${
-                tab === 'accidents'
-                  ? activeTab === tab
-                    ? 'bg-red-500 hover:bg-red-600 text-white'
-                    : 'border-red-500 text-red-600 hover:bg-red-50 focus:ring-red-500'
-                  : activeTab === tab 
-                    ? 'bg-purple-500 hover:bg-purple-600 text-white' 
-                    : 'border-purple-500 text-purple-600 hover:bg-purple-50 focus:ring-purple-500'
-              }`}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-3xl shadow-xl p-8"
             >
-              {tab === 'presence' && 'Présences'}
-              {tab === 'eleves' && 'Élèves'}
-              {tab === 'bus' && 'Mon Bus'}
-              {tab === 'communication' && 'Communication'}
-              {tab === 'accidents' && 'Accidents'}
-            </Button>
-          ))}
-        </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <Bus className="w-6 h-6 text-purple-500" />
+                Vue d'ensemble
+              </h2>
+            {bus && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-purple-800 mb-4">Informations du Bus</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Numéro:</span>
+                      <span className="font-bold text-purple-700">{bus.numero}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Marque:</span>
+                      <span className="font-semibold">{bus.marque}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Modèle:</span>
+                      <span className="font-semibold">{bus.modele}</span>
+                    </div>
+                    {chauffeur && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Chauffeur:</span>
+                        <span className="font-semibold">{chauffeur.prenom} {chauffeur.nom}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-6">
+                  <h3 className="text-lg font-semibold text-purple-800 mb-4">Informations Personnelles</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Nom complet:</span>
+                      <span className="font-semibold">{responsable?.prenom} {responsable?.nom}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Email:</span>
+                      <span className="font-semibold">{responsable?.email}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Téléphone:</span>
+                      <span className="font-semibold">{responsable?.telephone}</span>
+                    </div>
+                    {responsable?.zone_responsabilite && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Zone:</span>
+                        <span className="font-semibold">{responsable.zone_responsabilite}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
+          </>
+        )}
+
+        {/* Content - Profil */}
+        {activeTab === 'profile' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-3xl shadow-xl p-8"
+          >
+            {/* Header */}
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <Users className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">Mon Profil</h2>
+              <p className="text-gray-500">Modifiez vos informations personnelles</p>
+            </div>
+
+            {/* Formulaire */}
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                if (!responsable?.id && !responsable?.type_id) {
+                  showToast('Erreur: ID responsable non trouvé', 'error');
+                  return;
+                }
+                
+                const responsableId = responsable?.id || responsable?.type_id;
+                const updateData = {
+                  nom: profileForm.nom,
+                  prenom: profileForm.prenom,
+                  email: profileForm.email,
+                  telephone: profileForm.telephone
+                };
+                
+                await responsablesAPI.update(responsableId, updateData);
+                
+                // Recharger les données
+                const session = localStorage.getItem('responsable_session');
+                if (session) {
+                  const responsableData = JSON.parse(session);
+                  await loadData(responsableData);
+                }
+                
+                showToast('Profil mis à jour avec succès', 'success');
+              } catch (err) {
+                console.error('Erreur mise à jour profil:', err);
+                showToast('Erreur lors de la mise à jour: ' + (err.message || 'Erreur inconnue'), 'error');
+              }
+            }} className="space-y-6">
+              <div>
+                <Label htmlFor="nom">Nom</Label>
+                <Input
+                  id="nom"
+                  value={profileForm.nom}
+                  onChange={(e) => setProfileForm({...profileForm, nom: e.target.value})}
+                  className="mt-1 rounded-xl focus:ring-purple-500 focus:border-purple-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="prenom">Prénom</Label>
+                <Input
+                  id="prenom"
+                  value={profileForm.prenom}
+                  onChange={(e) => setProfileForm({...profileForm, prenom: e.target.value})}
+                  className="mt-1 rounded-xl focus:ring-purple-500 focus:border-purple-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={profileForm.email}
+                  onChange={(e) => setProfileForm({...profileForm, email: e.target.value})}
+                  className="mt-1 rounded-xl focus:ring-purple-500 focus:border-purple-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="telephone">Téléphone</Label>
+                <Input
+                  id="telephone"
+                  value={profileForm.telephone}
+                  onChange={(e) => setProfileForm({...profileForm, telephone: e.target.value})}
+                  className="mt-1 rounded-xl focus:ring-purple-500 focus:border-purple-500"
+                  required
+                />
+              </div>
+              
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-xl py-6 text-lg font-semibold shadow-lg flex items-center justify-center gap-3"
+              >
+                <Save className="w-5 h-5" />
+                Enregistrer les modifications
+              </Button>
+            </form>
+          </motion.div>
+        )}
 
         {/* Content */}
         {activeTab === 'presence' && (
@@ -746,12 +864,14 @@ export default function ResponsableDashboard() {
 
         {activeTab === 'eleves' && (
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+            {/* Header */}
             <div className="p-6 bg-gradient-to-r from-purple-500 to-purple-600">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                 <Users className="w-6 h-6" />
                 Liste des Élèves
               </h2>
               
+              {/* Filtres */}
               <ElevesListFilters 
                 dateFilter={elevesDateFilter}
                 setDateFilter={setElevesDateFilter}
@@ -761,12 +881,65 @@ export default function ResponsableDashboard() {
                 setGroupFilter={setElevesGroupFilter}
                 searchTerm={elevesSearchTerm}
                 setSearchTerm={setElevesSearchTerm}
-                periodeFilter={elevesPeriodeFilter}
-                setPeriodeFilter={setElevesPeriodeFilter}
               />
             </div>
             
-            <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+            {/* Statistiques */}
+            {(() => {
+              const effectiveDate = getElevesEffectiveDate();
+              const getCurrentPeriod = () => {
+                const now = new Date();
+                const hour = now.getHours();
+                return hour < 13 ? 'matin' : 'soir';
+              };
+              const currentPeriod = getCurrentPeriod();
+              
+              const elevesWithPresence = filteredElevesList.filter(eleve => {
+                const presence = presences.find(p => p.eleve_id === eleve.id && p.date === effectiveDate);
+                if (!presence) return false;
+                const presentMatin = presence.present_matin === true || presence.present_matin === 1 || presence.present_matin === '1';
+                const presentSoir = presence.present_soir === true || presence.present_soir === 1 || presence.present_soir === '1';
+                return currentPeriod === 'matin' ? presentMatin : presentSoir;
+              });
+              
+              const elevesAbsents = filteredElevesList.filter(eleve => {
+                const presence = presences.find(p => p.eleve_id === eleve.id && p.date === effectiveDate);
+                if (!presence) return false;
+                const presentMatin = presence.present_matin === true || presence.present_matin === 1 || presence.present_matin === '1';
+                const presentSoir = presence.present_soir === true || presence.present_soir === 1 || presence.present_soir === '1';
+                const isPresent = currentPeriod === 'matin' ? presentMatin : presentSoir;
+                return !isPresent;
+              });
+              
+              return (
+                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-purple-600">{filteredElevesList.length}</p>
+                        <p className="text-xs text-gray-500">Total</p>
+                      </div>
+                      <div className="w-px h-8 bg-gray-300" />
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-green-600">{elevesWithPresence.length}</p>
+                        <p className="text-xs text-gray-500">Présents</p>
+                      </div>
+                      <div className="w-px h-8 bg-gray-300" />
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-red-600">{elevesAbsents.length}</p>
+                        <p className="text-xs text-gray-500">Absents</p>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {format(new Date(effectiveDate), 'dd MMMM yyyy', { locale: fr })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            
+            {/* Liste des élèves */}
+            <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
               {filteredElevesList.map((eleve) => {
                 // Calculer la date effective
                 const effectiveDate = getElevesEffectiveDate();
@@ -775,74 +948,71 @@ export default function ResponsableDashboard() {
                   p.date === effectiveDate
                 );
                 
-                // Déterminer le statut selon la période (matin ou soir)
+                // Déterminer le statut selon la période (matin ou soir) - détection automatique
+                const getCurrentPeriod = () => {
+                  const now = new Date();
+                  const hour = now.getHours();
+                  return hour < 13 ? 'matin' : 'soir';
+                };
+                const currentPeriod = getCurrentPeriod();
+                
                 const isFiltered = elevesDateFilter !== 'today' || elevesCustomDate;
                 let isPresent = false;
                 let hasRecord = false;
                 
                 if (elevePresence) {
                   hasRecord = true;
-                  // Vérifier la présence selon la période sélectionnée
+                  // Vérifier la présence selon la période actuelle détectée automatiquement
                   // Convertir les valeurs booléennes si nécessaire
                   const presentMatin = elevePresence.present_matin === true || elevePresence.present_matin === 1 || elevePresence.present_matin === '1';
                   const presentSoir = elevePresence.present_soir === true || elevePresence.present_soir === 1 || elevePresence.present_soir === '1';
                   
-                  isPresent = elevesPeriodeFilter === 'matin' ? presentMatin : presentSoir;
+                  isPresent = currentPeriod === 'matin' ? presentMatin : presentSoir;
                 }
                 
                 return (
-                  <div key={eleve.id} className="p-4 hover:bg-purple-50/50 transition-colors">
+                  <motion.div
+                    key={eleve.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 hover:bg-purple-50/50 transition-colors"
+                  >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center">
-                          <User className="w-6 h-6 text-purple-500" />
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-100 to-purple-200 flex items-center justify-center shadow-sm">
+                          <User className="w-7 h-7 text-purple-600" />
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-800">{eleve.nom} {eleve.prenom}</h3>
-                          <p className="text-sm text-gray-500 flex items-center gap-2">
-                            <span>{eleve.classe || 'N/A'}</span>
-                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-800 text-lg">{eleve.nom} {eleve.prenom}</h3>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-sm text-gray-600">{eleve.classe || 'N/A'}</span>
+                            <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                               Groupe {eleve.groupe || 'N/A'}
                             </span>
-                          </p>
+                          </div>
                         </div>
                       </div>
-                      {/* Indicateur de présence - cercle plus petit et joli */}
-                      {isFiltered ? (
-                        // Mode filtre : un seul cercle
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          !hasRecord ? 'bg-gray-200' : isPresent ? 'bg-green-500' : 'bg-red-500'
-                        }`}>
-                          {!hasRecord ? (
-                            <span className="text-gray-400 text-xs">-</span>
-                          ) : isPresent ? (
-                            <Check className="w-4 h-4 text-white" strokeWidth={3} />
-                          ) : (
-                            <X className="w-4 h-4 text-white" strokeWidth={3} />
-                          )}
-                        </div>
-                      ) : (
-                        // Mode normal : cercle avec indicateur
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          !hasRecord ? 'bg-gray-200' : isPresent ? 'bg-green-500' : 'bg-red-500'
-                        }`}>
-                          {!hasRecord ? (
-                            <span className="text-gray-400 text-xs">-</span>
-                          ) : isPresent ? (
-                            <Check className="w-4 h-4 text-white" strokeWidth={3} />
-                          ) : (
-                            <X className="w-4 h-4 text-white" strokeWidth={3} />
-                          )}
-                        </div>
-                      )}
+                      {/* Indicateur de présence */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${
+                        !hasRecord ? 'bg-gray-200' : isPresent ? 'bg-green-500' : 'bg-red-500'
+                      }`}>
+                        {!hasRecord ? (
+                          <span className="text-gray-400 text-sm font-semibold">-</span>
+                        ) : isPresent ? (
+                          <Check className="w-5 h-5 text-white" strokeWidth={3} />
+                        ) : (
+                          <X className="w-5 h-5 text-white" strokeWidth={3} />
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
               {filteredElevesList.length === 0 && (
                 <div className="p-12 text-center text-gray-400">
-                  <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucun élève trouvé</p>
+                  <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium">Aucun élève trouvé</p>
+                  <p className="text-sm mt-2">Essayez de modifier vos critères de recherche</p>
                 </div>
               )}
             </div>
@@ -1368,18 +1538,16 @@ export default function ResponsableDashboard() {
           </div>
         )}
 
-      </div>
-
-      {/* Modal Déclaration Accident */}
-      {showAccidentForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-red-500 to-rose-500">
-              <div className="flex justify-between items-center">
+          {/* Modal Déclaration Accident */}
+          {showAccidentForm && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              >
+                <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-red-500 to-rose-500">
+                  <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <AlertCircle className="w-6 h-6" />
                   Déclarer un Accident
@@ -1654,34 +1822,34 @@ export default function ResponsableDashboard() {
                 </Button>
               </div>
             </form>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Modal Communication avec Parents */}
-      {showCommunicationForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-purple-500 to-purple-600">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <MessageSquare className="w-6 h-6" />
-                  Envoyer un Message aux Parents
-                </h2>
-                <button
-                  onClick={() => setShowCommunicationForm(false)}
-                  className="text-white hover:text-purple-100 transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
+              </motion.div>
             </div>
+          )}
 
-            <form onSubmit={async (e) => {
+          {/* Modal Communication avec Parents */}
+          {showCommunicationForm && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              >
+                <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-purple-500 to-purple-600">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <MessageSquare className="w-6 h-6" />
+                      Envoyer un Message aux Parents
+                    </h2>
+                    <button
+                      onClick={() => setShowCommunicationForm(false)}
+                      className="text-white hover:text-purple-100 transition-colors"
+                    >
+                      <X className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+
+                <form onSubmit={async (e) => {
               e.preventDefault();
               try {
                 let destinataires = [];
@@ -1758,9 +1926,9 @@ export default function ResponsableDashboard() {
                 showToast('Erreur lors de l\'envoi: ' + (err.message || 'Erreur inconnue'), 'error');
               }
             }} className="p-6 space-y-4">
-              <div>
-                <Label>Destinataire *</Label>
-                <Select 
+                  <div>
+                    <Label>Destinataire *</Label>
+                    <Select 
                   value={communicationForm.destinataire} 
                   onValueChange={(v) => setCommunicationForm({...communicationForm, destinataire: v, bus_id: null, eleve_id: null})}
                 >
@@ -1772,18 +1940,18 @@ export default function ResponsableDashboard() {
                     <SelectItem value="bus">Parents du bus</SelectItem>
                     <SelectItem value="eleve">Parent d'un élève spécifique</SelectItem>
                   </SelectContent>
-                </Select>
-              </div>
-              
-              {communicationForm.destinataire === 'bus' && bus && (
+                    </Select>
+                  </div>
+                  
+                  {communicationForm.destinataire === 'bus' && bus && (
                 <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
                   <p className="text-sm text-purple-800">
                     <strong>Bus sélectionné:</strong> Bus {bus.numero}
-                  </p>
-                </div>
-              )}
-              
-              {communicationForm.destinataire === 'eleve' && (
+                    </p>
+                  </div>
+                  )}
+                  
+                  {communicationForm.destinataire === 'eleve' && (
                 <div className="space-y-3">
                   <div>
                     <Label>Sélectionner un élève *</Label>
@@ -1832,11 +2000,11 @@ export default function ResponsableDashboard() {
                       </div>
                     );
                   })()}
-                </div>
-              )}
-              
-              <div>
-                <Label>Type de message *</Label>
+                  </div>
+                  )}
+                  
+                  <div>
+                    <Label>Type de message *</Label>
                 <Select 
                   value={communicationForm.type} 
                   onValueChange={(v) => setCommunicationForm({...communicationForm, type: v})}
@@ -1849,54 +2017,57 @@ export default function ResponsableDashboard() {
                     <SelectItem value="alerte">Alerte</SelectItem>
                     <SelectItem value="urgence">Urgence</SelectItem>
                   </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label>Titre *</Label>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label>Titre *</Label>
                 <Input
                   value={communicationForm.titre}
                   onChange={(e) => setCommunicationForm({...communicationForm, titre: e.target.value})}
                   className="mt-1 rounded-xl focus:ring-purple-500 focus:border-purple-500"
-                  placeholder="Ex: Retard du bus, Changement d'horaires..."
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label>Message *</Label>
+                    placeholder="Ex: Retard du bus, Changement d'horaires..."
+                    required
+                  />
+                  </div>
+                  
+                  <div>
+                    <Label>Message *</Label>
                 <Textarea
                   value={communicationForm.message}
                   onChange={(e) => setCommunicationForm({...communicationForm, message: e.target.value})}
                   className="mt-1 rounded-xl focus:ring-purple-500 focus:border-purple-500"
                   rows={6}
-                  placeholder="Rédigez votre message aux parents..."
-                  required
-                />
-              </div>
-              
-              <div className="flex gap-3 justify-end pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowCommunicationForm(false)}
-                  className="rounded-xl border-purple-500 text-purple-600 hover:bg-purple-50 focus:ring-purple-500"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Annuler
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-purple-500 hover:bg-purple-600 text-white rounded-xl"
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Envoyer
-                </Button>
-              </div>
-            </form>
-          </motion.div>
+                    placeholder="Rédigez votre message aux parents..."
+                    required
+                  />
+                  </div>
+                  
+                  <div className="flex gap-3 justify-end pt-4 border-t">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowCommunicationForm(false)}
+                      className="rounded-xl border-purple-500 text-purple-600 hover:bg-purple-50 focus:ring-purple-500"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Annuler
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="bg-purple-500 hover:bg-purple-600 text-white rounded-xl"
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Envoyer
+                    </Button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+
         </div>
-      )}
+      </main>
 
       <NotificationPanel
         isOpen={showNotifications}
@@ -1919,7 +2090,6 @@ export default function ResponsableDashboard() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
           >
             <div className="flex items-center gap-3 mb-4">

@@ -154,6 +154,10 @@ export const chauffeursAPI = {
     body: JSON.stringify({ id }),
   }),
   getAccidents: (id) => fetchAPI(`/chauffeurs/accidents.php?chauffeur_id=${id}`),
+  licencier: (chauffeurId) => fetchAPI('/chauffeurs/licencier.php', {
+    method: 'POST',
+    body: JSON.stringify({ chauffeur_id: chauffeurId }),
+  }),
 };
 
 // ============================================

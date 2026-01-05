@@ -8,6 +8,7 @@ $pdo = getDBConnection();
 $stmt = $pdo->query('
     SELECT 
         a.*,
+        a.chauffeur_id,
         b.numero as bus_numero,
         u_chauffeur.nom as chauffeur_nom,
         u_chauffeur.prenom as chauffeur_prenom,

@@ -24,6 +24,8 @@ export default function AdminAccidents() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [error, setError] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [showLicencierModal, setShowLicencierModal] = useState(false);
+  const [chauffeurToLicencier, setChauffeurToLicencier] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -71,6 +73,19 @@ export default function AdminAccidents() {
     } catch (err) {
       console.error('Erreur lors de la validation:', err);
       setError('Erreur lors de la validation du rapport');
+    }
+  };
+
+  const handleLicencier = async (chauffeurId) => {
+    try {
+      await chauffeursAPI.licencier(chauffeurId);
+      await loadData();
+      setShowLicencierModal(false);
+      setChauffeurToLicencier(null);
+      alert('Chauffeur licencié avec succès. Le responsable a été notifié.');
+    } catch (err) {
+      console.error('Erreur lors du licenciement:', err);
+      setError('Erreur lors du licenciement du chauffeur');
     }
   };
 
@@ -218,12 +233,15 @@ export default function AdminAccidents() {
               ) : (
                 accidents.map((accident) => {
                   const bus = buses.find(b => b.id === accident.bus_id);
+                  const chauffeur = accident.chauffeur_id ? chauffeurs.find(c => c.id === accident.chauffeur_id) : null;
+                  const chauffeurAccidents = accident.chauffeur_id ? accidents.filter(a => a.chauffeur_id === accident.chauffeur_id) : [];
+                  const has3Accidents = chauffeurAccidents.length >= 3;
                   
                   return (
                     <div key={accident.id} className="p-6 hover:bg-red-50/50 transition-colors">
                       <div className="flex flex-col lg:flex-row justify-between gap-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
+                          <div className="flex items-center gap-3 mb-3 flex-wrap">
                             <span className={`px-3 py-1 rounded-full text-sm font-medium ${getGraviteBadge(accident.gravite)}`}>
                               {accident.gravite}
                             </span>
@@ -240,6 +258,11 @@ export default function AdminAccidents() {
                             {accident.blesses && (
                               <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
                                 Blessés
+                              </span>
+                            )}
+                            {has3Accidents && accident.chauffeur_id && (
+                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-500 text-white font-bold">
+                                ⚠️ À LICENCIER (3 accidents)
                               </span>
                             )}
                           </div>
@@ -326,6 +349,22 @@ export default function AdminAccidents() {
                               Informer les tuteurs
                             </Button>
                           )}
+                          {has3Accidents && accident.chauffeur_id && (
+                            <Button
+                              onClick={() => {
+                                setChauffeurToLicencier({
+                                  id: accident.chauffeur_id,
+                                  nom: accident.chauffeur_nom || chauffeur?.nom || '',
+                                  prenom: accident.chauffeur_prenom || chauffeur?.prenom || ''
+                                });
+                                setShowLicencierModal(true);
+                              }}
+                              className="bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
+                            >
+                              <AlertCircle className="w-4 h-4 mr-2" />
+                              Licencier
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -336,6 +375,55 @@ export default function AdminAccidents() {
           </motion.div>
         </div>
       </div>
+
+      {/* Modal Licencier */}
+      {showLicencierModal && chauffeurToLicencier && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">Licencier le chauffeur</h3>
+                <p className="text-sm text-gray-500">Cette action est irréversible</p>
+              </div>
+            </div>
+            
+            <div className="mb-6 p-4 bg-red-50 rounded-xl border border-red-200">
+              <p className="text-gray-800 mb-2">
+                <strong>Chauffeur:</strong> {chauffeurToLicencier.prenom} {chauffeurToLicencier.nom}
+              </p>
+              <p className="text-sm text-gray-600">
+                Le chauffeur sera supprimé de la base de données, le bus sera désaffecté et le responsable sera notifié.
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  setShowLicencierModal(false);
+                  setChauffeurToLicencier(null);
+                }}
+                variant="outline"
+                className="flex-1 rounded-xl"
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={() => handleLicencier(chauffeurToLicencier.id)}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
+              >
+                Confirmer le licenciement
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Modal Détails */}
       {showDetailsModal && selectedAccident && (
