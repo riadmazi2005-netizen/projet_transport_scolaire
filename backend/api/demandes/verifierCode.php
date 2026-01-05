@@ -71,14 +71,15 @@ try {
     $abonnement = $descriptionData['abonnement'] ?? 'Mensuel';
     $dateFin = ($abonnement === 'Annuel') ? '2026-06-30' : '2026-02-01';
     
-    // Calculer le montant mensuel
+    // Utiliser le montant de la facture depuis la demande (avec réduction déjà appliquée)
+    $montantFacture = floatval($demande['montant_facture'] ?? 0);
+    
+    // Calculer le montant mensuel pour l'inscription
     $typeTransport = $descriptionData['type_transport'] ?? 'Aller-Retour';
     $basePrice = ($typeTransport === 'Aller-Retour') ? 400 : 250;
-    $montantFacture = ($abonnement === 'Annuel') ? $basePrice * 10 : $basePrice;
-    $montantMensuel = ($abonnement === 'Annuel') ? $montantFacture / 10 : $montantFacture;
+    $montantMensuel = ($abonnement === 'Annuel') ? $basePrice : $basePrice;
     
     // Code correct - mettre à jour le statut de la demande en "Payée"
-    // L'administrateur devra ensuite affecter le bus et mettre le statut à "Inscrit"
     $stmt = $pdo->prepare('
         UPDATE demandes 
         SET statut = "Payée",
@@ -87,8 +88,93 @@ try {
     ');
     $stmt->execute([$data['demande_id']]);
     
-    // Envoyer une notification au tuteur
+    // Vérifier si une inscription existe déjà pour cet élève
+    $stmt = $pdo->prepare('SELECT id FROM inscriptions WHERE eleve_id = ? LIMIT 1');
+    $stmt->execute([$demande['eleve_id']]);
+    $inscriptionExistante = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    $inscriptionId = null;
+    if ($inscriptionExistante) {
+        // Utiliser l'inscription existante
+        $inscriptionId = $inscriptionExistante['id'];
+    } else {
+        // Créer une inscription (sans bus pour l'instant, l'admin l'assignera plus tard)
+        $stmt = $pdo->prepare('
+            INSERT INTO inscriptions (eleve_id, bus_id, date_inscription, date_debut, date_fin, statut, montant_mensuel)
+            VALUES (?, NULL, ?, ?, ?, "Active", ?)
+        ');
+        $stmt->execute([
+            $demande['eleve_id'],
+            $dateDebut,
+            $dateDebut,
+            $dateFin,
+            $montantMensuel
+        ]);
+        $inscriptionId = $pdo->lastInsertId();
+    }
+    
+    // Vérifier si un paiement initial existe déjà pour cette inscription (pour éviter les doublons)
+    $stmt = $pdo->prepare('
+        SELECT id FROM paiements 
+        WHERE inscription_id = ? 
+        AND montant = ? 
+        AND mois = ? 
+        AND annee = ?
+        LIMIT 1
+    ');
+    $datePaiement = date('Y-m-d');
+    $mois = intval(date('n'));
+    $annee = intval(date('Y'));
+    $stmt->execute([$inscriptionId, $montantFacture, $mois, $annee]);
+    $paiementExistant = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$paiementExistant) {
+        // Créer le paiement dans la table paiements
+        $stmt = $pdo->prepare('
+            INSERT INTO paiements (inscription_id, montant, mois, annee, date_paiement, mode_paiement, statut)
+            VALUES (?, ?, ?, ?, ?, "Espèces", "Payé")
+        ');
+        $stmt->execute([
+            $inscriptionId,
+            $montantFacture,
+            $mois,
+            $annee,
+            $datePaiement
+        ]);
+    }
+    
+    // Envoyer une notification au tuteur avec les détails de réduction
     if ($demande['tuteur_utilisateur_id']) {
+        // Récupérer les informations de réduction depuis la description
+        $montantAvantReduction = $descriptionData['montant_avant_reduction'] ?? null;
+        $tauxReduction = $descriptionData['taux_reduction'] ?? 0;
+        $montantReduction = $descriptionData['montant_reduction'] ?? 0;
+        $nombreElevesTotal = $descriptionData['nombre_eleves_total'] ?? 1;
+        
+        // Construire le message de notification
+        $message = "Le paiement pour l'inscription de {$demande['eleve_prenom']} {$demande['eleve_nom']} a été confirmé.\n\n";
+        
+        // Ajouter les félicitations et détails de réduction si applicable
+        if ($tauxReduction > 0 && $montantAvantReduction) {
+            $pourcentageReduction = round($tauxReduction * 100);
+            
+            if ($nombreElevesTotal === 2) {
+                // 2ème élève : 10% de réduction
+                $message .= "🎉 Félicitations ! Vu que vous avez fait deux inscriptions, vous avez bénéficié d'une réduction de {$pourcentageReduction}% sur l'inscription du deuxième élève.\n\n";
+            } elseif ($nombreElevesTotal >= 3) {
+                // 3ème, 4ème, 5ème élève : 20% de réduction
+                $message .= "🎉 Félicitations ! Vu que vous avez fait plus de deux inscriptions, vous avez bénéficié d'une réduction de {$pourcentageReduction}%.\n\n";
+            }
+            
+            // Afficher les montants avant et après réduction
+            $message .= "Détails du paiement :\n";
+            $message .= "- Montant initial : " . number_format($montantAvantReduction, 2) . " DH\n";
+            $message .= "- Réduction ({$pourcentageReduction}%) : -" . number_format($montantReduction, 2) . " DH\n";
+            $message .= "- Montant payé : " . number_format($montantFacture, 2) . " DH\n\n";
+        }
+        
+        $message .= "L'administrateur va maintenant affecter votre enfant à un bus.";
+        
         $stmt = $pdo->prepare('
             INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
             VALUES (?, ?, ?, ?, ?, FALSE)
@@ -97,7 +183,7 @@ try {
             $demande['tuteur_utilisateur_id'],
             'tuteur',
             'Paiement confirmé',
-            "Le paiement pour l'inscription de {$demande['eleve_prenom']} {$demande['eleve_nom']} a été confirmé. L'administrateur va maintenant affecter votre enfant à un bus.",
+            $message,
             'success'
         ]);
     }

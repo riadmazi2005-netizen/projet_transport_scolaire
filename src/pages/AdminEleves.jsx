@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { 
   GraduationCap, Search, User, ArrowLeft, Filter, Bus, MapPin, Phone, Calendar, Key, Edit, Trash2, XCircle
 } from 'lucide-react';
@@ -29,6 +30,7 @@ export default function AdminEleves() {
   const [error, setError] = useState(null);
   const [selectedEleve, setSelectedEleve] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, eleve: null });
   const [editForm, setEditForm] = useState({
     nom: '',
     prenom: '',
@@ -230,19 +232,23 @@ export default function AdminEleves() {
     }
   };
 
-  const handleDelete = async (eleve) => {
-    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer l'élève ${eleve.prenom} ${eleve.nom} ?`)) {
-      return;
-    }
+  const handleDelete = async () => {
+    if (!deleteConfirm.eleve) return;
     
     setError(null);
     try {
-      await elevesAPI.delete(eleve.id);
+      await elevesAPI.delete(deleteConfirm.eleve.id);
+      setDeleteConfirm({ show: false, eleve: null });
       await loadData();
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
       setError('Erreur lors de la suppression de l\'élève: ' + (err.message || 'Erreur inconnue'));
+      setDeleteConfirm({ show: false, eleve: null });
     }
+  };
+
+  const handleDeleteClick = (eleve) => {
+    setDeleteConfirm({ show: true, eleve });
   };
 
   if (loading) {
@@ -523,7 +529,7 @@ export default function AdminEleves() {
                         Modifier
                       </Button>
                       <Button
-                        onClick={() => handleDelete(eleve)}
+                        onClick={() => handleDeleteClick(eleve)}
                         className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
@@ -648,6 +654,18 @@ export default function AdminEleves() {
           </motion.div>
         </div>
       )}
+
+      {/* Dialog de confirmation de suppression */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        title="Supprimer l'élève"
+        message={deleteConfirm.eleve ? `Êtes-vous sûr de vouloir supprimer l'élève ${deleteConfirm.eleve.prenom} ${deleteConfirm.eleve.nom} ?` : ''}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm({ show: false, eleve: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
     </AdminLayout>
   );
 }

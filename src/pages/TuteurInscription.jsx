@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   GraduationCap, ArrowLeft, UserPlus, User, 
-  MapPin, Bus, CheckCircle 
+  MapPin, Bus, CheckCircle, Plus, X, Trash2
 } from 'lucide-react';
 
 export default function TuteurInscription() {
@@ -28,7 +28,7 @@ export default function TuteurInscription() {
   const [error, setError] = useState('');
   const [tuteur, setTuteur] = useState(null);
   const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState({
+  const [elevesList, setElevesList] = useState([{
     // Infos élève
     nom: '',
     prenom: '',
@@ -39,9 +39,11 @@ export default function TuteurInscription() {
     ville: '',
     zone: '',
     adresse: '',
+  }]);
+  const [formData, setFormData] = useState({
     lien_parente: '',
     lien_parente_custom: '', // Pour valeur personnalisée
-    // Infos inscription
+    // Infos inscription (communes à tous les élèves)
     type_transport: '',
     abonnement: '',
     groupe: ''
@@ -58,8 +60,10 @@ export default function TuteurInscription() {
     'Lycée': ['TC', '1BAC', '2BAC']
   };
   
-  // Récupérer les classes disponibles selon le niveau sélectionné
-  const classesDisponibles = formData.niveau ? (classesParNiveau[formData.niveau] || []) : [];
+  // Fonction pour obtenir les classes disponibles selon le niveau
+  const getClassesDisponibles = (niveau) => {
+    return niveau ? (classesParNiveau[niveau] || []) : [];
+  };
 
   useEffect(() => {
     const session = localStorage.getItem('tuteur_session');
@@ -74,7 +78,12 @@ export default function TuteurInscription() {
   useEffect(() => {
     // Filtrer les zones selon la ville sélectionnée
     if (formData.ville) {
-      const zonesFiltrees = zones.filter(z => z.ville === formData.ville && z.actif !== false);
+      const zonesFiltrees = zones.filter(z => {
+        const matchVille = z.ville && z.ville.trim() === formData.ville.trim();
+        // Gérer actif comme boolean (true/false) ou comme entier (1/0) depuis MySQL
+        const estActif = z.actif === true || z.actif === 1 || z.actif === '1';
+        return matchVille && estActif;
+      });
       setZonesFiltrees(zonesFiltrees);
       // Réinitialiser la zone si elle n'est plus valide
       if (formData.zone && !zonesFiltrees.some(z => z.nom === formData.zone)) {
@@ -90,14 +99,53 @@ export default function TuteurInscription() {
     try {
       const zonesRes = await zonesAPI.getAll();
       const zonesData = zonesRes?.data || zonesRes || [];
-      setZones(Array.isArray(zonesData) ? zonesData : []);
+      const zonesArray = Array.isArray(zonesData) ? zonesData : [];
+      setZones(zonesArray);
+      console.log('Zones chargées:', zonesArray.length, zonesArray);
     } catch (err) {
       console.error('Erreur lors du chargement des zones:', err);
+      setZones([]);
     }
   };
 
   const handleChange = (name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleEleveChange = (index, name, value) => {
+    setElevesList(prev => {
+      const newList = [...prev];
+      newList[index] = { ...newList[index], [name]: value };
+      // Si on change le niveau, réinitialiser la classe
+      if (name === 'niveau') {
+        newList[index].classe = '';
+      }
+      // Si on change la ville, réinitialiser la zone
+      if (name === 'ville') {
+        newList[index].zone = '';
+      }
+      return newList;
+    });
+  };
+
+  const addEleve = () => {
+    setElevesList(prev => [...prev, {
+      nom: '',
+      prenom: '',
+      date_naissance: '',
+      sexe: '',
+      classe: '',
+      niveau: '',
+      ville: '',
+      zone: '',
+      adresse: '',
+    }]);
+  };
+
+  const removeEleve = (index) => {
+    if (elevesList.length > 1) {
+      setElevesList(prev => prev.filter((_, i) => i !== index));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -106,112 +154,117 @@ export default function TuteurInscription() {
     setError('');
     
     try {
-      // Validation des champs requis
-      if (!formData.nom || !formData.prenom || !formData.classe || !formData.ville || !formData.zone || !formData.adresse) {
-        setError('Veuillez remplir tous les champs obligatoires');
-        setLoading(false);
-        return;
-      }
-      
+      // Validation des champs de transport (communs à tous les élèves)
       if (!formData.type_transport || !formData.abonnement || !formData.groupe) {
         setError('Veuillez remplir tous les champs de transport');
         setLoading(false);
         return;
       }
-      
-      // Prepare eleve data for database
-      // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs, pas l'ID utilisateur
-      const tuteurId = tuteur.type_id || tuteur.id;
-      const eleveData = {
-        nom: formData.nom,
-        prenom: formData.prenom,
-        date_naissance: formData.date_naissance || null,
-        adresse: formData.adresse,
-        telephone_parent: tuteur.telephone,
-        email_parent: tuteur.email,
-        classe: formData.classe,
-        tuteur_id: tuteurId,
-        statut: 'Inactif' // Will be 'Actif' after payment
-      };
-      
-      // Create eleve
-      const eleveResponse = await elevesAPI.create(eleveData);
-      
-      if (!eleveResponse || !eleveResponse.success || !eleveResponse.data) {
-        const errorMsg = eleveResponse?.message || 'Erreur lors de la création de l\'élève';
-        console.error('Erreur création élève:', eleveResponse);
-        throw new Error(errorMsg);
+
+      // Validation de tous les élèves
+      for (let i = 0; i < elevesList.length; i++) {
+        const eleve = elevesList[i];
+        if (!eleve.nom || !eleve.prenom || !eleve.classe || !eleve.ville || !eleve.zone || !eleve.adresse) {
+          setError(`Veuillez remplir tous les champs obligatoires pour l'élève ${i + 1}`);
+          setLoading(false);
+          return;
+        }
       }
       
-      const newEleve = eleveResponse.data;
+      // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
+      const tuteurId = tuteur.type_id || tuteur.id;
       
       // Préparer le lien de parenté (valeur sélectionnée ou personnalisée)
       const lienParenteFinal = formData.lien_parente === 'Autre' 
         ? formData.lien_parente_custom.trim() 
         : formData.lien_parente;
       
-      // Create demande (inscription request)
-      // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
-      const demandeResponse = await demandesAPI.create({
-        eleve_id: newEleve.id,
-        tuteur_id: tuteurId,
-        type_demande: 'inscription',
-        zone_geographique: formData.zone,
-        description: JSON.stringify({
-          type_transport: formData.type_transport,
-          abonnement: formData.abonnement,
-          groupe: formData.groupe,
-          zone: formData.zone,
-          niveau: formData.niveau,
-          lien_parente: lienParenteFinal,
-          sexe: formData.sexe
-        }),
-        statut: 'En attente'
-      });
-      
-      if (!demandeResponse || !demandeResponse.success) {
-        const errorMsg = demandeResponse?.message || 'Erreur lors de la création de la demande';
-        console.error('Erreur création demande:', demandeResponse);
-        throw new Error(errorMsg);
+      // Créer tous les élèves et leurs demandes
+      const results = [];
+      for (const eleveData of elevesList) {
+        // Create eleve
+        const eleveResponse = await elevesAPI.create({
+          nom: eleveData.nom,
+          prenom: eleveData.prenom,
+          date_naissance: eleveData.date_naissance || null,
+          adresse: eleveData.adresse,
+          telephone_parent: tuteur.telephone,
+          email_parent: tuteur.email,
+          classe: eleveData.classe,
+          tuteur_id: tuteurId,
+          statut: 'Inactif' // Will be 'Actif' after payment
+        });
+        
+        if (!eleveResponse || !eleveResponse.success || !eleveResponse.data) {
+          const errorMsg = eleveResponse?.message || 'Erreur lors de la création de l\'élève';
+          console.error('Erreur création élève:', eleveResponse);
+          throw new Error(errorMsg);
+        }
+        
+        const newEleve = eleveResponse.data;
+        
+        // Create demande (inscription request)
+        const demandeResponse = await demandesAPI.create({
+          eleve_id: newEleve.id,
+          tuteur_id: tuteurId,
+          type_demande: 'inscription',
+          zone_geographique: eleveData.zone,
+          description: JSON.stringify({
+            type_transport: formData.type_transport,
+            abonnement: formData.abonnement,
+            groupe: formData.groupe,
+            zone: eleveData.zone,
+            niveau: eleveData.niveau,
+            lien_parente: lienParenteFinal,
+            sexe: eleveData.sexe
+          }),
+          statut: 'En attente'
+        });
+        
+        if (!demandeResponse || !demandeResponse.success) {
+          const errorMsg = demandeResponse?.message || 'Erreur lors de la création de la demande';
+          console.error('Erreur création demande:', demandeResponse);
+          throw new Error(errorMsg);
+        }
+        
+        results.push({ eleve: newEleve, demande: demandeResponse });
       }
       
-      // Create notification for tuteur (utiliser l'ID utilisateur pour les notifications)
-      // Les notifications utilisent l'utilisateur_id, pas le tuteur_id
+      // Créer les notifications
       try {
+        const nomsEleves = elevesList.map(e => `${e.prenom} ${e.nom}`).join(', ');
         await notificationsAPI.create({
-          destinataire_id: tuteur.id, // ID utilisateur pour les notifications
+          destinataire_id: tuteur.id,
           destinataire_type: 'tuteur',
-          titre: 'Inscription envoyée',
-          message: `L'inscription de ${formData.prenom} ${formData.nom} a été envoyée et est en attente de validation.`,
+          titre: 'Inscription(s) envoyée(s)',
+          message: `L'inscription de ${elevesList.length === 1 ? nomsEleves : `${elevesList.length} élèves (${nomsEleves})`} a été envoyée et est en attente de validation.`,
           type: 'info'
         });
       } catch (notifError) {
         console.warn('Erreur notification tuteur:', notifError);
-        // On continue même si la notification échoue
       }
       
       // Récupérer tous les admins pour leur envoyer une notification
       try {
         const adminsData = await getAdmins();
         if (adminsData.success && adminsData.data && adminsData.data.length > 0) {
-          // Envoyer notification à tous les admins
+          const nomsEleves = elevesList.map(e => `${e.prenom} ${e.nom}`).join(', ');
           const notificationPromises = adminsData.data.map(admin => 
             notificationsAPI.create({
               destinataire_id: admin.id,
               destinataire_type: 'admin',
-              titre: 'Nouvelle demande d\'inscription',
-              message: `Nouvelle demande d'inscription pour ${formData.prenom} ${formData.nom} de ${tuteur.prenom} ${tuteur.nom}`,
+              titre: 'Nouvelle(s) demande(s) d\'inscription',
+              message: `${elevesList.length === 1 ? 'Nouvelle demande' : `${elevesList.length} nouvelles demandes`} d'inscription pour ${nomsEleves} de ${tuteur.prenom} ${tuteur.nom}`,
               type: 'info'
             })
           );
           await Promise.all(notificationPromises);
         }
       } catch (adminError) {
-        // Si l'endpoint n'existe pas, on continue sans notification admin
         console.warn('Impossible de récupérer les admins pour la notification:', adminError);
       }
       
-      // Rediriger vers le dashboard après un court délai pour permettre l'affichage du succès
+      // Rediriger vers le dashboard après un court délai
       setTimeout(() => {
         navigate(createPageUrl('TuteurDashboard'));
       }, 500);
@@ -221,7 +274,6 @@ export default function TuteurInscription() {
       setError(errorMessage);
       setLoading(false);
     } finally {
-      // S'assurer que loading est toujours réinitialisé
       setLoading(false);
     }
   };
@@ -251,7 +303,7 @@ export default function TuteurInscription() {
             </button>
             <h1 className="text-2xl font-bold text-white flex items-center gap-3">
               <UserPlus className="w-7 h-7" />
-              Inscription d'un élève
+              Inscription {elevesList.length === 1 ? "d'un élève" : `de ${elevesList.length} élèves`}
             </h1>
           </div>
 
@@ -396,177 +448,209 @@ export default function TuteurInscription() {
               </motion.div>
             )}
 
-            {/* Step 2: Infos Élève */}
+            {/* Step 2: Infos Élève(s) */}
             {currentStep === 2 && (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 className="space-y-5"
               >
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5 text-lime-500" />
-                  Informations de l'Élève
-                </h3>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-700 font-medium">Nom</Label>
-                    <Input
-                      value={formData.nom}
-                      onChange={(e) => handleChange('nom', e.target.value)}
-                      className="mt-1 h-12 rounded-xl"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-700 font-medium">Prénom</Label>
-                    <Input
-                      value={formData.prenom}
-                      onChange={(e) => handleChange('prenom', e.target.value)}
-                      className="mt-1 h-12 rounded-xl"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-700 font-medium">Date de naissance</Label>
-                    <Input
-                      type="date"
-                      value={formData.date_naissance}
-                      onChange={(e) => handleChange('date_naissance', e.target.value)}
-                      className="mt-1 h-12 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-700 font-medium">Sexe</Label>
-                    <Select 
-                      value={formData.sexe} 
-                      onValueChange={(v) => handleChange('sexe', v)}
-                    >
-                      <SelectTrigger className="mt-1 h-12 rounded-xl">
-                        <SelectValue placeholder="Sélectionnez" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Masculin">Masculin</SelectItem>
-                        <SelectItem value="Féminin">Féminin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-700 font-medium">Niveau</Label>
-                    <Select 
-                      value={formData.niveau} 
-                      onValueChange={(v) => {
-                        handleChange('niveau', v);
-                        // Réinitialiser la classe quand on change de niveau
-                        handleChange('classe', '');
-                      }}
-                    >
-                      <SelectTrigger className="mt-1 h-12 rounded-xl">
-                        <SelectValue placeholder="Sélectionnez" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Primaire">Primaire</SelectItem>
-                        <SelectItem value="Collège">Collège</SelectItem>
-                        <SelectItem value="Lycée">Lycée</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-gray-700 font-medium">Classe</Label>
-                    <Select 
-                      value={formData.classe} 
-                      onValueChange={(v) => handleChange('classe', v)}
-                      disabled={!formData.niveau}
-                    >
-                      <SelectTrigger className="mt-1 h-12 rounded-xl">
-                        <SelectValue placeholder={formData.niveau ? "Sélectionnez" : "Sélectionnez d'abord le niveau"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {classesDisponibles.length > 0 ? (
-                          classesDisponibles.map(c => (
-                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="" disabled>Aucune classe disponible</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {formData.niveau && classesDisponibles.length === 0 && (
-                      <p className="text-sm text-red-500 mt-1">Niveau non reconnu</p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-gray-700 font-medium flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-lime-500" />
-                    Ville *
-                  </Label>
-                  <Select 
-                    value={formData.ville} 
-                    onValueChange={(v) => {
-                      handleChange('ville', v);
-                      handleChange('zone', ''); // Réinitialiser la zone quand on change de ville
-                    }}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <GraduationCap className="w-5 h-5 text-lime-500" />
+                    Informations des Élèves ({elevesList.length})
+                  </h3>
+                  <Button
+                    type="button"
+                    onClick={addEleve}
+                    variant="outline"
+                    className="rounded-xl"
                   >
-                    <SelectTrigger className="mt-1 h-12 rounded-xl">
-                      <SelectValue placeholder="Sélectionnez votre ville" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {villes.map(v => (
-                        <SelectItem key={v} value={v}>{v}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Ajouter un élève
+                  </Button>
                 </div>
 
-                <div>
-                  <Label className="text-gray-700 font-medium flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-lime-500" />
-                    Zone géographique *
-                  </Label>
-                  <Select 
-                    value={formData.zone} 
-                    onValueChange={(v) => handleChange('zone', v)}
-                    disabled={!formData.ville || zonesFiltrees.length === 0}
-                  >
-                    <SelectTrigger className="mt-1 h-12 rounded-xl">
-                      <SelectValue placeholder={formData.ville ? "Sélectionnez votre zone" : "Sélectionnez d'abord la ville"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {zonesFiltrees.length > 0 ? (
-                        zonesFiltrees.map(z => (
-                          <SelectItem key={z.id || z.nom} value={z.nom}>{z.nom}</SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="" disabled>
-                          {formData.ville ? "Aucune zone disponible" : "Sélectionnez d'abord la ville"}
-                        </SelectItem>
+                {elevesList.map((eleve, index) => {
+                  const classesDisponibles = getClassesDisponibles(eleve.niveau);
+                  const zonesFiltreesEleve = eleve.ville 
+                    ? zones.filter(z => {
+                        const matchVille = z.ville && z.ville.trim() === eleve.ville.trim();
+                        const estActif = z.actif === true || z.actif === 1 || z.actif === '1';
+                        return matchVille && estActif;
+                      })
+                    : [];
+
+                  return (
+                    <div key={index} className="bg-gray-50 rounded-2xl p-6 border-2 border-lime-200 relative">
+                      {elevesList.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeEleve(index)}
+                          className="absolute top-4 right-4 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       )}
-                    </SelectContent>
-                  </Select>
-                </div>
+                      <div className="mb-4 flex items-center gap-2">
+                        <div className="w-8 h-8 bg-lime-500 text-white rounded-full flex items-center justify-center font-bold">
+                          {index + 1}
+                        </div>
+                        <h4 className="font-semibold text-gray-800">Élève {index + 1}</h4>
+                      </div>
 
-                <div>
-                  <Label className="text-gray-700 font-medium flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-lime-500" />
-                    Adresse *
-                  </Label>
-                  <Input
-                    value={formData.adresse}
-                    onChange={(e) => handleChange('adresse', e.target.value)}
-                    className="mt-1 h-12 rounded-xl"
-                    placeholder="Ex: Quartier Hay Riad, Rue Mohammed V, Maison N°12"
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Veuillez entrer le quartier, la rue et le nom/numéro de la maison</p>
-                </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-gray-700 font-medium">Nom *</Label>
+                          <Input
+                            value={eleve.nom}
+                            onChange={(e) => handleEleveChange(index, 'nom', e.target.value)}
+                            className="mt-1 h-12 rounded-xl"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-gray-700 font-medium">Prénom *</Label>
+                          <Input
+                            value={eleve.prenom}
+                            onChange={(e) => handleEleveChange(index, 'prenom', e.target.value)}
+                            className="mt-1 h-12 rounded-xl"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 mt-4">
+                        <div>
+                          <Label className="text-gray-700 font-medium">Date de naissance</Label>
+                          <Input
+                            type="date"
+                            value={eleve.date_naissance}
+                            onChange={(e) => handleEleveChange(index, 'date_naissance', e.target.value)}
+                            className="mt-1 h-12 rounded-xl"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-gray-700 font-medium">Sexe</Label>
+                          <Select 
+                            value={eleve.sexe} 
+                            onValueChange={(v) => handleEleveChange(index, 'sexe', v)}
+                          >
+                            <SelectTrigger className="mt-1 h-12 rounded-xl">
+                              <SelectValue placeholder="Sélectionnez" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Masculin">Masculin</SelectItem>
+                              <SelectItem value="Féminin">Féminin</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 mt-4">
+                        <div>
+                          <Label className="text-gray-700 font-medium">Niveau</Label>
+                          <Select 
+                            value={eleve.niveau} 
+                            onValueChange={(v) => handleEleveChange(index, 'niveau', v)}
+                          >
+                            <SelectTrigger className="mt-1 h-12 rounded-xl">
+                              <SelectValue placeholder="Sélectionnez" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Primaire">Primaire</SelectItem>
+                              <SelectItem value="Collège">Collège</SelectItem>
+                              <SelectItem value="Lycée">Lycée</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-gray-700 font-medium">Classe *</Label>
+                          <Select 
+                            value={eleve.classe} 
+                            onValueChange={(v) => handleEleveChange(index, 'classe', v)}
+                            disabled={!eleve.niveau}
+                          >
+                            <SelectTrigger className="mt-1 h-12 rounded-xl">
+                              <SelectValue placeholder={eleve.niveau ? "Sélectionnez" : "Sélectionnez d'abord le niveau"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {classesDisponibles.length > 0 ? (
+                                classesDisponibles.map(c => (
+                                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                                ))
+                              ) : (
+                                <SelectItem value="" disabled>Aucune classe disponible</SelectItem>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <Label className="text-gray-700 font-medium flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-lime-500" />
+                          Ville *
+                        </Label>
+                        <Select 
+                          value={eleve.ville} 
+                          onValueChange={(v) => handleEleveChange(index, 'ville', v)}
+                        >
+                          <SelectTrigger className="mt-1 h-12 rounded-xl">
+                            <SelectValue placeholder="Sélectionnez votre ville" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {villes.map(v => (
+                              <SelectItem key={v} value={v}>{v}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="mt-4">
+                        <Label className="text-gray-700 font-medium flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-lime-500" />
+                          Zone géographique *
+                        </Label>
+                        <Select 
+                          value={eleve.zone} 
+                          onValueChange={(v) => handleEleveChange(index, 'zone', v)}
+                          disabled={!eleve.ville || zonesFiltreesEleve.length === 0}
+                        >
+                          <SelectTrigger className="mt-1 h-12 rounded-xl">
+                            <SelectValue placeholder={eleve.ville ? "Sélectionnez votre zone" : "Sélectionnez d'abord la ville"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {zonesFiltreesEleve.length > 0 ? (
+                              zonesFiltreesEleve.map(z => (
+                                <SelectItem key={z.id || z.nom} value={z.nom}>{z.nom}</SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="" disabled>
+                                {eleve.ville ? "Aucune zone disponible" : "Sélectionnez d'abord la ville"}
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="mt-4">
+                        <Label className="text-gray-700 font-medium flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-lime-500" />
+                          Adresse *
+                        </Label>
+                        <Input
+                          value={eleve.adresse}
+                          onChange={(e) => handleEleveChange(index, 'adresse', e.target.value)}
+                          className="mt-1 h-12 rounded-xl"
+                          placeholder="Ex: Quartier Hay Riad, Rue Mohammed V, Maison N°12"
+                          required
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Veuillez entrer le quartier, la rue et le nom/numéro de la maison</p>
+                      </div>
+                    </div>
+                  );
+                })}
 
                 <div className="flex gap-3">
                   <Button
@@ -580,7 +664,7 @@ export default function TuteurInscription() {
                   <Button
                     type="button"
                     onClick={() => setCurrentStep(3)}
-                    disabled={!formData.nom || !formData.prenom || !formData.niveau || !formData.classe || !formData.ville || !formData.zone || !formData.adresse}
+                    disabled={elevesList.some(e => !e.nom || !e.prenom || !e.niveau || !e.classe || !e.ville || !e.zone || !e.adresse)}
                     className="flex-1 h-12 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl"
                   >
                     Continuer
@@ -700,7 +784,7 @@ export default function TuteurInscription() {
                     ) : (
                       <>
                         <CheckCircle className="w-5 h-5 mr-2" />
-                        Envoyer l'inscription
+                        Envoyer {elevesList.length === 1 ? "l'inscription" : `les ${elevesList.length} inscriptions`}
                       </>
                     )}
                   </Button>

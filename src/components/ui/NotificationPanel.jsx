@@ -213,11 +213,12 @@ export default function NotificationPanel({
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    filteredNotifications
+                    // Marquer TOUTES les notifications non lues comme lues (pas seulement celles filtrées)
+                    notifications
                       .filter(n => !n.lue)
                       .forEach(n => onMarkAsRead(n.id));
                   }}
-                  className="text-green-600 hover:text-green-700"
+                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Tout marquer comme lu

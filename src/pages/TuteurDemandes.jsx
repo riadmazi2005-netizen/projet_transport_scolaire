@@ -32,6 +32,8 @@ export default function TuteurDemandes() {
   const [tuteur, setTuteur] = useState(null);
   const [error, setError] = useState('');
   const [editingDemande, setEditingDemande] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, demandeId: null });
+  const [alertDialog, setAlertDialog] = useState({ show: false, message: '', type: 'info' });
   const [editFormData, setEditFormData] = useState({});
 
   // Classes selon le niveau
@@ -196,11 +198,11 @@ export default function TuteurDemandes() {
           type: 'info'
         });
       } else {
-        alert(response.message || 'Erreur lors de la modification');
+        setAlertDialog({ show: true, message: response.message || 'Erreur lors de la modification', type: 'error' });
       }
     } catch (err) {
       console.error('Erreur:', err);
-      alert('Erreur lors de la modification de la demande: ' + (err.message || 'Erreur inconnue'));
+      setAlertDialog({ show: true, message: 'Erreur lors de la modification de la demande: ' + (err.message || 'Erreur inconnue'), type: 'error' });
     }
   };
 

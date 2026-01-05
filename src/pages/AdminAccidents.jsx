@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, RefreshCw, ZoomIn, X
+  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -185,14 +185,6 @@ export default function AdminAccidents() {
               <ArrowLeft className="w-4 h-4" />
               Retour au tableau de bord
             </button>
-            <Button
-              onClick={loadData}
-              disabled={loading}
-              className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl font-semibold shadow-lg"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Actualiser
-            </Button>
           </div>
           
           {error && (

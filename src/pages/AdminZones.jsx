@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { 
   MapPin, Plus, Edit, Trash2, Save, X, ArrowLeft, CheckCircle
 } from 'lucide-react';
@@ -77,18 +78,22 @@ export default function AdminZones() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette zone ?')) {
-      return;
-    }
+  const handleDelete = async () => {
+    if (!deleteConfirm.id) return;
     
     try {
-      await zonesAPI.delete(id);
+      await zonesAPI.delete(deleteConfirm.id);
+      setDeleteConfirm({ show: false, id: null });
       await loadData();
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
       setError(err.message || 'Erreur lors de la suppression de la zone');
+      setDeleteConfirm({ show: false, id: null });
     }
+  };
+
+  const handleDeleteClick = (id) => {
+    setDeleteConfirm({ show: true, id });
   };
 
   const handleEdit = (zone) => {
@@ -280,7 +285,7 @@ export default function AdminZones() {
                       Modifier
                     </Button>
                     <Button
-                      onClick={() => handleDelete(zone.id)}
+                      onClick={() => handleDeleteClick(zone.id)}
                       variant="outline"
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
                     >
@@ -294,6 +299,18 @@ export default function AdminZones() {
           )}
         </div>
       </motion.div>
+
+      {/* Dialog de confirmation de suppression */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        title="Supprimer la zone"
+        message="Êtes-vous sûr de vouloir supprimer cette zone ?"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm({ show: false, id: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
     </AdminLayout>
   );
 }

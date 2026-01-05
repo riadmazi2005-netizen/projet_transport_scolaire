@@ -193,7 +193,11 @@ export default function TuteurPaiement() {
                         {/* Contenu principal */}
                         <div className="flex-1">
                           <div className="font-bold text-green-800 mb-1">
-                            Réduction familiale appliquée !
+                            {pourcentageReduction === 10 
+                              ? "🎉 Félicitations ! Vous avez bénéficié d'une réduction de 10%"
+                              : pourcentageReduction === 20
+                              ? "🎉 Félicitations ! Vous avez bénéficié d'une réduction de 20%"
+                              : "Réduction familiale appliquée !"}
                           </div>
                           <div className="text-sm text-green-700">
                             {nombreElevesTotal} {nombreElevesTotal === 1 ? 'élève inscrit' : 'élèves inscrits'} • -{pourcentageReduction}% sur ce paiement
@@ -256,10 +260,48 @@ export default function TuteurPaiement() {
                       </>
                     );
                   })()}
-                  <div className="border-t border-amber-200 pt-3 flex justify-between">
-                    <span className="text-lg font-semibold text-gray-800">Montant total:</span>
-                    <span className="text-2xl font-bold text-amber-600">{calculateAmount().toFixed(2)} DH</span>
-                  </div>
+                  {(() => {
+                    try {
+                      const desc = typeof demande.description === 'string' ? JSON.parse(demande.description) : demande.description;
+                      const montantAvantReduction = desc?.montant_avant_reduction;
+                      const montantReduction = desc?.montant_reduction ?? 0;
+                      const tauxReduction = desc?.taux_reduction ?? 0;
+                      
+                      if (tauxReduction > 0 && montantAvantReduction) {
+                        return (
+                          <>
+                            <div className="border-t border-amber-200 pt-3">
+                              <div className="flex justify-between mb-2">
+                                <span className="text-gray-600">Montant initial:</span>
+                                <span className="font-medium text-gray-700">{parseFloat(montantAvantReduction).toFixed(2)} DH</span>
+                              </div>
+                              <div className="flex justify-between mb-2">
+                                <span className="text-green-600 font-medium">Réduction ({Math.round(tauxReduction * 100)}%):</span>
+                                <span className="font-medium text-green-600">-{parseFloat(montantReduction).toFixed(2)} DH</span>
+                              </div>
+                            </div>
+                            <div className="border-t border-amber-200 pt-3 flex justify-between">
+                              <span className="text-lg font-semibold text-gray-800">Montant total:</span>
+                              <span className="text-2xl font-bold text-amber-600">{calculateAmount().toFixed(2)} DH</span>
+                            </div>
+                          </>
+                        );
+                      }
+                      return (
+                        <div className="border-t border-amber-200 pt-3 flex justify-between">
+                          <span className="text-lg font-semibold text-gray-800">Montant total:</span>
+                          <span className="text-2xl font-bold text-amber-600">{calculateAmount().toFixed(2)} DH</span>
+                        </div>
+                      );
+                    } catch (err) {
+                      return (
+                        <div className="border-t border-amber-200 pt-3 flex justify-between">
+                          <span className="text-lg font-semibold text-gray-800">Montant total:</span>
+                          <span className="text-2xl font-bold text-amber-600">{calculateAmount().toFixed(2)} DH</span>
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
               </div>
 

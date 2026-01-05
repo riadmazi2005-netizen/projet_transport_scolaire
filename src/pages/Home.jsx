@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import AnimatedBusHero from '../components/AnimatedBusHero';
 
 function ContactForm() {
   const [formData, setFormData] = useState({
@@ -121,8 +120,6 @@ function ContactForm() {
 }
 
 export default function Home() {
-  // Le son du klaxon est maintenant géré par le composant AnimatedBusHero
-
   const spaces = [
     {
       title: "Espace Tuteur",
@@ -193,7 +190,7 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Animated Bus Hero Section */}
+        {/* Bus Image Section */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -204,17 +201,11 @@ export default function Home() {
             className="relative w-full"
             style={{ height: '70vh', minHeight: '500px' }}
           >
-            {/* <AnimatedBusHero /> */}
-            <div className="w-full h-full bg-gradient-to-b from-blue-100 via-orange-50 to-amber-50 flex items-center justify-center">
-              <p className="text-2xl font-bold text-gray-800">Bus Image</p>
-            </div>
-            {/* Overlay avec texte */}
-            <div className="absolute inset-0 bg-gradient-to-t from-amber-900/60 via-amber-900/20 to-transparent pointer-events-none" />
-            <div className="absolute bottom-12 left-8 md:left-12 text-white pointer-events-none">
-              <p className="text-2xl md:text-3xl font-bold mb-2 drop-shadow-lg">Transport Fiable & Sécurisé</p>
-              <p className="text-lg md:text-xl opacity-90 drop-shadow-md">Pour tous vos enfants</p>
-              <p className="text-sm md:text-base mt-2 opacity-75 italic">Cliquez sur le bus pour entendre le klaxon</p>
-            </div>
+            <img 
+              src="/bus-main.jpg" 
+              alt="Mohammed V School Bus - Transport Scolaire" 
+              className="w-full h-full object-cover"
+            />
           </div>
         </motion.div>
 

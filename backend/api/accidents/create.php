@@ -100,6 +100,12 @@ try {
         try {
             $checkCol = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'nombre_accidents'");
             if ($checkCol->rowCount() > 0) {
+                // Récupérer l'utilisateur_id du chauffeur avant la mise à jour
+                $stmt = $pdo->prepare('SELECT utilisateur_id, nombre_accidents FROM chauffeurs WHERE id = ?');
+                $stmt->execute([$chauffeur_id]);
+                $chauffeurAvant = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                // Mettre à jour le compteur d'accidents
                 $stmt = $pdo->prepare('
                     UPDATE chauffeurs 
                     SET nombre_accidents = nombre_accidents + 1 
@@ -107,36 +113,59 @@ try {
                 ');
                 $stmt->execute([$chauffeur_id]);
                 
-                // Vérifier si le chauffeur a maintenant 3 accidents ou plus
-                $stmt = $pdo->prepare('SELECT nombre_accidents FROM chauffeurs WHERE id = ?');
+                // Récupérer le nouveau nombre d'accidents
+                $stmt = $pdo->prepare('SELECT nombre_accidents, statut FROM chauffeurs WHERE id = ?');
                 $stmt->execute([$chauffeur_id]);
                 $chauffeur = $stmt->fetch(PDO::FETCH_ASSOC);
                 
-                if ($chauffeur && $chauffeur['nombre_accidents'] >= 3) {
-                    // Vérifier si la colonne statut existe
-                    $checkStatut = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'statut'");
-                    if ($checkStatut->rowCount() > 0) {
-                        $stmt = $pdo->prepare('UPDATE chauffeurs SET statut = ? WHERE id = ?');
-                        $stmt->execute(['Licencié', $chauffeur_id]);
+                if ($chauffeur && $chauffeurAvant) {
+                    $nouveauNombreAccidents = $chauffeur['nombre_accidents'];
+                    $utilisateurId = $chauffeurAvant['utilisateur_id'];
+                    
+                    // Envoyer une notification d'avertissement après chaque accident
+                    $avertissementMessage = "Vous avez eu un nouvel accident.\n\n";
+                    $avertissementMessage .= "Nombre total d'accidents: {$nouveauNombreAccidents}/3\n\n";
+                    
+                    if ($nouveauNombreAccidents >= 3) {
+                        $avertissementMessage .= "⚠️ ATTENTION : Suite à votre 3ème accident, vous serez licencié conformément au règlement.";
+                    } else {
+                        $accidentsRestants = 3 - $nouveauNombreAccidents;
+                        $avertissementMessage .= "Attention : Il vous reste {$accidentsRestants} accident(s) avant le licenciement automatique.";
                     }
                     
-                    // Récupérer l'utilisateur_id du chauffeur pour la notification
-                    $stmt = $pdo->prepare('SELECT utilisateur_id FROM chauffeurs WHERE id = ?');
-                    $stmt->execute([$chauffeur_id]);
-                    $chauffeurData = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $stmt = $pdo->prepare('
+                        INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
+                        VALUES (?, ?, ?, ?, ?, FALSE)
+                    ');
+                    $stmt->execute([
+                        $utilisateurId,
+                        'chauffeur',
+                        'Avertissement - Accident déclaré',
+                        $avertissementMessage,
+                        'avertissement'
+                    ]);
                     
-                    if ($chauffeurData) {
-                        $stmt = $pdo->prepare('
-                            INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
-                            VALUES (?, ?, ?, ?, ?)
-                        ');
-                        $stmt->execute([
-                            $chauffeurData['utilisateur_id'],
-                            'chauffeur',
-                            'Licenciement',
-                            'Suite à votre 3ème accident, vous êtes licencié avec une amende de 1000 DH conformément au règlement.',
-                            'alerte'
-                        ]);
+                    // Vérifier si le chauffeur a maintenant 3 accidents ou plus et le licencier
+                    if ($nouveauNombreAccidents >= 3 && $chauffeur['statut'] !== 'Licencié') {
+                        // Vérifier si la colonne statut existe
+                        $checkStatut = $pdo->query("SHOW COLUMNS FROM chauffeurs LIKE 'statut'");
+                        if ($checkStatut->rowCount() > 0) {
+                            $stmt = $pdo->prepare('UPDATE chauffeurs SET statut = ? WHERE id = ?');
+                            $stmt->execute(['Licencié', $chauffeur_id]);
+                            
+                            // Envoyer une notification de licenciement
+                            $stmt = $pdo->prepare('
+                                INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
+                                VALUES (?, ?, ?, ?, ?, FALSE)
+                            ');
+                            $stmt->execute([
+                                $utilisateurId,
+                                'chauffeur',
+                                'Licenciement',
+                                'Suite à votre 3ème accident, vous avez été licencié conformément au règlement de l\'entreprise.',
+                                'alerte'
+                            ]);
+                        }
                     }
                 }
             }

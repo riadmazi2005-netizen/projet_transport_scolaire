@@ -171,14 +171,6 @@ export default function AdminProblemes() {
             </SelectContent>
           </Select>
         </div>
-        <div className="pt-6">
-          <Button
-            onClick={loadData}
-            className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl font-semibold shadow-lg"
-          >
-            Actualiser
-          </Button>
-        </div>
       </div>
 
       <motion.div

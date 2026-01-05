@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from '../components/AdminLayout';
 import { 
   BarChart3, Calendar, Users, Bus, CreditCard, 
-  AlertCircle, TrendingUp, Filter, ArrowLeft, RefreshCw
+  AlertCircle, TrendingUp, Filter, ArrowLeft
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { format, subDays, subWeeks, subMonths, subYears } from 'date-fns';
@@ -22,7 +22,6 @@ export default function AdminStats() {
   const [dateFin, setDateFin] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [periodePreset, setPeriodePreset] = useState('mois');
   const [busFilter, setBusFilter] = useState('all');
-  const [groupeFilter, setGroupeFilter] = useState('all');
   const [classeFilter, setClasseFilter] = useState('all');
   const [niveauFilter, setNiveauFilter] = useState('all');
   
@@ -242,24 +241,19 @@ export default function AdminStats() {
   const filteredEleves = data.eleves.filter(eleve => {
     const inscription = data.inscriptions.find(i => i.eleve_id === eleve.id);
     const matchBus = busFilter === 'all' || inscription?.bus_id?.toString() === busFilter;
-    const matchGroupe = groupeFilter === 'all' || eleve.groupe === groupeFilter;
     const matchClasse = classeFilter === 'all' || (eleve.classe && eleve.classe.toUpperCase() === classeFilter.toUpperCase());
     const eleveNiveau = getNiveauFromClasse(eleve.classe);
     const matchNiveau = niveauFilter === 'all' || eleveNiveau === niveauFilter;
-    return matchBus && matchGroupe && matchClasse && matchNiveau;
+    return matchBus && matchClasse && matchNiveau;
   });
 
-  const filterByBusAndGroupe = (items) => {
+  const filterByBusAndClasse = (items) => {
     return items.filter(item => {
       const eleve = data.eleves.find(e => e.id === item.eleve_id);
       if (!eleve) return true;
       
       const inscription = data.inscriptions.find(i => i.eleve_id === eleve.id);
       const matchBus = busFilter === 'all' || inscription?.bus_id?.toString() === busFilter;
-      
-      // Note: Le champ 'groupe' n'existe pas dans le SQL original
-      // Vous devrez peut-être l'ajouter à la table eleves
-      const matchGroupe = groupeFilter === 'all' || eleve.groupe === groupeFilter;
       
       // Filtre par classe
       const matchClasse = classeFilter === 'all' || (eleve.classe && eleve.classe.toUpperCase() === classeFilter.toUpperCase());
@@ -268,12 +262,12 @@ export default function AdminStats() {
       const eleveNiveau = getNiveauFromClasse(eleve.classe);
       const matchNiveau = niveauFilter === 'all' || eleveNiveau === niveauFilter;
       
-      return matchBus && matchGroupe && matchClasse && matchNiveau;
+      return matchBus && matchClasse && matchNiveau;
     });
   };
 
   // Stats calculations
-  const filteredPresences = filterByBusAndGroupe(filterByDate(data.presences));
+  const filteredPresences = filterByBusAndClasse(filterByDate(data.presences));
   const filteredPaiements = filterByDate(data.paiements, 'date_paiement');
   const filteredAccidents = filterByDate(data.accidents, 'date');
   const filteredInscriptions = filterByDate(data.inscriptions, 'date_inscription');
@@ -289,9 +283,8 @@ export default function AdminStats() {
   const presencesMatin = filteredPresences.filter(p => p.present_matin).length;
   const presencesSoir = filteredPresences.filter(p => p.present_soir).length;
 
-  // Gender distribution - adapter selon votre structure (utiliser filteredEleves)
-  const garcons = filteredEleves.filter(e => e.sexe === 'Masculin' || e.sexe === 'M').length;
-  const filles = filteredEleves.filter(e => e.sexe === 'Féminin' || e.sexe === 'F').length;
+  // Gender distribution - Le champ sexe n'existe pas dans la base de données, donc on ne peut pas calculer cette statistique
+  // Cette statistique a été supprimée car elle n'est pas basée sur des données réelles
 
   // Level distribution - Utiliser les vraies classes du système (avec toUpperCase pour normaliser) (utiliser filteredEleves)
   const primaire = filteredEleves.filter(e => {
@@ -343,10 +336,7 @@ export default function AdminStats() {
       return { name: eleve ? `${eleve.prenom} ${eleve.nom}` : 'Inconnu', presences: count };
     });
 
-  const genderData = [
-    { name: 'Garçons', value: garcons },
-    { name: 'Filles', value: filles }
-  ];
+  // genderData supprimé - le champ sexe n'existe pas dans la base de données
 
   const levelData = [
     { name: 'Primaire', value: primaire },
@@ -399,14 +389,6 @@ export default function AdminStats() {
           <ArrowLeft className="w-4 h-4" />
           Retour au tableau de bord
         </button>
-        <Button
-          onClick={() => loadData()}
-          disabled={loading}
-          className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Actualiser
-        </Button>
       </div>
       
       <motion.div
@@ -420,7 +402,7 @@ export default function AdminStats() {
               Statistiques & Historiques
             </h1>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               <Select value={periodePreset} onValueChange={setPeriodePreset}>
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="Période" />
@@ -473,16 +455,6 @@ export default function AdminStats() {
                 </SelectContent>
               </Select>
 
-              <Select value={groupeFilter} onValueChange={setGroupeFilter}>
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="Groupe" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les groupes</SelectItem>
-                  <SelectItem value="A">Groupe A</SelectItem>
-                  <SelectItem value="B">Groupe B</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             {/* Nouvelle ligne de filtres */}
@@ -585,31 +557,6 @@ export default function AdminStats() {
               </div>
             </div>
 
-            {/* Gender Distribution */}
-            <div className="bg-white rounded-3xl shadow-xl p-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Répartition Filles / Garçons</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={genderData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}`}
-                    >
-                      {genderData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === 0 ? '#3B82F6' : '#EC4899'} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
           </div>
 
           {/* Charts Row 2 */}

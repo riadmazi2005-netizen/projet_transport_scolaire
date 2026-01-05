@@ -51,6 +51,8 @@ try {
     // Générer un code de vérification unique si la demande est validée (passe en attente de paiement)
     $codeVerification = null;
     $montantFacture = null;
+    $tauxReduction = 0;
+    $nombreElevesInscrits = 0;
     
     if ($nouveauStatut === 'En attente de paiement') {
         // Générer un code unique de 8 caractères (lettres et chiffres)
@@ -64,7 +66,7 @@ try {
         $montantFactureInitial = ($abonnement === 'Annuel') ? $basePrice * 10 : $basePrice;
         
         // Calculer la réduction familiale
-        // Compter le nombre d'élèves déjà inscrits du tuteur (inscriptions actives + demandes payées/inscrites)
+        // Compter le nombre d'élèves déjà inscrits du tuteur (inscriptions actives + demandes payées)
         $tuteurId = $demandeActuelle['tuteur_id'];
         $stmtCount = $pdo->prepare('
             SELECT COUNT(DISTINCT e.id) as nombre_eleves_inscrits
@@ -79,7 +81,7 @@ try {
                       SELECT 1 FROM demandes d 
                       WHERE d.eleve_id = e.id 
                         AND d.type_demande = "inscription"
-                        AND d.statut IN ("Inscrit", "Payée")
+                        AND d.statut = "Payée"
                         AND d.id != ?
                   )
               )
@@ -89,16 +91,16 @@ try {
         $nombreElevesInscrits = intval($resultCount['nombre_eleves_inscrits'] ?? 0);
         
         // Appliquer la réduction selon le nombre d'élèves inscrits
-        // 0 élève inscrit → 1er élève → pas de réduction
-        // 1 élève inscrit → 2ème élève → 15% de réduction
-        // 2+ élèves inscrits → 3ème+ élève → 25% de réduction
+        // 0 élève inscrit → 1er élève → pas de réduction (0%)
+        // 1 élève inscrit → 2ème élève → 10% de réduction
+        // 2+ élèves inscrits → 3ème, 4ème, 5ème élève → 20% de réduction
         $tauxReduction = 0;
         if ($nombreElevesInscrits === 1) {
-            // 2ème élève : 15% de réduction
-            $tauxReduction = 0.15;
+            // 2ème élève : 10% de réduction
+            $tauxReduction = 0.10;
         } elseif ($nombreElevesInscrits >= 2) {
-            // 3ème+ élève : 25% de réduction
-            $tauxReduction = 0.25;
+            // 3ème, 4ème, 5ème élève : 20% de réduction
+            $tauxReduction = 0.20;
         }
         
         $montantFacture = $montantFactureInitial;
@@ -180,13 +182,39 @@ try {
             ],
             'En attente de paiement' => [
                 'titre' => 'Paiement requis',
-                'message' => "Votre demande d'inscription pour {$demandeActuelle['eleve_prenom']} {$demandeActuelle['eleve_nom']} a été approuvée.\n\n" .
-                            "FACTURE:\n" .
-                            "- Élève: {$demandeActuelle['eleve_prenom']} {$demandeActuelle['eleve_nom']}\n" .
-                            "- Classe: " . ($demandeActuelle['eleve_classe'] ?? 'Non spécifiée') . "\n" .
-                            "- Montant: " . number_format($montantFacture, 2) . " DH\n" .
-                            "- Type de transport: " . ($descriptionData['type_transport'] ?? 'Non spécifié') . "\n\n" .
-                            "Veuillez vous rendre à l'école pour effectuer le paiement. Après le paiement, vous devez récupérer votre code de vérification à l'école et le saisir sur le site dans la section 'Mes Enfants'.",
+                'message' => (function() use ($demandeActuelle, $descriptionData, $montantFacture, &$tauxReduction) {
+                    $message = "Votre demande d'inscription pour {$demandeActuelle['eleve_prenom']} {$demandeActuelle['eleve_nom']} a été approuvée.\n\n";
+                    
+                    // Ajouter le message de félicitations pour les réductions
+                    if (isset($tauxReduction) && $tauxReduction > 0 && isset($descriptionData['nombre_eleves_total'])) {
+                        $pourcentageReduction = round($tauxReduction * 100);
+                        $nombreElevesTotal = $descriptionData['nombre_eleves_total'];
+                        
+                        if ($nombreElevesTotal === 2) {
+                            // 2ème élève : 10% de réduction
+                            $message .= "🎉 Félicitations ! Vu que vous avez fait deux inscriptions, vous avez bénéficié d'une réduction de {$pourcentageReduction}% sur l'inscription du deuxième élève.\n\n";
+                        } elseif ($nombreElevesTotal >= 3) {
+                            // 3ème, 4ème, 5ème élève : 20% de réduction
+                            $message .= "🎉 Félicitations ! Vu que vous avez fait plus de deux inscriptions, vous avez bénéficié d'une réduction de {$pourcentageReduction}%.\n\n";
+                        }
+                    }
+                    
+                    $message .= "FACTURE:\n" .
+                                "- Élève: {$demandeActuelle['eleve_prenom']} {$demandeActuelle['eleve_nom']}\n" .
+                                "- Classe: " . ($demandeActuelle['eleve_classe'] ?? 'Non spécifiée') . "\n";
+                    
+                    // Afficher le montant avant réduction si réduction appliquée
+                    if (isset($tauxReduction) && $tauxReduction > 0 && isset($descriptionData['montant_avant_reduction'])) {
+                        $message .= "- Montant initial: " . number_format($descriptionData['montant_avant_reduction'], 2) . " DH\n";
+                        $message .= "- Réduction: -" . number_format($descriptionData['montant_reduction'] ?? 0, 2) . " DH\n";
+                    }
+                    
+                    $message .= "- Montant: " . number_format($montantFacture, 2) . " DH\n" .
+                                "- Type de transport: " . ($descriptionData['type_transport'] ?? 'Non spécifié') . "\n\n" .
+                                "Veuillez vous rendre à l'école pour effectuer le paiement. Après le paiement, vous devez récupérer votre code de vérification à l'école et le saisir sur le site dans la section 'Mes Enfants'.";
+                    
+                    return $message;
+                })(),
                 'type' => 'alerte'
             ],
             'Validée' => [

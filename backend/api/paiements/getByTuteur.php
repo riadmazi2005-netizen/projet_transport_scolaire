@@ -37,35 +37,81 @@ try {
         ORDER BY p.date_paiement DESC, p.date_creation DESC
     ');
     $stmt->execute([$tuteurId]);
-    $paiementsMensuels = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $paiementsTable = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // 2. Récupérer les paiements initiaux (demandes payées)
-    $stmt = $pdo->prepare('
-        SELECT d.id,
-               d.montant_facture as montant,
-               d.date_traitement as date_paiement,
-               d.date_creation,
-               d.statut,
-               d.code_verification,
-               e.id as eleve_id,
-               e.nom as eleve_nom,
-               e.prenom as eleve_prenom,
-               e.classe as eleve_classe,
-               i.id as inscription_id,
-               i.bus_id,
-               b.numero as bus_numero
-        FROM demandes d
-        INNER JOIN eleves e ON d.eleve_id = e.id
-        LEFT JOIN inscriptions i ON i.eleve_id = e.id AND i.statut = "Active"
-        LEFT JOIN bus b ON i.bus_id = b.id
-        WHERE d.tuteur_id = ? 
-          AND d.type_demande = "inscription"
-          AND d.statut = "Payée"
-          AND d.montant_facture IS NOT NULL
-        ORDER BY d.date_traitement DESC, d.date_creation DESC
-    ');
-    $stmt->execute([$tuteurId]);
-    $paiementsInitiaux = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // 2. Récupérer les paiements initiaux depuis les demandes payées qui n'existent PAS déjà dans la table paiements
+    // Pour éviter les doublons, on exclut les paiements initiaux qui ont déjà été créés dans la table paiements
+    // Récupérer les IDs des inscriptions qui ont déjà des paiements dans la table paiements
+    $inscriptionsIdsAvecPaiements = [];
+    if (!empty($paiementsTable)) {
+        foreach ($paiementsTable as $p) {
+            if ($p['inscription_id']) {
+                $inscriptionsIdsAvecPaiements[] = intval($p['inscription_id']);
+            }
+        }
+    }
+    
+    $paiementsInitiaux = [];
+    if (empty($inscriptionsIdsAvecPaiements)) {
+        // Si aucun paiement dans la table, récupérer tous les paiements initiaux depuis les demandes
+        $stmt = $pdo->prepare('
+            SELECT d.id,
+                   d.montant_facture as montant,
+                   d.date_traitement as date_paiement,
+                   d.date_creation,
+                   d.statut,
+                   d.code_verification,
+                   e.id as eleve_id,
+                   e.nom as eleve_nom,
+                   e.prenom as eleve_prenom,
+                   e.classe as eleve_classe,
+                   i.id as inscription_id,
+                   i.bus_id,
+                   b.numero as bus_numero
+            FROM demandes d
+            INNER JOIN eleves e ON d.eleve_id = e.id
+            LEFT JOIN inscriptions i ON i.eleve_id = e.id AND i.statut = "Active"
+            LEFT JOIN bus b ON i.bus_id = b.id
+            WHERE d.tuteur_id = ? 
+              AND d.type_demande = "inscription"
+              AND d.statut = "Payée"
+              AND d.montant_facture IS NOT NULL
+            ORDER BY d.date_traitement DESC, d.date_creation DESC
+        ');
+        $stmt->execute([$tuteurId]);
+        $paiementsInitiaux = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        // Exclure les inscriptions qui ont déjà des paiements dans la table paiements
+        $placeholders = str_repeat('?,', count($inscriptionsIdsAvecPaiements) - 1) . '?';
+        $stmt = $pdo->prepare("
+            SELECT d.id,
+                   d.montant_facture as montant,
+                   d.date_traitement as date_paiement,
+                   d.date_creation,
+                   d.statut,
+                   d.code_verification,
+                   e.id as eleve_id,
+                   e.nom as eleve_nom,
+                   e.prenom as eleve_prenom,
+                   e.classe as eleve_classe,
+                   i.id as inscription_id,
+                   i.bus_id,
+                   b.numero as bus_numero
+            FROM demandes d
+            INNER JOIN eleves e ON d.eleve_id = e.id
+            LEFT JOIN inscriptions i ON i.eleve_id = e.id AND i.statut = 'Active'
+            LEFT JOIN bus b ON i.bus_id = b.id
+            WHERE d.tuteur_id = ? 
+              AND d.type_demande = 'inscription'
+              AND d.statut = 'Payée'
+              AND d.montant_facture IS NOT NULL
+              AND (i.id IS NULL OR i.id NOT IN ($placeholders))
+            ORDER BY d.date_traitement DESC, d.date_creation DESC
+        ");
+        $params = array_merge([$tuteurId], $inscriptionsIdsAvecPaiements);
+        $stmt->execute($params);
+        $paiementsInitiaux = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
     
     // Formater les paiements initiaux
     $paiementsInitiauxFormates = array_map(function($d) {
@@ -96,8 +142,12 @@ try {
         ];
     }, $paiementsInitiaux);
     
-    // Formater les paiements mensuels
-    $paiementsMensuelsFormates = array_map(function($p) {
+    // Formater les paiements de la table paiements
+    $paiementsTableFormates = array_map(function($p) {
+        // Déterminer le type de paiement : si c'est le premier paiement pour cette inscription, c'est initial, sinon mensuel
+        // On utilisera le type_paiement si disponible, sinon on déterminera par logique
+        $typePaiement = $p['type_paiement'] ?? 'mensuel';
+        
         return [
             'id' => $p['id'],
             'inscription_id' => $p['inscription_id'],
@@ -114,12 +164,12 @@ try {
             'eleve_classe' => $p['eleve_classe'],
             'bus_id' => $p['bus_id'],
             'bus_numero' => $p['bus_numero'],
-            'type_paiement' => 'mensuel'
+            'type_paiement' => $typePaiement
         ];
-    }, $paiementsMensuels);
+    }, $paiementsTable);
     
     // Combiner et trier
-    $tousLesPaiements = array_merge($paiementsMensuelsFormates, $paiementsInitiauxFormates);
+    $tousLesPaiements = array_merge($paiementsTableFormates, $paiementsInitiauxFormates);
     
     // Trier par date de paiement (plus récent en premier)
     usort($tousLesPaiements, function($a, $b) {

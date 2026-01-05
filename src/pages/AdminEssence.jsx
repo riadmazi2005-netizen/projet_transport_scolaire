@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  Fuel, Calendar, Bus, User, ArrowLeft, TrendingUp, TrendingDown, RefreshCw, Filter
+  Fuel, Calendar, Bus, User, ArrowLeft, TrendingUp, TrendingDown, Filter
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -198,14 +198,6 @@ export default function AdminEssence() {
           />
         </div>
         <div>
-          <Button
-            onClick={loadData}
-            disabled={loading}
-            className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white rounded-xl font-semibold shadow-lg"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Actualiser
-          </Button>
         </div>
       </div>
 

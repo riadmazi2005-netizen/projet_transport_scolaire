@@ -16,6 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
 import TuteurLayout from '../components/TuteurLayout';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import AlertDialog from '../components/ui/AlertDialog';
 
 function TuteurDashboardContent() {
   const navigate = useNavigate();
@@ -45,6 +47,9 @@ function TuteurDashboardContent() {
   const [zones, setZones] = useState([]);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, eleve: null, type: null });
+  const [cancelConfirm, setCancelConfirm] = useState({ show: false, eleve: null });
+  const [alertDialog, setAlertDialog] = useState({ show: false, message: '', type: 'info' });
 
   useEffect(() => {
     const session = localStorage.getItem('tuteur_session');
@@ -125,6 +130,32 @@ function TuteurDashboardContent() {
           ? allInscriptions.find(i => i.eleve_id === eleve.id && (i.statut === 'Active' || i.statut === 'Désabonné'))
           : null;
         
+        // Calculer le montant total payé pour cet élève
+        // Les paiements incluent déjà les paiements initiaux et mensuels avec eleve_id
+        const paiementsEleve = Array.isArray(paiementsData)
+          ? paiementsData.filter(p => p.eleve_id === eleve.id && p.statut === 'Payé')
+          : [];
+        const montantTotalPaye = paiementsEleve.reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0);
+        
+        // Extraire les informations de réduction depuis la demande d'inscription
+        let montantAvantReduction = null;
+        let tauxReduction = 0;
+        let montantReduction = 0;
+        if (demandeInscription?.description) {
+          try {
+            const desc = typeof demandeInscription.description === 'string'
+              ? JSON.parse(demandeInscription.description)
+              : demandeInscription.description;
+            if (desc?.taux_reduction && desc.taux_reduction > 0) {
+              montantAvantReduction = desc?.montant_avant_reduction;
+              tauxReduction = desc?.taux_reduction;
+              montantReduction = desc?.montant_reduction || 0;
+            }
+          } catch (err) {
+            // Ignorer les erreurs de parsing
+          }
+        }
+        
         // Déterminer le statut à afficher
         let statutDemande = null;
         if (inscription) {
@@ -157,7 +188,11 @@ function TuteurDashboardContent() {
           ...eleve,
           demande_inscription: demandeInscription,
           inscription: inscription,
-          statut_demande: statutDemande
+          statut_demande: statutDemande,
+          montant_total_paye: montantTotalPaye,
+          montant_avant_reduction: montantAvantReduction,
+          taux_reduction: tauxReduction,
+          montant_reduction: montantReduction
         };
       });
       
@@ -203,10 +238,9 @@ function TuteurDashboardContent() {
     return `${baseStyle} bg-gray-100 text-gray-700 border-gray-200`;
   };
 
-  const handleCancelDemande = async (eleve) => {
-    if (!confirm(`Êtes-vous sûr de vouloir annuler la demande d'inscription de ${eleve.prenom} ${eleve.nom}?`)) {
-      return;
-    }
+  const handleCancelDemande = async () => {
+    if (!cancelConfirm.eleve) return;
+    const eleve = cancelConfirm.eleve;
     
     try {
       // Si une demande existe, mettre à jour son statut
@@ -222,33 +256,45 @@ function TuteurDashboardContent() {
       }
       
       // Recharger les données
+      if (!tuteur) return;
       const tuteurId = tuteur.type_id || tuteur.id;
       loadData(tuteurId, tuteur.id);
+      setCancelConfirm({ show: false, eleve: null });
       setSuccessMessage('Demande annulée avec succès');
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Erreur lors de l\'annulation:', err);
+      setCancelConfirm({ show: false, eleve: null });
       setErrorMessage('Erreur lors de l\'annulation de la demande');
       setTimeout(() => setErrorMessage(''), 5000);
     }
   };
 
-  const handleDeleteEleve = async (eleve) => {
-    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer définitivement l'inscription de ${eleve.prenom} ${eleve.nom} ?`)) {
-      return;
-    }
+  const handleCancelDemandeClick = (eleve) => {
+    setCancelConfirm({ show: true, eleve });
+  };
+
+  const handleDeleteEleve = async () => {
+    if (!deleteConfirm.eleve || !tuteur) return;
+    const eleve = deleteConfirm.eleve;
     
     try {
       await elevesAPI.delete(eleve.id);
       const tuteurId = tuteur.type_id || tuteur.id;
       await loadData(tuteurId, tuteur.id);
+      setDeleteConfirm({ show: false, eleve: null, type: null });
       setSuccessMessage('Inscription supprimée avec succès');
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
+      setDeleteConfirm({ show: false, eleve: null, type: null });
       setErrorMessage('Erreur lors de la suppression de l\'inscription');
       setTimeout(() => setErrorMessage(''), 5000);
     }
+  };
+
+  const handleDeleteEleveClick = (eleve) => {
+    setDeleteConfirm({ show: true, eleve, type: 'delete' });
   };
 
   const handleDesabonnement = async () => {
@@ -434,7 +480,7 @@ function TuteurDashboardContent() {
         </motion.div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <StatCard 
             title="Mes Enfants" 
             value={eleves.length} 
@@ -452,12 +498,6 @@ function TuteurDashboardContent() {
             value={eleves.filter(e => e.statut_demande === 'Inscrit' || e.statut_demande === 'En attente de paiement').length} 
             icon={CheckCircle} 
             color="green"
-          />
-          <StatCard 
-            title="Total Paiements" 
-            value={`${paiements.filter(p => p.statut === 'Payé').reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0).toFixed(2)} DH`}
-            icon={CreditCard} 
-            color="blue"
           />
         </div>
 
@@ -571,6 +611,29 @@ function TuteurDashboardContent() {
                             </>
                           )}
                         </div>
+                        {eleve.montant_total_paye > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {eleve.taux_reduction > 0 && eleve.montant_avant_reduction ? (
+                              <>
+                                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-medium bg-green-100 text-green-700 flex-wrap">
+                                  <CreditCard className="w-4 h-4" />
+                                  <span className="line-through text-gray-500">{parseFloat(eleve.montant_avant_reduction).toFixed(2)} DH</span>
+                                  <span>→</span>
+                                  <span className="font-bold">Total payé: {eleve.montant_total_paye.toFixed(2)} DH</span>
+                                  <span className="text-xs bg-green-200 px-2 py-0.5 rounded">-{Math.round(eleve.taux_reduction * 100)}%</span>
+                                </div>
+                                <div className="text-xs text-green-600 ml-3">
+                                  Réduction: {eleve.montant_reduction.toFixed(2)} DH
+                                </div>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-medium bg-green-100 text-green-700">
+                                <CreditCard className="w-4 h-4" />
+                                Total payé: {eleve.montant_total_paye.toFixed(2)} DH
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     
@@ -597,7 +660,7 @@ function TuteurDashboardContent() {
                             </Button>
                           </Link>
                           <Button
-                            onClick={() => handleCancelDemande(eleve)}
+                            onClick={() => handleCancelDemandeClick(eleve)}
                             className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
                           >
                             <XCircle className="w-4 h-4 mr-2" />
@@ -637,36 +700,6 @@ function TuteurDashboardContent() {
                           >
                             <LogOut className="w-4 h-4 mr-2" />
                             Désabonnement
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              setSelectedEleveForChangement(eleve);
-                              setShowChangementModal(true);
-                              // Récupérer les valeurs actuelles
-                              const demandeActuelle = eleve.demande_inscription;
-                              let descriptionData = {};
-                              if (demandeActuelle?.description) {
-                                try {
-                                  descriptionData = typeof demandeActuelle.description === 'string'
-                                    ? JSON.parse(demandeActuelle.description)
-                                    : demandeActuelle.description;
-                                } catch (err) {
-                                  console.warn('Erreur parsing description:', err);
-                                }
-                              }
-                              setChangementForm({
-                                zone: '',
-                                type_transport: descriptionData.type_transport || '',
-                                abonnement: descriptionData.abonnement || ''
-                              });
-                            }}
-                            className="rounded-xl text-white border-2"
-                            style={{ backgroundColor: '#4CAF50', borderColor: '#4CAF50' }}
-                            onMouseEnter={(e) => e.target.style.backgroundColor = '#45a049'}
-                            onMouseLeave={(e) => e.target.style.backgroundColor = '#4CAF50'}
-                          >
-                            <Repeat className="w-4 h-4 mr-2" />
-                            Demande de changement
                           </Button>
                         </>
                       )}
@@ -749,7 +782,7 @@ function TuteurDashboardContent() {
                           </Button>
                         </Link>
                         <Button
-                          onClick={() => handleDeleteEleve(eleve)}
+                          onClick={() => handleDeleteEleveClick(eleve)}
                           className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
@@ -1179,6 +1212,39 @@ function TuteurDashboardContent() {
           </motion.div>
         </div>
       )}
+
+      {/* Dialog de confirmation de suppression */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        title="Supprimer l'inscription"
+        message={deleteConfirm.eleve ? `Êtes-vous sûr de vouloir supprimer définitivement l'inscription de ${deleteConfirm.eleve.prenom} ${deleteConfirm.eleve.nom} ?` : ''}
+        onConfirm={handleDeleteEleve}
+        onCancel={() => setDeleteConfirm({ show: false, eleve: null, type: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
+
+      {/* Dialog de confirmation d'annulation */}
+      <ConfirmDialog
+        isOpen={cancelConfirm.show}
+        title="Annuler la demande"
+        message={cancelConfirm.eleve ? `Êtes-vous sûr de vouloir annuler la demande d'inscription de ${cancelConfirm.eleve.prenom} ${cancelConfirm.eleve.nom} ?` : ''}
+        onConfirm={handleCancelDemande}
+        onCancel={() => setCancelConfirm({ show: false, eleve: null })}
+        confirmText="Annuler la demande"
+        cancelText="Non"
+        variant="default"
+      />
+
+      {/* Dialog d'alerte */}
+      <AlertDialog
+        isOpen={alertDialog.show}
+        title="Information"
+        message={alertDialog.message}
+        type={alertDialog.type}
+        onClose={() => setAlertDialog({ show: false, message: '', type: 'info' })}
+      />
     </>
   );
 }
@@ -1232,7 +1298,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error('Erreur lors de l\'envoi de la demande:', err);
-      alert('Erreur lors de l\'envoi de la demande');
+      setAlertDialog({ show: true, message: 'Erreur lors de l\'envoi de la demande', type: 'error' });
     } finally {
       setLoading(false);
     }

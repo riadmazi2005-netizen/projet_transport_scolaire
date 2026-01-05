@@ -2,14 +2,14 @@
 
 ## 1. Photo principale du bus
 
-Placez l'image du bus jaune (celle avec le paysage d'automne) dans le dossier `public/` avec le nom :
-- `bus-main.jpg` ou `bus-main.png`
+Placez l'image du bus jaune "Mohammed V School Bus" dans le dossier `public/` avec le nom :
+- `bus-main.jpg` (recommandé) ou `bus-main.png`
 
 Cette image sera utilisée comme :
 - Image principale sur la page d'accueil
 - Favicon du site (icône dans l'onglet du navigateur)
 
-**Note :** Pour une meilleure qualité du favicon, vous pouvez créer une version carrée (192x192 pixels ou 512x512 pixels) de l'image et la nommer `favicon.png`, sinon l'image `bus-main.jpg` sera utilisée.
+**Note :** L'image `bus-main.jpg` sera utilisée à la fois pour la page d'accueil et comme favicon.
 
 ## 2. Fichier audio du claxon
 

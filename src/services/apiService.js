@@ -393,6 +393,13 @@ export const paiementsAPI = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  update: (id, data) => fetchAPI('/paiements/update.php', {
+    method: 'PUT',
+    body: JSON.stringify({ id, ...data }),
+  }),
+  delete: (id) => fetchAPI(`/paiements/delete.php?id=${id}`, {
+    method: 'DELETE',
+  }),
   getImpaye: () => fetchAPI('/paiements/getImpaye.php'),
 };
 
