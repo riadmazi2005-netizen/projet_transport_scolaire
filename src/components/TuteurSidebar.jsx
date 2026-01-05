@@ -11,10 +11,11 @@ import {
   GraduationCap,
   Menu,
   X,
-  Home
+  Home,
+  MapPin
 } from 'lucide-react';
 
-export default function TuteurSidebar({ tuteur, notifications = [], onLogout }) {
+export default function TuteurSidebar({ tuteur, notifications = [], newCounts = { inscriptions: 0, accidents: 0, paiements: 0, notifications: 0 }, onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -36,31 +37,43 @@ export default function TuteurSidebar({ tuteur, notifications = [], onLogout }) 
       title: 'Dashboard',
       icon: Home,
       link: 'TuteurDashboard',
-      path: '/TuteurDashboard'
+      path: '/TuteurDashboard',
+      badgeKeys: ['inscriptions', 'accidents', 'paiements'] // Badge combiné pour le dashboard
     },
     {
       title: 'Inscrire un élève',
       icon: UserPlus,
       link: 'TuteurInscription',
-      path: '/TuteurInscription'
+      path: '/TuteurInscription',
+      badgeKey: null // Pas de badge sur "Inscrire"
     },
     {
       title: 'Mes Demandes',
       icon: FileText,
       link: 'TuteurDemandes',
-      path: '/TuteurDemandes'
+      path: '/TuteurDemandes',
+      badgeKey: 'inscriptions' // Badge pour nouvelles inscriptions (même compteur)
     },
     {
       title: 'Notifications',
       icon: Bell,
       link: 'TuteurNotifications',
-      path: '/TuteurNotifications'
+      path: '/TuteurNotifications',
+      badgeKey: 'notifications' // Badge pour notifications non lues
+    },
+    {
+      title: 'Zones',
+      icon: MapPin,
+      link: 'TuteurZones',
+      path: '/TuteurZones',
+      badgeKey: null // Pas de badge pour zones
     },
     {
       title: 'Profil',
       icon: User,
       link: 'TuteurProfile',
-      path: '/TuteurProfile'
+      path: '/TuteurProfile',
+      badgeKey: null // Pas de badge pour profil
     },
   ];
 
@@ -179,8 +192,16 @@ export default function TuteurSidebar({ tuteur, notifications = [], onLogout }) 
               
               // Déterminer le badge à afficher
               let badgeCount = 0;
-              if (item.link === 'TuteurNotifications') {
-                badgeCount = unreadCount;
+              
+              // Si badgeKeys est un tableau (pour le dashboard avec plusieurs compteurs)
+              if (item.badgeKeys && Array.isArray(item.badgeKeys)) {
+                badgeCount = item.badgeKeys.reduce((total, key) => {
+                  return total + (newCounts[key] || 0);
+                }, 0);
+              }
+              // Sinon, utiliser badgeKey simple
+              else if (item.badgeKey && newCounts[item.badgeKey] !== undefined) {
+                badgeCount = newCounts[item.badgeKey] || 0;
               }
               
               const showBadge = badgeCount > 0;
@@ -206,7 +227,9 @@ export default function TuteurSidebar({ tuteur, notifications = [], onLogout }) 
                   <div className="relative">
                     <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-gray-600'}`} />
                     {showBadge && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                      <span className={`absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold ${
+                        badgeCount > 99 ? 'px-1.5 py-0.5' : badgeCount > 9 ? 'min-w-[20px] h-5 px-1' : 'w-5 h-5'
+                      }`}>
                         {badgeCount > 99 ? '99+' : badgeCount}
                       </span>
                     )}

@@ -21,6 +21,7 @@ try {
     $pdo = getDBConnection();
     
     // Récupérer toutes les demandes du tuteur avec les informations de l'élève
+    // Utiliser une sous-requête pour obtenir uniquement l'inscription la plus récente par élève
     $stmt = $pdo->prepare('
         SELECT 
             d.*,
@@ -41,12 +42,24 @@ try {
             t.utilisateur_id as tuteur_utilisateur_id
         FROM demandes d
         LEFT JOIN eleves e ON d.eleve_id = e.id
-        LEFT JOIN inscriptions i ON i.eleve_id = e.id AND i.statut = "Active"
+        LEFT JOIN (
+            SELECT i1.*
+            FROM inscriptions i1
+            INNER JOIN (
+                SELECT eleve_id, MAX(date_creation) as max_date
+                FROM inscriptions
+                WHERE statut = "Active"
+                GROUP BY eleve_id
+            ) i2 ON i1.eleve_id = i2.eleve_id 
+                AND i1.date_creation = i2.max_date 
+                AND i1.statut = "Active"
+        ) i ON i.eleve_id = e.id
         LEFT JOIN bus b ON i.bus_id = b.id
         LEFT JOIN administrateurs adm ON d.traite_par = adm.id
         LEFT JOIN utilisateurs a ON adm.utilisateur_id = a.id
         LEFT JOIN tuteurs t ON d.tuteur_id = t.id
         WHERE d.tuteur_id = ?
+        GROUP BY d.id
         ORDER BY d.date_creation DESC
     ');
     $stmt->execute([$tuteurId]);

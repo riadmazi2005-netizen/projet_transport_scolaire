@@ -43,25 +43,43 @@ try {
     $stmt->execute();
     $allBuses = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Filtrer les bus qui correspondent à la zone
-    // Les zones sont stockées dans trajet_zones au format JSON
+    // Filtrer les bus qui correspondent exactement à la zone
+    // Les zones sont stockées dans trajet_zones au format JSON ou comme chaîne séparée par des virgules
     $buses = [];
+    $zoneNormalized = trim($zone);
+    
     foreach ($allBuses as $bus) {
-        $trajetZones = json_decode($bus['trajet_zones'], true);
-        if (is_array($trajetZones)) {
-            // Vérifier si la zone recherchée est dans les zones du trajet
-            $zoneFound = false;
+        // Si le bus n'a pas de trajet, on l'exclut
+        if (!$bus['trajet_id'] || !$bus['trajet_zones']) {
+            continue;
+        }
+        
+        $trajetZones = null;
+        
+        // Essayer de parser comme JSON d'abord
+        $decoded = json_decode($bus['trajet_zones'], true);
+        if (is_array($decoded)) {
+            $trajetZones = $decoded;
+        } else {
+            // Sinon, traiter comme une chaîne séparée par des virgules
+            $trajetZones = array_map('trim', explode(',', $bus['trajet_zones']));
+        }
+        
+        // Vérifier si la zone recherchée correspond exactement à une des zones du trajet
+        $zoneFound = false;
+        if (is_array($trajetZones) && count($trajetZones) > 0) {
             foreach ($trajetZones as $trajetZone) {
-                if (stripos($trajetZone, $zone) !== false || stripos($zone, $trajetZone) !== false) {
+                $trajetZoneNormalized = trim($trajetZone);
+                // Correspondance exacte (insensible à la casse)
+                if (strcasecmp($trajetZoneNormalized, $zoneNormalized) === 0) {
                     $zoneFound = true;
                     break;
                 }
             }
-            if ($zoneFound) {
-                $buses[] = $bus;
-            }
-        } else {
-            // Si pas de zones définies, inclure tous les bus (fallback)
+        }
+        
+        // Ne garder que les bus dont le trajet contient exactement la zone recherchée
+        if ($zoneFound) {
             $buses[] = $bus;
         }
     }

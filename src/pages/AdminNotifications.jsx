@@ -10,6 +10,7 @@ import {
   Mail, FileText, AlertTriangle, XCircle, Filter
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 export default function AdminNotifications() {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ export default function AdminNotifications() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, unread, read
   const [typeFilter, setTypeFilter] = useState('all'); // all, info, alerte, warning, success
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   useEffect(() => {
     const session = localStorage.getItem('admin_session');
@@ -65,6 +67,17 @@ export default function AdminNotifications() {
       setNotifications(prev => prev.filter(n => n.id !== notifId));
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    if (!admin) return;
+    
+    try {
+      await notificationsAPI.deleteAll(admin.id, 'admin');
+      setNotifications([]);
+    } catch (err) {
+      console.error('Erreur lors de la suppression de toutes les notifications:', err);
     }
   };
 
@@ -229,6 +242,36 @@ export default function AdminNotifications() {
             </Select>
           </div>
         </div>
+        
+        {/* Boutons d'action */}
+        {notifications.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-200">
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  notifications
+                    .filter(n => !n.lue)
+                    .forEach(n => markAsRead(n.id));
+                }}
+                className="text-green-600 hover:text-green-700 hover:bg-green-50 rounded-xl"
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Tout marquer comme lu
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeleteAllConfirm(true)}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Supprimer toutes les notifications
+            </Button>
+          </div>
+        )}
       </motion.div>
 
       {/* Liste des notifications */}
@@ -317,6 +360,21 @@ export default function AdminNotifications() {
           ))
         )}
       </motion.div>
+
+      {/* Dialog de confirmation de suppression de toutes les notifications */}
+      <ConfirmDialog
+        isOpen={showDeleteAllConfirm}
+        title="Supprimer toutes les notifications"
+        message="Êtes-vous sûr de vouloir supprimer toutes les notifications ? Cette action est irréversible."
+        onConfirm={() => {
+          deleteAllNotifications();
+          setShowDeleteAllConfirm(false);
+        }}
+        onCancel={() => setShowDeleteAllConfirm(false)}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
     </AdminLayout>
   );
 }

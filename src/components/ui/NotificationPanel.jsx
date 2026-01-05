@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, CheckCircle, AlertCircle, Info, Trash2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from './ConfirmDialog';
 
 export default function NotificationPanel({ 
   notifications = [], 
   onMarkAsRead, 
   onDelete,
+  onDeleteAll,
   onClose,
   isOpen
 }) {
   const [filter, setFilter] = useState('all'); // all, unread, read
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   const filteredNotifications = notifications.filter(notif => {
     if (filter === 'unread') return !notif.lue;
@@ -204,26 +207,54 @@ export default function NotificationPanel({
 
           {/* Footer */}
           {filteredNotifications.length > 0 && (
-            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-3">
               <p className="text-sm text-gray-500">
                 {filteredNotifications.length} notification(s)
               </p>
-              {unreadCount > 0 && onMarkAsRead && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    // Marquer TOUTES les notifications non lues comme lues (pas seulement celles filtrées)
-                    notifications
-                      .filter(n => !n.lue)
-                      .forEach(n => onMarkAsRead(n.id));
-                  }}
-                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Tout marquer comme lu
-                </Button>
-              )}
+              <div className="flex gap-2">
+                {unreadCount > 0 && onMarkAsRead && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      // Marquer TOUTES les notifications non lues comme lues (pas seulement celles filtrées)
+                      notifications
+                        .filter(n => !n.lue)
+                        .forEach(n => onMarkAsRead(n.id));
+                    }}
+                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Tout marquer comme lu
+                  </Button>
+                )}
+                {onDeleteAll && notifications.length > 0 && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowDeleteAllConfirm(true)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Supprimer toutes
+                    </Button>
+                    <ConfirmDialog
+                      isOpen={showDeleteAllConfirm}
+                      title="Supprimer toutes les notifications"
+                      message="Êtes-vous sûr de vouloir supprimer toutes les notifications ? Cette action est irréversible."
+                      onConfirm={() => {
+                        onDeleteAll();
+                        setShowDeleteAllConfirm(false);
+                      }}
+                      onCancel={() => setShowDeleteAllConfirm(false)}
+                      confirmText="Supprimer"
+                      cancelText="Annuler"
+                      variant="destructive"
+                    />
+                  </>
+                )}
+              </div>
             </div>
           )}
         </motion.div>

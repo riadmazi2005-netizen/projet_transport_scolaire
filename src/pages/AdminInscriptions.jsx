@@ -579,6 +579,36 @@ export default function AdminInscriptions() {
                             {eleve.inscription.montant_mensuel} DH/mois
                           </p>
                         )}
+                        {/* Afficher les détails de réduction si disponible */}
+                        {eleve.demande_inscription?.montant_facture && (() => {
+                          try {
+                            const desc = typeof eleve.demande_inscription.description === 'string'
+                              ? JSON.parse(eleve.demande_inscription.description)
+                              : eleve.demande_inscription.description || {};
+                            const tauxReduction = desc.taux_reduction || 0;
+                            const montantAvantReduction = desc.montant_avant_reduction;
+                            const montantReduction = desc.montant_reduction || 0;
+                            
+                            if (tauxReduction > 0 && montantAvantReduction) {
+                              return (
+                                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-lg border border-green-200">
+                                    Réduction {Math.round(tauxReduction * 100)}%
+                                  </span>
+                                  <span className="text-xs text-gray-500 line-through">
+                                    {parseFloat(montantAvantReduction).toFixed(2)} DH
+                                  </span>
+                                  <span className="text-xs font-bold text-amber-600">
+                                    → {parseFloat(eleve.demande_inscription.montant_facture).toFixed(2)} DH
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          } catch (err) {
+                            return null;
+                          }
+                        })()}
                         {/* Afficher le code de vérification pour les élèves validés */}
                         {eleve.demande_inscription?.code_verification && 
                          (eleve.statut_demande === 'En attente de paiement' || 
@@ -863,13 +893,63 @@ export default function AdminInscriptions() {
                           </div>
                         </div>
                       )}
-                      {/* Afficher le montant de la facture si disponible */}
-                      {selectedEleve.demande_inscription.montant_facture && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-600 mb-1">Montant de la facture</label>
-                          <p className="text-gray-800 font-semibold">{parseFloat(selectedEleve.demande_inscription.montant_facture).toLocaleString('fr-FR')} DH</p>
-                        </div>
-                      )}
+                      {/* Afficher le montant de la facture avec détails de réduction si disponible */}
+                      {selectedEleve.demande_inscription.montant_facture && (() => {
+                        try {
+                          const desc = typeof selectedEleve.demande_inscription.description === 'string'
+                            ? JSON.parse(selectedEleve.demande_inscription.description)
+                            : selectedEleve.demande_inscription.description || {};
+                          const montantAvantReduction = desc.montant_avant_reduction;
+                          const tauxReduction = desc.taux_reduction || 0;
+                          const montantReduction = desc.montant_reduction || 0;
+                          const montantFacture = parseFloat(selectedEleve.demande_inscription.montant_facture);
+                          
+                          if (tauxReduction > 0 && montantAvantReduction) {
+                            return (
+                              <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-600 mb-2">Détails de la facture</label>
+                                <div className="bg-gray-50 rounded-xl p-4 space-y-2 border border-gray-200">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Prix initial:</span>
+                                    <span className="text-sm text-gray-400 line-through">
+                                      {parseFloat(montantAvantReduction).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-sm font-medium text-green-600">Réduction ({Math.round(tauxReduction * 100)}%):</span>
+                                    <span className="text-sm font-medium text-green-600">
+                                      -{parseFloat(montantReduction).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                                    </span>
+                                  </div>
+                                  <div className="border-t border-gray-300 pt-2 flex justify-between items-center">
+                                    <span className="text-base font-semibold text-gray-800">Prix final à payer:</span>
+                                    <span className="text-xl font-bold text-amber-600">
+                                      {montantFacture.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-600 mb-1">Montant de la facture</label>
+                              <p className="text-gray-800 font-semibold text-lg">
+                                {montantFacture.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                              </p>
+                            </div>
+                          );
+                        } catch (err) {
+                          return (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-600 mb-1">Montant de la facture</label>
+                              <p className="text-gray-800 font-semibold text-lg">
+                                {parseFloat(selectedEleve.demande_inscription.montant_facture).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                              </p>
+                            </div>
+                          );
+                        }
+                      })()}
                     </div>
                   </div>
                 );
@@ -993,32 +1073,74 @@ export default function AdminInscriptions() {
               {availableBuses.length === 0 ? (
                 <div className="text-center py-8 text-gray-400">
                   <Bus className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucun bus disponible</p>
-                  <p className="text-sm mt-1">Tous les bus sont pleins ou inactifs</p>
+                  <p className="font-semibold text-gray-600">Aucun bus disponible</p>
+                  <p className="text-sm mt-1">
+                    Aucun bus avec des places disponibles n'est assigné à un trajet couvrant la zone "{selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || 'inconnue'}"
+                  </p>
+                  <p className="text-xs mt-2 text-gray-500">
+                    Vérifiez que des trajets couvrent cette zone et que des bus actifs y sont assignés
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
+                  <div className="bg-blue-50 rounded-xl p-3 border border-blue-200 mb-4">
+                    <p className="text-sm text-blue-800 font-medium">
+                      Zone de l'élève: <span className="font-bold">{selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || 'Non spécifiée'}</span>
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Seuls les bus dont le trajet couvre cette zone sont affichés
+                    </p>
+                  </div>
                   <p className="text-sm text-gray-600 mb-4">
-                    {availableBuses.length} bus disponible(s):
+                    {availableBuses.length} bus disponible(s) pour cette zone:
                   </p>
-                  {availableBuses.map((bus) => (
-                    <div 
-                      key={bus.id}
-                      className="p-4 rounded-2xl border-2 border-gray-100 hover:border-amber-200 transition-colors"
-                    >
-                      <div className="flex justify-between items-center">
-                        <div className="flex-1">
-                          <h3 className="font-bold text-gray-800 text-lg">{bus.numero}</h3>
-                          <p className="text-sm text-gray-400">Trajet: {bus.trajet?.nom || 'Non assigné'}</p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            Capacité: {bus.elevesInscrits}/{bus.capacite}
-                          </p>
-                        </div>
+                  {availableBuses.map((bus) => {
+                    // Extraire les zones du trajet pour affichage
+                    let trajetZones = [];
+                    if (bus.trajet_zones) {
+                      try {
+                        const decoded = JSON.parse(bus.trajet_zones);
+                        trajetZones = Array.isArray(decoded) ? decoded : [bus.trajet_zones];
+                      } catch {
+                        trajetZones = bus.trajet_zones.split(',').map(z => z.trim());
+                      }
+                    }
+                    
+                    return (
+                      <div 
+                        key={bus.id}
+                        className="p-4 rounded-2xl border-2 border-gray-100 hover:border-amber-200 transition-colors"
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex-1">
+                            <h3 className="font-bold text-gray-800 text-lg">{bus.numero}</h3>
+                            <p className="text-sm text-gray-400">Trajet: {bus.trajet?.nom || bus.trajet_nom || 'Non assigné'}</p>
+                            {trajetZones.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                <span className="text-xs text-gray-500">Zones couvertes:</span>
+                                {trajetZones.map((zone, idx) => (
+                                  <span 
+                                    key={idx}
+                                    className={`text-xs px-2 py-1 rounded-lg ${
+                                      zone.trim().toLowerCase() === (selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || '').toLowerCase()
+                                        ? 'bg-green-100 text-green-700 font-medium'
+                                        : 'bg-gray-100 text-gray-600'
+                                    }`}
+                                  >
+                                    {zone.trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1">
+                              Capacité: {bus.elevesInscrits || bus.eleves_inscrits || 0}/{bus.capacite}
+                            </p>
+                          </div>
                         <div className="text-right">
                           <p className={`text-2xl font-bold ${
-                            bus.placesRestantes > 5 ? 'text-green-500' : 'text-orange-500'
+                            (bus.placesRestantes || bus.places_restantes || 0) > 5 ? 'text-green-500' : 'text-orange-500'
                           }`}>
-                            {bus.placesRestantes}
+                            {bus.placesRestantes || bus.places_restantes || 0}
                           </p>
                           <p className="text-xs text-gray-400">places restantes</p>
                           <Button
@@ -1031,7 +1153,8 @@ export default function AdminInscriptions() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

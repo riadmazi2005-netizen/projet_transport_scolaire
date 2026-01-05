@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI, inscriptionsAPI, paiementsAPI, zonesAPI } from '../services/apiService';
+import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI, inscriptionsAPI, paiementsAPI, zonesAPI, busAPI, trajetsAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { 
@@ -50,6 +50,12 @@ function TuteurDashboardContent() {
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, eleve: null, type: null });
   const [cancelConfirm, setCancelConfirm] = useState({ show: false, eleve: null });
   const [alertDialog, setAlertDialog] = useState({ show: false, message: '', type: 'info' });
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedEleveForDetails, setSelectedEleveForDetails] = useState(null);
+  const [eleveBusInfo, setEleveBusInfo] = useState(null);
+  const [eleveTrajetInfo, setEleveTrajetInfo] = useState(null);
+  const [eleveAbsences, setEleveAbsences] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     const session = localStorage.getItem('tuteur_session');
@@ -295,6 +301,57 @@ function TuteurDashboardContent() {
 
   const handleDeleteEleveClick = (eleve) => {
     setDeleteConfirm({ show: true, eleve, type: 'delete' });
+  };
+
+  const handleShowDetails = async (eleve) => {
+    setSelectedEleveForDetails(eleve);
+    setShowDetailsModal(true);
+    setLoadingDetails(true);
+    setEleveBusInfo(null);
+    setEleveTrajetInfo(null);
+    setEleveAbsences([]);
+
+    try {
+      // Charger les informations du bus si l'élève est inscrit
+      if (eleve.inscription && eleve.inscription.bus_id) {
+        try {
+          const busResponse = await busAPI.getById(eleve.inscription.bus_id);
+          const busData = busResponse?.data || busResponse;
+          setEleveBusInfo(busData);
+
+          // Charger le trajet si disponible
+          if (busData && busData.trajet_id) {
+            const trajetResponse = await trajetsAPI.getById(busData.trajet_id);
+            const trajetData = trajetResponse?.data || trajetResponse;
+            setEleveTrajetInfo(trajetData);
+          }
+        } catch (err) {
+          console.warn('Erreur lors du chargement du bus:', err);
+        }
+      }
+
+      // Charger les absences (30 derniers jours)
+      try {
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const presencesResponse = await presencesAPI.getByEleve(eleve.id, startDate, endDate);
+        const presencesData = presencesResponse?.data || presencesResponse || [];
+        
+        // Filtrer les absences (présences avec statut "Absent")
+        const absences = presencesData
+          .filter(p => p.statut === 'Absent' || p.statut === 'absent')
+          .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+        
+        setEleveAbsences(absences);
+      } catch (err) {
+        console.warn('Erreur lors du chargement des absences:', err);
+      }
+    } catch (err) {
+      console.error('Erreur lors du chargement des détails:', err);
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
   const handleDesabonnement = async () => {
@@ -642,13 +699,14 @@ function TuteurDashboardContent() {
                         {eleve.statut_demande}
                       </span>
                       
-                      {/* Bouton Détails - toujours visible */}
-                      <Link to={createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`)}>
-                        <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
-                          <Eye className="w-4 h-4 mr-2" />
-                          Détails
-                        </Button>
-                      </Link>
+                      {/* Bouton Détails - redirige vers la page de détails */}
+                      <Button 
+                        onClick={() => navigate(createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`))}
+                        className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Détails
+                      </Button>
                       
                       {/* Boutons selon le statut */}
                       {(eleve.statut_demande === 'En cours de traitement' || eleve.statut_demande === 'En attente') && (
@@ -775,12 +833,13 @@ function TuteurDashboardContent() {
                       </div>
                       
                       <div className="flex flex-wrap items-center gap-3">
-                        <Link to={createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`)}>
-                          <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
-                            <Eye className="w-4 h-4 mr-2" />
-                            Détails
-                          </Button>
-                        </Link>
+                        <Button 
+                          onClick={() => navigate(createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`))}
+                          className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          Détails
+                        </Button>
                         <Button
                           onClick={() => handleDeleteEleveClick(eleve)}
                           className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
@@ -895,6 +954,176 @@ function TuteurDashboardContent() {
         )}
 
       {/* NotificationPanel retiré - les notifications sont gérées par le sidebar */}
+
+      {/* Modal de détails de l'élève */}
+      {showDetailsModal && selectedEleveForDetails && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                  <Eye className="w-6 h-6" />
+                  Détails de {selectedEleveForDetails.prenom} {selectedEleveForDetails.nom}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    setSelectedEleveForDetails(null);
+                    setEleveBusInfo(null);
+                    setEleveTrajetInfo(null);
+                    setEleveAbsences([]);
+                  }}
+                  className="text-white hover:text-lime-100 transition-colors"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {loadingDetails ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <>
+                  {/* Informations générales */}
+                  <div className="bg-gray-50 rounded-2xl p-4">
+                    <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                      <GraduationCap className="w-5 h-5 text-lime-500" />
+                      Informations générales
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-500">Classe:</span>
+                        <span className="ml-2 font-medium">{selectedEleveForDetails.classe || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Statut:</span>
+                        <span className={`ml-2 px-2 py-1 rounded-lg text-xs font-medium ${getStatusBadge(selectedEleveForDetails.statut_demande)}`}>
+                          {selectedEleveForDetails.statut_demande}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Informations du bus (si inscrit) */}
+                  {selectedEleveForDetails.inscription && selectedEleveForDetails.inscription.bus_id ? (
+                    <div className="bg-lime-50 rounded-2xl p-4 border border-lime-200">
+                      <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <Bus className="w-5 h-5 text-lime-500" />
+                        Informations du bus
+                      </h3>
+                      {eleveBusInfo ? (
+                        <div className="space-y-3">
+                          <div className="bg-white rounded-xl p-4 border border-lime-200">
+                            <p className="text-sm text-lime-600 font-medium mb-1">Bus assigné</p>
+                            <p className="text-2xl font-bold text-gray-800">{eleveBusInfo.numero}</p>
+                            {eleveBusInfo.immatriculation && (
+                              <p className="text-sm text-gray-500">{eleveBusInfo.immatriculation}</p>
+                            )}
+                          </div>
+                          
+                          {eleveBusInfo.marque && (
+                            <div className="flex justify-between py-2 border-b border-gray-200">
+                              <span className="text-gray-600">Marque/Modèle</span>
+                              <span className="font-medium">{eleveBusInfo.marque} {eleveBusInfo.modele || ''}</span>
+                            </div>
+                          )}
+                          
+                          <div className="flex justify-between py-2 border-b border-gray-200">
+                            <span className="text-gray-600">Capacité</span>
+                            <span className="font-medium">{eleveBusInfo.capacite} places</span>
+                          </div>
+
+                          {eleveTrajetInfo && (
+                            <>
+                              <div className="flex justify-between py-2 border-b border-gray-200">
+                                <span className="text-gray-600">Trajet</span>
+                                <span className="font-medium">{eleveTrajetInfo.nom}</span>
+                              </div>
+                              
+                              {eleveTrajetInfo.heure_depart_matin_a && (
+                                <div className="mt-3">
+                                  <p className="text-sm text-gray-600 mb-2">Horaires:</p>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
+                                      <p className="text-xs text-blue-600 font-medium">Matin</p>
+                                      <p className="font-semibold text-gray-800 text-sm">
+                                        {eleveTrajetInfo.heure_depart_matin_a}
+                                      </p>
+                                    </div>
+                                    <div className="bg-orange-50 rounded-xl p-3 border border-orange-200">
+                                      <p className="text-xs text-orange-600 font-medium">Soir</p>
+                                      <p className="font-semibold text-gray-800 text-sm">
+                                        {eleveTrajetInfo.heure_depart_soir_a}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-sm">Chargement des informations du bus...</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                      <p className="text-gray-500 text-sm flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        L'élève n'est pas encore assigné à un bus
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Absences */}
+                  <div className="bg-red-50 rounded-2xl p-4 border border-red-200">
+                    <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-red-500" />
+                      Absences (30 derniers jours)
+                    </h3>
+                    {eleveAbsences.length > 0 ? (
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {eleveAbsences.map((absence, index) => (
+                          <div key={index} className="bg-white rounded-xl p-3 border border-red-200 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Calendar className="w-4 h-4 text-red-500" />
+                              <span className="font-medium text-gray-800">
+                                {absence.date ? new Date(absence.date).toLocaleDateString('fr-FR', { 
+                                  weekday: 'long', 
+                                  year: 'numeric', 
+                                  month: 'long', 
+                                  day: 'numeric' 
+                                }) : 'Date inconnue'}
+                              </span>
+                            </div>
+                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium">
+                              Absent
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-xl p-4 border border-green-200">
+                        <p className="text-green-700 text-sm flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4" />
+                          Aucune absence enregistrée sur les 30 derniers jours
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Modal de paiement */}
       {showPaymentModal && selectedEleveForPayment && (

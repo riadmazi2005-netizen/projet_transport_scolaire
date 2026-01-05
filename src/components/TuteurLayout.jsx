@@ -2,13 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import TuteurSidebar from './TuteurSidebar';
-import { notificationsAPI } from '../services/apiService';
+import { notificationsAPI, demandesAPI, accidentsAPI, paiementsAPI, tuteursAPI } from '../services/apiService';
 
 export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [tuteur, setTuteur] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [newCounts, setNewCounts] = useState({
+    inscriptions: 0,
+    accidents: 0,
+    paiements: 0,
+    notifications: 0
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,8 +26,12 @@ export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
     
     const tuteurData = JSON.parse(session);
     setTuteur(tuteurData);
-    loadNotifications(tuteurData.id);
-    setLoading(false);
+    Promise.all([
+      loadNotifications(tuteurData.id),
+      loadNewCounts(tuteurData)
+    ]).finally(() => {
+      setLoading(false);
+    });
   }, [navigate]);
 
   // Rafraîchir les notifications quand on navigue vers la page des notifications
@@ -31,12 +41,15 @@ export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
     }
   }, [location.pathname, tuteur]);
 
-  // Rafraîchir les notifications toutes les 30 secondes
+  // Rafraîchir les notifications et compteurs toutes les 30 secondes
   useEffect(() => {
     if (!tuteur) return;
     
     const loadAllData = async () => {
-      await loadNotifications(tuteur.id);
+      await Promise.all([
+        loadNotifications(tuteur.id),
+        loadNewCounts(tuteur)
+      ]);
     };
     
     loadAllData();
@@ -50,9 +63,99 @@ export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
       const response = await notificationsAPI.getByUser(tuteurId, 'tuteur');
       const notifs = response?.data || response || [];
       setNotifications(notifs.sort((a, b) => new Date(b.date || b.date_creation || 0) - new Date(a.date || a.date_creation || 0)));
+      
+      // Compter les notifications non lues
+      const unreadCount = notifs.filter(n => !n.lue).length;
+      setNewCounts(prev => ({ ...prev, notifications: unreadCount }));
     } catch (err) {
       console.warn('Erreur lors du chargement des notifications:', err);
       setNotifications([]);
+    }
+  };
+
+  const loadNewCounts = async (tuteurData) => {
+    try {
+      const tuteurId = tuteurData.type_id || tuteurData.id;
+      
+      // Compter les nouvelles inscriptions (demandes en attente ou en cours de traitement)
+      try {
+        const demandesRes = await demandesAPI.getByTuteur(tuteurId);
+        const demandes = demandesRes?.data || demandesRes || [];
+        const nouvellesInscriptions = demandes.filter(d => 
+          d.type_demande === 'inscription' && 
+          (d.statut === 'En attente' || d.statut === 'En cours de traitement')
+        ).length;
+        setNewCounts(prev => ({ ...prev, inscriptions: nouvellesInscriptions }));
+      } catch (err) {
+        console.warn('Erreur chargement demandes:', err);
+      }
+
+      // Compter les accidents concernant les élèves du tuteur
+      try {
+        // Récupérer tous les élèves du tuteur
+        const elevesRes = await tuteursAPI.getEleves(tuteurId);
+        const eleves = elevesRes?.data || elevesRes || [];
+        const elevesIds = Array.isArray(eleves) ? eleves.map(e => e.id || e.eleve_id).filter(Boolean) : [];
+        
+        if (elevesIds.length > 0) {
+          // Récupérer tous les accidents
+          const accidentsRes = await accidentsAPI.getAll();
+          const accidents = accidentsRes?.data || accidentsRes || [];
+          
+          // Filtrer les accidents récents (non résolus) qui concernent les élèves du tuteur
+          const accidentsRecents = accidents.filter(accident => {
+            try {
+              const elevesConcernes = accident.eleves_concernes 
+                ? (typeof accident.eleves_concernes === 'string' 
+                    ? JSON.parse(accident.eleves_concernes || '[]')
+                    : accident.eleves_concernes
+                  )
+                : [];
+              
+              const concerneEleve = Array.isArray(elevesConcernes) && 
+                elevesConcernes.some(eleveId => elevesIds.includes(parseInt(eleveId)) || elevesIds.includes(eleveId));
+              
+              if (!concerneEleve) return false;
+              
+              // Considérer comme "nouveau" si l'accident est non résolu ou créé récemment (7 derniers jours)
+              const dateAccident = new Date(accident.date || accident.date_creation || 0);
+              const joursDepuisAccident = (new Date() - dateAccident) / (1000 * 60 * 60 * 24);
+              const estRecent = joursDepuisAccident <= 7;
+              const nonResolu = accident.statut !== 'Résolu' && accident.statut !== 'résolu' && accident.statut !== 'Resolu';
+              
+              return nonResolu || estRecent;
+            } catch (parseErr) {
+              console.warn('Erreur parsing eleves_concernes:', parseErr);
+              return false;
+            }
+          }).length;
+          
+          setNewCounts(prev => ({ ...prev, accidents: accidentsRecents }));
+        } else {
+          setNewCounts(prev => ({ ...prev, accidents: 0 }));
+        }
+      } catch (err) {
+        console.warn('Erreur chargement accidents:', err);
+        setNewCounts(prev => ({ ...prev, accidents: 0 }));
+      }
+
+      // Compter les paiements impayés ou en attente
+      try {
+        const paiementsRes = await paiementsAPI.getByTuteur(tuteurId);
+        const paiements = paiementsRes?.data || paiementsRes || [];
+        
+        // Compter les paiements mensuels impayés
+        const paiementsImpayes = paiements.filter(p => 
+          p.type_paiement === 'mensuel' && 
+          (p.statut === 'Impayé' || p.statut === 'En attente' || p.statut === 'impayé' || p.statut === 'en attente')
+        ).length;
+        
+        setNewCounts(prev => ({ ...prev, paiements: paiementsImpayes }));
+      } catch (err) {
+        console.warn('Erreur chargement paiements:', err);
+      }
+    } catch (err) {
+      console.warn('Erreur lors du chargement des compteurs:', err);
     }
   };
 
@@ -76,6 +179,7 @@ export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
       <TuteurSidebar
         tuteur={tuteur}
         notifications={notifications}
+        newCounts={newCounts}
         onLogout={handleLogout}
       />
       

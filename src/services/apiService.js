@@ -330,6 +330,10 @@ export const notificationsAPI = {
     method: 'DELETE',
     body: JSON.stringify({ id }),
   }),
+  deleteAll: (userId, userType) => fetchAPI('/notifications/deleteAll.php', {
+    method: 'DELETE',
+    body: JSON.stringify({ user_id: userId, user_type: userType }),
+  }),
 };
 
 // ============================================
