@@ -1075,7 +1075,8 @@ export default function ResponsableDashboard() {
                     key={eleve.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-4 hover:bg-purple-50/50 transition-colors"
+                    className="p-4 hover:bg-purple-50/50 transition-colors cursor-pointer"
+                    onClick={() => navigate(createPageUrl(`ResponsableEleveDetails?eleveId=${eleve.id}`))}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4 flex-1">
@@ -1105,17 +1106,6 @@ export default function ResponsableDashboard() {
                             <X className="w-5 h-5 text-white" strokeWidth={3} />
                           )}
                         </div>
-                        
-                        {/* Bouton Détails */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(createPageUrl(`ResponsableEleveDetails?eleveId=${eleve.id}`))}
-                          className="rounded-xl text-purple-600 hover:text-purple-700 hover:bg-purple-50 border-purple-200"
-                        >
-                          <FileText className="w-4 h-4 mr-2" />
-                          Détails
-                        </Button>
                       </div>
                     </div>
                   </motion.div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import { elevesAPI, busAPI, trajetsAPI, presencesAPI, inscriptionsAPI, chauffeursAPI, responsablesAPI } from '../services/apiService';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import TuteurLayout from '../components/TuteurLayout';
 import { 
   GraduationCap, ArrowLeft, Bus, Calendar,
-  User, Clock, BarChart3, Filter
+  User, Clock, BarChart3, Filter, AlertCircle
 } from 'lucide-react';
 import { format, subDays, subWeeks, subMonths, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -29,7 +29,27 @@ export default function TuteurEleveDetails() {
   const [filterType, setFilterType] = useState('semaine'); // jour, semaine, mois
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  const loadData = async (eleveId) => {
+  // Log pour débogage
+  useEffect(() => {
+    console.log('TuteurEleveDetails - Composant monté');
+    console.log('URL:', window.location.href);
+    console.log('Search:', window.location.search);
+  }, []);
+
+  // S'assurer qu'on initialise le loading à false après un court délai pour éviter les pages blanches
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (loading && !eleve && !error) {
+        console.warn('Timeout: La page prend trop de temps à charger');
+        setError('Le chargement prend plus de temps que prévu. Vérifiez votre connexion.');
+        setLoading(false);
+      }
+    }, 10000); // 10 secondes de timeout
+    
+    return () => clearTimeout(timer);
+  }, [loading, eleve, error]);
+
+  const loadData = useCallback(async (eleveId) => {
     if (!eleveId) {
       console.error('Aucun ID d\'élève fourni');
       setError('Aucun ID d\'élève fourni dans l\'URL');
@@ -40,11 +60,35 @@ export default function TuteurEleveDetails() {
     try {
       setLoading(true);
       setError(null);
-      // Charger l'élève
-      const eleveResponse = await elevesAPI.getById(eleveId);
-      const eleveData = eleveResponse?.data || eleveResponse;
+      console.log('Chargement des données pour l\'élève ID:', eleveId);
       
-      if (!eleveData || !eleveData.id) {
+      // Charger l'élève
+      let eleveResponse;
+      try {
+        eleveResponse = await elevesAPI.getById(eleveId);
+      } catch (apiError) {
+        console.error('Erreur API lors du chargement de l\'élève:', apiError);
+        throw new Error('Impossible de charger les données de l\'élève. Vérifiez votre connexion.');
+      }
+      
+      // Gérer différentes structures de réponse
+      let eleveData;
+      if (eleveResponse && eleveResponse.success === false) {
+        throw new Error(eleveResponse.message || 'Élève non trouvé');
+      } else if (eleveResponse && eleveResponse.data) {
+        eleveData = eleveResponse.data;
+      } else if (eleveResponse && eleveResponse.id) {
+        eleveData = eleveResponse;
+      } else if (eleveResponse) {
+        eleveData = eleveResponse;
+      } else {
+        throw new Error('Réponse invalide du serveur');
+      }
+      
+      console.log('Réponse élève:', eleveResponse);
+      console.log('Données élève:', eleveData);
+      
+      if (!eleveData || (!eleveData.id && eleveData.id !== 0)) {
         console.error('Élève non trouvé ou données invalides:', eleveResponse);
         setError('Élève non trouvé ou données invalides');
         setLoading(false);
@@ -59,41 +103,51 @@ export default function TuteurEleveDetails() {
           const inscriptionsRes = await inscriptionsAPI.getByEleve(eleveId);
           const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
           const eleveInscription = Array.isArray(inscriptionsData) 
-            ? inscriptionsData.find(i => i.statut === 'Active')
-            : inscriptionsData;
+            ? inscriptionsData.find(i => i.statut === 'Active' || i.statut === 'active')
+            : (inscriptionsData && inscriptionsData.statut === 'Active' ? inscriptionsData : null);
           
           if (eleveInscription && eleveInscription.bus_id) {
-            const busResponse = await busAPI.getById(eleveInscription.bus_id);
-            const busData = busResponse?.data || busResponse;
-            setBus(busData);
-            
-            // Charger le trajet
-            if (busData && busData.trajet_id) {
-              const trajetResponse = await trajetsAPI.getById(busData.trajet_id);
-              const trajetData = trajetResponse?.data || trajetResponse;
-              setTrajet(trajetData);
-            }
-            
-            // Charger le chauffeur
-            if (busData && busData.chauffeur_id) {
-              try {
-                const chauffeurResponse = await chauffeursAPI.getById(busData.chauffeur_id);
-                const chauffeurData = chauffeurResponse?.data || chauffeurResponse;
-                setChauffeur(chauffeurData);
-              } catch (err) {
-                console.warn('Erreur lors du chargement du chauffeur:', err);
+            try {
+              const busResponse = await busAPI.getById(eleveInscription.bus_id);
+              const busData = busResponse?.data || busResponse;
+              if (busData && busData.id) {
+                setBus(busData);
+                
+                // Charger le trajet
+                if (busData.trajet_id) {
+                  try {
+                    const trajetResponse = await trajetsAPI.getById(busData.trajet_id);
+                    const trajetData = trajetResponse?.data || trajetResponse;
+                    if (trajetData) setTrajet(trajetData);
+                  } catch (err) {
+                    console.warn('Erreur lors du chargement du trajet:', err);
+                  }
+                }
+                
+                // Charger le chauffeur
+                if (busData.chauffeur_id) {
+                  try {
+                    const chauffeurResponse = await chauffeursAPI.getById(busData.chauffeur_id);
+                    const chauffeurData = chauffeurResponse?.data || chauffeurResponse;
+                    if (chauffeurData) setChauffeur(chauffeurData);
+                  } catch (err) {
+                    console.warn('Erreur lors du chargement du chauffeur:', err);
+                  }
+                }
+                
+                // Charger le responsable bus
+                if (busData.responsable_id) {
+                  try {
+                    const responsableResponse = await responsablesAPI.getById(busData.responsable_id);
+                    const responsableData = responsableResponse?.data || responsableResponse;
+                    if (responsableData) setResponsable(responsableData);
+                  } catch (err) {
+                    console.warn('Erreur lors du chargement du responsable:', err);
+                  }
+                }
               }
-            }
-            
-            // Charger le responsable bus
-            if (busData && busData.responsable_id) {
-              try {
-                const responsableResponse = await responsablesAPI.getById(busData.responsable_id);
-                const responsableData = responsableResponse?.data || responsableResponse;
-                setResponsable(responsableData);
-              } catch (err) {
-                console.warn('Erreur lors du chargement du responsable:', err);
-              }
+            } catch (err) {
+              console.warn('Erreur lors du chargement du bus:', err);
             }
           }
         } catch (err) {
@@ -108,8 +162,9 @@ export default function TuteurEleveDetails() {
           const presencesResponse = await presencesAPI.getByEleve(eleveId, startDate, endDate);
           const presencesData = presencesResponse?.data || presencesResponse || [];
           // Trier par date décroissante
-          const sortedPresences = presencesData
-            .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+          const sortedPresences = Array.isArray(presencesData)
+            ? presencesData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+            : [];
           setAllPresences(sortedPresences);
           // Par défaut, prendre les 7 derniers jours
           setPresences(sortedPresences.slice(0, 7));
@@ -121,11 +176,16 @@ export default function TuteurEleveDetails() {
       }
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
-      setError('Erreur lors du chargement des données de l\'élève: ' + (err.message || 'Erreur inconnue'));
+      const errorMessage = err.message || 'Erreur inconnue lors du chargement des données';
+      setError(errorMessage);
+      // Ne pas bloquer l'affichage si on a au moins l'élève de base
+      if (!eleve) {
+        setLoading(false);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const session = localStorage.getItem('tuteur_session');
@@ -136,17 +196,33 @@ export default function TuteurEleveDetails() {
     
     const params = new URLSearchParams(window.location.search);
     // Vérifier les deux variantes possibles du paramètre (eleveId ou eleveld)
-    const eleveId = params.get('eleveId') || params.get('eleveld');
+    const eleveId = params.get('eleveId') || params.get('eleveld') || params.get('id');
+    console.log('TuteurEleveDetails - Paramètres URL:', { 
+      eleveId, 
+      search: window.location.search,
+      eleveIdParam: params.get('eleveId'),
+      eleveldParam: params.get('eleveld'),
+      idParam: params.get('id'),
+      allParams: Object.fromEntries(params.entries()),
+      fullUrl: window.location.href
+    });
+    
     if (eleveId) {
-      loadData(eleveId);
+      console.log('TuteurEleveDetails - Appel de loadData avec eleveId:', eleveId);
+      loadData(eleveId).catch(err => {
+        console.error('TuteurEleveDetails - Erreur dans loadData:', err);
+        setError(err.message || 'Erreur lors du chargement des données');
+        setLoading(false);
+      });
     } else {
       // Si pas d'ID, afficher une erreur
-      setError('Aucun ID d\'élève fourni dans l\'URL');
+      console.error('TuteurEleveDetails - Aucun ID d\'élève trouvé dans l\'URL');
+      setError('Aucun ID d\'élève fourni dans l\'URL. Veuillez sélectionner un élève depuis le tableau de bord.');
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate]);
+  }, [navigate, loadData]);
 
+  // État de chargement
   if (loading) {
     return (
       <TuteurLayout>
@@ -157,25 +233,8 @@ export default function TuteurEleveDetails() {
     );
   }
 
-  if (!loading && !eleve && !error) {
-    return (
-      <TuteurLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-gray-500 mb-2">Élève non trouvé ou ID invalide.</p>
-            <Button 
-              onClick={() => navigate(createPageUrl('TuteurDashboard'))}
-              className="mt-4 bg-lime-500 hover:bg-lime-600 rounded-xl"
-            >
-              Retour au tableau de bord
-            </Button>
-          </div>
-        </div>
-      </TuteurLayout>
-    );
-  }
-
-  if (!loading && error && !eleve) {
+  // Erreur sans élève chargé
+  if (error && !eleve) {
     return (
       <TuteurLayout>
         <div className="min-h-screen flex items-center justify-center">
@@ -193,12 +252,19 @@ export default function TuteurEleveDetails() {
     );
   }
 
+  // Pas d'élève chargé (sans erreur explicite)
   if (!eleve) {
     return (
       <TuteurLayout>
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <p className="text-gray-500">Chargement...</p>
+            <p className="text-gray-500 mb-2">Élève non trouvé ou ID invalide.</p>
+            <Button 
+              onClick={() => navigate(createPageUrl('TuteurDashboard'))}
+              className="mt-4 bg-lime-500 hover:bg-lime-600 rounded-xl"
+            >
+              Retour au tableau de bord
+            </Button>
           </div>
         </div>
       </TuteurLayout>
@@ -314,19 +380,59 @@ export default function TuteurEleveDetails() {
 
   const selectedDateAbsence = getAbsenceForDate(selectedDate);
 
-  if (!eleve) {
+  // S'assurer qu'on a au moins l'élève avant de rendre le contenu principal
+  // Mais toujours afficher quelque chose pour éviter la page blanche
+  if (!eleve && !loading) {
+    // Si on n'a pas d'élève et qu'on n'est plus en chargement, afficher un message
     return (
       <TuteurLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-gray-500">Chargement...</p>
+          <div className="text-center max-w-md mx-auto p-6">
+            {error ? (
+              <>
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle className="w-8 h-8 text-red-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Erreur de chargement</h2>
+                <p className="text-red-600 mb-4">{error}</p>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <User className="w-8 h-8 text-gray-400" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">Aucune donnée disponible</h2>
+                <p className="text-gray-500 mb-4">Impossible de charger les informations de l'élève.</p>
+              </>
+            )}
+            <Button 
+              onClick={() => navigate(createPageUrl('TuteurDashboard'))}
+              className="bg-lime-500 hover:bg-lime-600 text-white rounded-xl px-6 py-2"
+            >
+              Retour au tableau de bord
+            </Button>
           </div>
         </div>
       </TuteurLayout>
     );
   }
 
+  // Si on a l'élève, afficher le contenu principal
+  if (!eleve) {
+    // Encore en chargement
+    return (
+      <TuteurLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-gray-500">Chargement des données...</p>
+          </div>
+        </div>
+      </TuteurLayout>
+    );
+  }
+
+  // S'assurer qu'on a toujours quelque chose à afficher
   return (
     <TuteurLayout title={`Détails - ${eleve?.prenom || ''} ${eleve?.nom || ''}`}>
       <div className="max-w-6xl mx-auto">

@@ -617,7 +617,8 @@ function TuteurDashboardContent() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.1 * index }}
-                  className="p-6 hover:bg-lime-50/50 transition-colors"
+                  className="p-6 hover:bg-lime-50/50 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/TuteurEleveDetails?eleveId=${eleve.id}`)}
                 >
                   <div className="flex flex-col md:flex-row justify-between gap-4">
                     <div className="flex items-center gap-4">
@@ -667,15 +668,6 @@ function TuteurDashboardContent() {
                       <span className={getStatusBadge(eleve.statut_demande)}>
                         {eleve.statut_demande}
                       </span>
-                      
-                      {/* Bouton Détails - redirige vers la page de détails */}
-                      <Button 
-                        onClick={() => navigate(createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`))}
-                        className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        Détails
-                      </Button>
                       
                       {/* Boutons selon le statut */}
                       {(eleve.statut_demande === 'En cours de traitement' || eleve.statut_demande === 'En attente') && (
@@ -768,7 +760,8 @@ function TuteurDashboardContent() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 * index }}
-                    className="p-6 hover:bg-red-50/50 transition-colors"
+                    className="p-6 hover:bg-red-50/50 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/TuteurEleveDetails?eleveId=${eleve.id}`)}
                   >
                     <div className="flex flex-col md:flex-row justify-between gap-4">
                       <div className="flex items-center gap-4">
@@ -802,15 +795,11 @@ function TuteurDashboardContent() {
                       </div>
                       
                       <div className="flex flex-wrap items-center gap-3">
-                        <Button 
-                          onClick={() => navigate(createPageUrl(`TuteurEleveDetails?eleveId=${eleve.id}`))}
-                          className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          Détails
-                        </Button>
                         <Button
-                          onClick={() => handleDeleteEleveClick(eleve)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteEleveClick(eleve);
+                          }}
                           className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
