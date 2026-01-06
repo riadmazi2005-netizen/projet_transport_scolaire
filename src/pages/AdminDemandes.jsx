@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { demandesAPI, chauffeursAPI, responsablesAPI, notificationsAPI, elevesAPI, busAPI, inscriptionsAPI } from '../services/apiService';
+import { useNavigate } from 'react-router-dom';
+import { createPageUrl } from '../utils';
+import { demandesAPI, chauffeursAPI, responsablesAPI, notificationsAPI, elevesAPI, busAPI, inscriptionsAPI, trajetsAPI, elevesAPI as elevesAPI2 } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  FileText, CheckCircle, XCircle, Calendar, User, Bus
+  FileText, CheckCircle, XCircle, Calendar, User, Bus, Phone, ArrowLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -32,12 +34,81 @@ export default function AdminDemandes() {
     setLoading(true);
     setError(null);
     try {
-      const response = await demandesAPI.getAll();
-      const data = response?.data || response || [];
-      // Filtrer pour exclure les demandes d'inscription (qui sont gérées dans AdminInscriptions)
-      // Ne garder que les demandes de chauffeurs et responsables (Augmentation, Congé, Déménagement, Autre)
-      const demandesFiltrees = data.filter(d => d.type_demande !== 'inscription');
-      setDemandes(demandesFiltrees.sort((a, b) => new Date(b.date_creation || b.date_demande || 0) - new Date(a.date_creation || a.date_demande || 0)));
+      const [demandesRes, inscriptionsRes, busesRes] = await Promise.allSettled([
+        demandesAPI.getAll(),
+        inscriptionsAPI.getAll(),
+        busAPI.getAll()
+      ]);
+      
+      const demandesData = demandesRes.status === 'fulfilled' 
+        ? (demandesRes.value?.data || demandesRes.value || [])
+        : [];
+      const inscriptionsData = inscriptionsRes.status === 'fulfilled'
+        ? (inscriptionsRes.value?.data || inscriptionsRes.value || [])
+        : [];
+      const busesData = busesRes.status === 'fulfilled'
+        ? (busesRes.value?.data || busesRes.value || [])
+        : [];
+      
+      // Charger les informations complètes de transport pour les demandes d'inscription
+      const [trajetsRes, chauffeursRes, responsablesRes] = await Promise.allSettled([
+        trajetsAPI.getAll(),
+        chauffeursAPI.getAll(),
+        responsablesAPI.getAll()
+      ]);
+      
+      const trajetsData = trajetsRes.status === 'fulfilled'
+        ? (trajetsRes.value?.data || trajetsRes.value || [])
+        : [];
+      const chauffeursData = chauffeursRes.status === 'fulfilled'
+        ? (chauffeursRes.value?.data || chauffeursRes.value || [])
+        : [];
+      const responsablesData = responsablesRes.status === 'fulfilled'
+        ? (responsablesRes.value?.data || responsablesRes.value || [])
+        : [];
+      
+      // Inclure les demandes d'inscription avec leurs informations de bus
+      const demandesAvecBus = demandesData.map(demande => {
+        if (demande.type_demande === 'inscription' && demande.eleve_id) {
+          // Trouver l'inscription de cet élève avec un bus
+          const inscription = inscriptionsData.find(i => 
+            i.eleve_id === demande.eleve_id && 
+            i.bus_id && 
+            i.bus_id !== null && 
+            i.bus_id > 0
+          );
+          
+          if (inscription) {
+            const bus = busesData.find(b => b.id === inscription.bus_id);
+            if (bus) {
+              // Charger les informations complètes du bus
+              const chauffeur = bus.chauffeur_id 
+                ? chauffeursData.find(c => c.id === bus.chauffeur_id)
+                : null;
+              const responsable = bus.responsable_id
+                ? responsablesData.find(r => r.id === bus.responsable_id)
+                : null;
+              const trajet = bus.trajet_id
+                ? trajetsData.find(t => t.id === bus.trajet_id)
+                : null;
+              
+              return {
+                ...demande,
+                inscription,
+                bus: {
+                  ...bus,
+                  chauffeur,
+                  responsable,
+                  trajet
+                }
+              };
+            }
+          }
+        }
+        return demande;
+      });
+      
+      setDemandes(demandesAvecBus.sort((a, b) => new Date(b.date_creation || b.date_demande || 0) - new Date(a.date_creation || a.date_demande || 0)));
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
       setError('Erreur lors du chargement des demandes');
@@ -277,36 +348,135 @@ export default function AdminDemandes() {
                       )}
 
                       {demande.type_demande === 'inscription' && (
-                        <div className="bg-blue-50 rounded-xl p-4 text-sm mb-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            {demande.eleve_nom && (
-                              <>
-                                <div>
-                                  <span className="text-gray-600">Élève:</span>
-                                  <p className="font-medium">{demande.eleve_prenom} {demande.eleve_nom}</p>
-                                </div>
-                                {demande.eleve_classe && (
+                        <>
+                          <div className="bg-blue-50 rounded-xl p-4 text-sm mb-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              {demande.eleve_nom && (
+                                <>
                                   <div>
-                                    <span className="text-gray-600">Classe:</span>
-                                    <p className="font-medium">{demande.eleve_classe}</p>
+                                    <span className="text-gray-600">Élève:</span>
+                                    <p className="font-medium">{demande.eleve_prenom} {demande.eleve_nom}</p>
                                   </div>
-                                )}
-                                {demande.zone_geographique && (
-                                  <div>
-                                    <span className="text-gray-600">Zone géographique:</span>
-                                    <p className="font-medium text-blue-700">{demande.zone_geographique}</p>
-                                  </div>
-                                )}
-                                {demande.eleve_adresse && (
-                                  <div>
-                                    <span className="text-gray-600">Adresse:</span>
-                                    <p className="font-medium">{demande.eleve_adresse}</p>
-                                  </div>
-                                )}
-                              </>
-                            )}
+                                  {demande.eleve_classe && (
+                                    <div>
+                                      <span className="text-gray-600">Classe:</span>
+                                      <p className="font-medium">{demande.eleve_classe}</p>
+                                    </div>
+                                  )}
+                                  {demande.zone_geographique && (
+                                    <div>
+                                      <span className="text-gray-600">Zone géographique:</span>
+                                      <p className="font-medium text-blue-700">{demande.zone_geographique}</p>
+                                    </div>
+                                  )}
+                                  {demande.eleve_adresse && (
+                                    <div>
+                                      <span className="text-gray-600">Adresse:</span>
+                                      <p className="font-medium">{demande.eleve_adresse}</p>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                          
+                          {/* Informations de transport (bus) */}
+                          {demande.bus && demande.bus.id && (
+                            <div className="bg-green-50 rounded-xl p-4 text-sm mb-2 border border-green-200">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Bus className="w-5 h-5 text-green-600" />
+                                <h4 className="font-semibold text-green-800">Informations de transport</h4>
+                              </div>
+                              
+                              <div className="space-y-3">
+                                <div className="bg-white rounded-lg p-3 border border-green-100">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-gray-600 text-xs">Bus assigné</span>
+                                    <span className="text-lg font-bold text-green-700">
+                                      {demande.bus.numero ? demande.bus.numero.toString().replace(/^#\s*/, '') : 'N/A'}
+                                    </span>
+                                  </div>
+                                  {demande.bus.immatriculation && (
+                                    <p className="text-xs text-gray-500">{demande.bus.immatriculation}</p>
+                                  )}
+                                  {demande.bus.marque && (
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      {demande.bus.marque} {demande.bus.modele || ''}
+                                    </p>
+                                  )}
+                                  {demande.bus.capacite && (
+                                    <p className="text-xs text-gray-500">Capacité: {demande.bus.capacite} places</p>
+                                  )}
+                                </div>
+                                
+                                {demande.bus.chauffeur && (
+                                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                                    <p className="text-xs font-semibold text-blue-700 mb-1 flex items-center gap-1">
+                                      <User className="w-3 h-3" />
+                                      Chauffeur
+                                    </p>
+                                    <p className="text-sm font-medium text-gray-800">
+                                      {demande.bus.chauffeur.prenom || ''} {demande.bus.chauffeur.nom || ''}
+                                    </p>
+                                    {demande.bus.chauffeur.telephone && (
+                                      <a 
+                                        href={`tel:${demande.bus.chauffeur.telephone}`}
+                                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                                      >
+                                        <Phone className="w-3 h-3" />
+                                        {demande.bus.chauffeur.telephone}
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {demande.bus.responsable && (
+                                  <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
+                                    <p className="text-xs font-semibold text-purple-700 mb-1 flex items-center gap-1">
+                                      <User className="w-3 h-3" />
+                                      Responsable bus
+                                    </p>
+                                    <p className="text-sm font-medium text-gray-800">
+                                      {demande.bus.responsable.prenom || ''} {demande.bus.responsable.nom || ''}
+                                    </p>
+                                    {demande.bus.responsable.telephone && (
+                                      <a 
+                                        href={`tel:${demande.bus.responsable.telephone}`}
+                                        className="text-xs text-purple-600 hover:underline flex items-center gap-1 mt-1"
+                                      >
+                                        <Phone className="w-3 h-3" />
+                                        {demande.bus.responsable.telephone}
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {demande.bus.trajet && (
+                                  <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
+                                    <p className="text-xs font-semibold text-amber-700 mb-1">Trajet</p>
+                                    <p className="text-sm font-medium text-gray-800">{demande.bus.trajet.nom || 'N/A'}</p>
+                                    {demande.bus.trajet.heure_depart_matin_a && (
+                                      <div className="mt-2 grid grid-cols-2 gap-2">
+                                        <div className="bg-white rounded p-2">
+                                          <p className="text-xs text-blue-600 mb-1">Matin</p>
+                                          <p className="text-xs font-semibold">
+                                            {demande.bus.trajet.heure_depart_matin_a} - {demande.bus.trajet.heure_arrivee_matin_a}
+                                          </p>
+                                        </div>
+                                        <div className="bg-white rounded p-2">
+                                          <p className="text-xs text-orange-600 mb-1">Soir</p>
+                                          <p className="text-xs font-semibold">
+                                            {demande.bus.trajet.heure_depart_soir_a} - {demande.bus.trajet.heure_arrivee_soir_a}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
 
                       {demande.type_demande === 'Déménagement' && (

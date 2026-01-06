@@ -9,7 +9,7 @@ import AlertDialog from '../components/ui/AlertDialog';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X, BookOpen, Filter
+  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X, BookOpen, Filter, Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -29,6 +29,8 @@ export default function AdminAccidents() {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [showLicencierModal, setShowLicencierModal] = useState(false);
   const [chauffeurToLicencier, setChauffeurToLicencier] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [accidentToDelete, setAccidentToDelete] = useState(null);
   const [alertDialog, setAlertDialog] = useState({ show: false, message: '', type: 'success' });
   const [filters, setFilters] = useState({
     statut: 'all',
@@ -46,7 +48,8 @@ export default function AdminAccidents() {
     setLoading(true);
     setError(null);
     try {
-      const [accidentsRes, busesRes, chauffeursRes, elevesRes, inscriptionsRes, tuteursRes] = await Promise.all([
+      // Utiliser Promise.allSettled pour gérer les erreurs individuellement
+      const results = await Promise.allSettled([
         accidentsAPI.getAll(),
         busAPI.getAll(),
         chauffeursAPI.getAll(),
@@ -55,15 +58,31 @@ export default function AdminAccidents() {
         tuteursAPI.getAll()
       ]);
       
-      const accidentsData = accidentsRes?.data || accidentsRes || [];
-      const busesData = busesRes?.data || busesRes || [];
-      const chauffeursData = chauffeursRes?.data || chauffeursRes || [];
-      const elevesData = elevesRes?.data || elevesRes || [];
-      const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
-      const tuteursData = tuteursRes?.data || tuteursRes || [];
+      const accidentsData = results[0].status === 'fulfilled' 
+        ? (results[0].value?.data || results[0].value || [])
+        : [];
+      const busesData = results[1].status === 'fulfilled'
+        ? (results[1].value?.data || results[1].value || [])
+        : [];
+      const chauffeursData = results[2].status === 'fulfilled'
+        ? (results[2].value?.data || results[2].value || [])
+        : [];
+      const elevesData = results[3].status === 'fulfilled'
+        ? (results[3].value?.data || results[3].value || [])
+        : [];
+      const inscriptionsData = results[4].status === 'fulfilled'
+        ? (results[4].value?.data || results[4].value || [])
+        : [];
+      const tuteursData = results[5].status === 'fulfilled'
+        ? (results[5].value?.data || results[5].value || [])
+        : [];
       
       const sortedAccidents = Array.isArray(accidentsData) 
-        ? accidentsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)) 
+        ? accidentsData.sort((a, b) => {
+            const dateA = a.date ? new Date(a.date) : new Date(0);
+            const dateB = b.date ? new Date(b.date) : new Date(0);
+            return dateB - dateA;
+          })
         : [];
       setAccidents(sortedAccidents);
       setBuses(Array.isArray(busesData) ? busesData : []);
@@ -71,9 +90,16 @@ export default function AdminAccidents() {
       setEleves(Array.isArray(elevesData) ? elevesData : []);
       setInscriptions(Array.isArray(inscriptionsData) ? inscriptionsData : []);
       setTuteurs(Array.isArray(tuteursData) ? tuteursData : []);
+      
+      // Afficher un avertissement si certaines données n'ont pas pu être chargées
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+      if (failedCount > 0) {
+        console.warn(`${failedCount} appel(s) API ont échoué`);
+        setError(`Certaines données n'ont pas pu être chargées (${failedCount} erreur(s))`);
+      }
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
-      setError('Erreur lors du chargement des données');
+      setError('Erreur lors du chargement des données: ' + (err.message || 'Erreur inconnue'));
     } finally {
       setLoading(false);
     }
@@ -102,6 +128,26 @@ export default function AdminAccidents() {
       console.error('Erreur lors du licenciement:', err);
       setError('Erreur lors du licenciement du chauffeur');
       setAlertDialog({ show: true, message: 'Erreur lors du licenciement du chauffeur', type: 'error' });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!accidentToDelete) return;
+    
+    try {
+      const response = await accidentsAPI.delete(accidentToDelete.id);
+      if (response && response.success) {
+        await loadData();
+        setShowDeleteModal(false);
+        setAccidentToDelete(null);
+        setAlertDialog({ show: true, message: 'Accident supprimé avec succès', type: 'success' });
+      } else {
+        throw new Error(response?.message || 'Erreur lors de la suppression');
+      }
+    } catch (err) {
+      console.error('Erreur lors de la suppression:', err);
+      setError('Erreur lors de la suppression de l\'accident');
+      setAlertDialog({ show: true, message: err.message || 'Erreur lors de la suppression de l\'accident', type: 'error' });
     }
   };
 
@@ -194,6 +240,49 @@ export default function AdminAccidents() {
     };
     return styles[gravite] || 'bg-gray-100 text-gray-700';
   };
+
+  // Filtrer les accidents selon les critères
+  const filteredAccidents = useMemo(() => {
+    if (!Array.isArray(accidents)) return [];
+    
+    return accidents.filter(accident => {
+      // Filtre par statut
+      if (filters.statut !== 'all' && accident.statut !== filters.statut) {
+        return false;
+      }
+      
+      // Filtre par gravité
+      if (filters.gravite !== 'all' && accident.gravite !== filters.gravite) {
+        return false;
+      }
+      
+      // Filtre par bus
+      if (filters.bus !== 'all' && accident.bus_id?.toString() !== filters.bus) {
+        return false;
+      }
+      
+      // Filtre par date début
+      if (filters.dateDebut) {
+        const accidentDate = new Date(accident.date);
+        const dateDebut = new Date(filters.dateDebut);
+        if (accidentDate < dateDebut) {
+          return false;
+        }
+      }
+      
+      // Filtre par date fin
+      if (filters.dateFin) {
+        const accidentDate = new Date(accident.date);
+        const dateFin = new Date(filters.dateFin);
+        dateFin.setHours(23, 59, 59, 999); // Inclure toute la journée
+        if (accidentDate > dateFin) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [accidents, filters]);
 
   if (loading) {
     return (
@@ -500,6 +589,17 @@ export default function AdminAccidents() {
                               Licencier
                             </Button>
                           )}
+                          <Button
+                            onClick={() => {
+                              setAccidentToDelete(accident);
+                              setShowDeleteModal(true);
+                            }}
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50 rounded-xl"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Supprimer
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -555,6 +655,68 @@ export default function AdminAccidents() {
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
               >
                 Confirmer le licenciement
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal Supprimer Accident */}
+      {showDeleteModal && accidentToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">Supprimer l'accident</h3>
+                <p className="text-sm text-gray-500">Cette action est irréversible</p>
+              </div>
+            </div>
+            
+            <div className="mb-6 p-4 bg-red-50 rounded-xl border border-red-200">
+              <p className="text-gray-800 mb-2">
+                <strong>Date:</strong> {format(new Date(accidentToDelete.date), 'dd MMMM yyyy', { locale: fr })}
+                {accidentToDelete.heure && ` à ${accidentToDelete.heure}`}
+              </p>
+              <p className="text-gray-800 mb-2">
+                <strong>Description:</strong> {accidentToDelete.description}
+              </p>
+              {(() => {
+                const bus = buses.find(b => b.id === accidentToDelete.bus_id);
+                return bus ? (
+                  <p className="text-gray-800 mb-2">
+                    <strong>Bus:</strong> {bus.numero}
+                  </p>
+                ) : null;
+              })()}
+              <p className="text-sm text-red-600 font-medium mt-3">
+                ⚠️ Attention : Cette action supprimera définitivement l'accident de la base de données.
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setAccidentToDelete(null);
+                }}
+                variant="outline"
+                className="flex-1 rounded-xl"
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleDelete}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Confirmer la suppression
               </Button>
             </div>
           </motion.div>
@@ -854,6 +1016,19 @@ export default function AdminAccidents() {
                   Informer les tuteurs
                 </Button>
               )}
+              <Button
+                onClick={() => {
+                  setAccidentToDelete(selectedAccident);
+                  setShowDetailsModal(false);
+                  setSelectedAccident(null);
+                  setShowDeleteModal(true);
+                }}
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50 rounded-xl"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Supprimer
+              </Button>
             </div>
           </motion.div>
         </div>

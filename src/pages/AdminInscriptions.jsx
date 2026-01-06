@@ -388,19 +388,41 @@ export default function AdminInscriptions() {
       }
       const { dateDebut, dateFin } = calculateDates(abonnement);
       
-      // Créer l'inscription avec le bus affecté
-      const inscriptionData = {
-        eleve_id: selectedEleve.id,
-        bus_id: busId,
-        date_debut: dateDebut,
-        date_fin: dateFin,
-        montant_mensuel: montantMensuel,
-        statut: 'Active'
-      };
+      // Vérifier si une inscription existe déjà pour cet élève (créée lors du paiement)
+      const existingInscription = inscriptions.find(i => 
+        i.eleve_id === selectedEleve.id && 
+        (i.statut === 'Active' || i.statut === 'active')
+      );
       
-      const createResponse = await inscriptionsAPI.create(inscriptionData);
-      if (!createResponse || !createResponse.success) {
-        throw new Error(createResponse?.message || 'Erreur lors de la création de l\'inscription');
+      if (existingInscription) {
+        // Mettre à jour l'inscription existante avec le bus
+        const updateData = {
+          bus_id: busId,
+          date_debut: dateDebut,
+          date_fin: dateFin,
+          montant_mensuel: montantMensuel,
+          statut: 'Active'
+        };
+        
+        const updateResponse = await inscriptionsAPI.update(existingInscription.id, updateData);
+        if (!updateResponse || !updateResponse.success) {
+          throw new Error(updateResponse?.message || 'Erreur lors de la mise à jour de l\'inscription');
+        }
+      } else {
+        // Créer une nouvelle inscription avec le bus affecté
+        const inscriptionData = {
+          eleve_id: selectedEleve.id,
+          bus_id: busId,
+          date_debut: dateDebut,
+          date_fin: dateFin,
+          montant_mensuel: montantMensuel,
+          statut: 'Active'
+        };
+        
+        const createResponse = await inscriptionsAPI.create(inscriptionData);
+        if (!createResponse || !createResponse.success) {
+          throw new Error(createResponse?.message || 'Erreur lors de la création de l\'inscription');
+        }
       }
       
       // Mettre à jour le statut de la demande en "Inscrit" après l'affectation du bus
@@ -632,18 +654,32 @@ export default function AdminInscriptions() {
                             const montantAvantReduction = desc.montant_avant_reduction;
                             const montantReduction = desc.montant_reduction || 0;
                             
+                            const rangEleve = desc.rang_eleve;
+                            const rangTexte = desc.rang_eleve_texte || (rangEleve ? `${rangEleve}ème élève` : '');
+                            
                             if (tauxReduction > 0 && montantAvantReduction) {
                               return (
-                                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-lg border border-green-200">
-                                    Réduction {Math.round(tauxReduction * 100)}%
-                                  </span>
-                                  <span className="text-xs text-gray-500 line-through">
-                                    {parseFloat(montantAvantReduction).toFixed(2)} DH
-                                  </span>
-                                  <span className="text-xs font-bold text-amber-600">
-                                    → {parseFloat(eleve.demande_inscription.montant_facture).toFixed(2)} DH
-                                  </span>
+                                <div className="mt-2 space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded-lg border border-blue-200">
+                                      {rangTexte || 'Réduction familiale'}
+                                    </span>
+                                    <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-lg border border-green-200">
+                                      Réduction {Math.round(tauxReduction * 100)}%
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="text-gray-500 line-through">
+                                      {parseFloat(montantAvantReduction).toFixed(2)} DH
+                                    </span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="font-bold text-amber-600">
+                                      {parseFloat(eleve.demande_inscription.montant_facture).toFixed(2)} DH
+                                    </span>
+                                    <span className="text-green-600 font-medium">
+                                      (Économie: {parseFloat(desc.montant_reduction || 0).toFixed(2)} DH)
+                                    </span>
+                                  </div>
                                 </div>
                               );
                             }
