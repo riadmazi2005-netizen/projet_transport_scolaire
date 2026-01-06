@@ -23,6 +23,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import AlertDialog from '../components/ui/AlertDialog';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { elevesAPI } from '../services/apiService';
 
 export default function TuteurDemandes() {
@@ -79,13 +81,15 @@ export default function TuteurDemandes() {
     }
   };
 
-  const handleDelete = async (demandeId) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette demande ?')) {
-      return;
-    }
+  const handleDeleteClick = (demandeId) => {
+    setDeleteConfirm({ show: true, demandeId });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm.demandeId) return;
 
     try {
-      const response = await demandesAPI.delete(demandeId);
+      const response = await demandesAPI.delete(deleteConfirm.demandeId);
       if (response.success) {
         // Recharger les demandes
         await loadDemandes(tuteur.id);
@@ -97,12 +101,15 @@ export default function TuteurDemandes() {
           message: 'Votre demande a été supprimée avec succès.',
           type: 'info'
         });
+        setDeleteConfirm({ show: false, demandeId: null });
       } else {
-        alert(response.message || 'Erreur lors de la suppression');
+        setAlertDialog({ show: true, message: response.message || 'Erreur lors de la suppression', type: 'error' });
+        setDeleteConfirm({ show: false, demandeId: null });
       }
     } catch (err) {
       console.error('Erreur:', err);
-      alert('Erreur lors de la suppression de la demande');
+      setAlertDialog({ show: true, message: 'Erreur lors de la suppression de la demande', type: 'error' });
+      setDeleteConfirm({ show: false, demandeId: null });
     }
   };
 
@@ -152,12 +159,17 @@ export default function TuteurDemandes() {
     });
   };
 
-  const handleSaveEdit = async (demandeId) => {
+  const handleSaveEdit = async (demandeId, buttonElement) => {
+    // Faire perdre le focus au bouton après le clic
+    if (buttonElement) {
+      setTimeout(() => buttonElement.blur(), 0);
+    }
+    
     try {
       // Trouver la demande pour obtenir l'eleve_id
       const demande = demandes.find(d => d.id === demandeId);
       if (!demande || !demande.eleve_id) {
-        alert('Erreur: Élève introuvable');
+        setAlertDialog({ show: true, message: 'Erreur: Élève introuvable', type: 'error' });
         return;
       }
       
@@ -397,7 +409,10 @@ export default function TuteurDemandes() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDelete(demande.id)}
+                            onClick={(e) => {
+                              e.currentTarget.blur();
+                              handleDeleteClick(demande.id);
+                            }}
                             className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:border-red-300"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -627,7 +642,7 @@ export default function TuteurDemandes() {
 
                         <div className="flex gap-2 pt-2">
                           <Button
-                            onClick={() => handleSaveEdit(demande.id)}
+                            onClick={(e) => handleSaveEdit(demande.id, e.currentTarget)}
                             className="flex-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white rounded-xl"
                           >
                             Enregistrer
@@ -649,6 +664,26 @@ export default function TuteurDemandes() {
           )}
         </motion.div>
       </div>
+
+      {/* Dialog de confirmation de suppression */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        title="Supprimer la demande"
+        message="Êtes-vous sûr de vouloir supprimer cette demande ? Cette action est irréversible."
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm({ show: false, demandeId: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
+
+      {/* Dialog d'alerte */}
+      <AlertDialog
+        isOpen={alertDialog.show}
+        message={alertDialog.message}
+        type={alertDialog.type}
+        onClose={() => setAlertDialog({ show: false, message: '', type: 'info' })}
+      />
     </div>
   );
 }

@@ -24,6 +24,7 @@ try {
         SELECT d.*, 
                e.nom as eleve_nom, 
                e.prenom as eleve_prenom,
+               e.classe as eleve_classe,
                t.utilisateur_id as tuteur_utilisateur_id
         FROM demandes d
         LEFT JOIN eleves e ON d.eleve_id = e.id

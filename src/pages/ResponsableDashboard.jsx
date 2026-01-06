@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import { responsablesAPI, busAPI, chauffeursAPI, elevesAPI, presencesAPI, notificationsAPI, inscriptionsAPI, accidentsAPI, trajetsAPI, tuteursAPI, rapportsAPI } from '../services/apiService';
@@ -16,6 +16,7 @@ import ResponsableSidebar from '../components/ResponsableSidebar';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
 import PresenceList from '../components/ui/PresenceList';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { format, subDays, startOfMonth, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -40,6 +41,8 @@ export default function ResponsableDashboard() {
   const [elevesSearchTerm, setElevesSearchTerm] = useState('');
   const [accidents, setAccidents] = useState([]);
   const [showAccidentForm, setShowAccidentForm] = useState(false);
+  const [editingAccident, setEditingAccident] = useState(null);
+  const [deleteAccidentConfirm, setDeleteAccidentConfirm] = useState({ show: false, id: null });
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [expandedAccident, setExpandedAccident] = useState(null);
   const [accidentForm, setAccidentForm] = useState({
@@ -157,7 +160,7 @@ export default function ResponsableDashboard() {
           for (const retard of retardsDetectes) {
             // Vérifier si on a déjà envoyé une notification pour ce retard aujourd'hui
             const notificationExiste = notifications.some(n => 
-              n.titre?.includes(`Retard Bus ${retard.bus.numero}`) &&
+              n.titre?.includes(`Retard Bus ${retard.bus.numero.toString().replace(/^#\s*/, '')}`) &&
               n.date?.startsWith(today)
             );
             
@@ -178,8 +181,8 @@ export default function ResponsableDashboard() {
                   notificationsAPI.create({
                     destinataire_id: eleve.tuteur_id,
                     destinataire_type: 'tuteur',
-                    titre: `Retard Bus ${retard.bus.numero}`,
-                    message: `Le bus ${retard.bus.numero} a un retard de ${retard.retard} minutes pour le trajet ${retard.periode === 'matin' ? 'du matin' : 'du soir'}.`,
+                    titre: `Retard Bus ${retard.bus.numero.toString().replace(/^#\s*/, '')}`,
+                    message: `Le bus ${retard.bus.numero.toString().replace(/^#\s*/, '')} a un retard de ${retard.retard} minutes pour le trajet ${retard.periode === 'matin' ? 'du matin' : 'du soir'}.`,
                     type: 'alerte',
                     date: new Date().toISOString()
                   })
@@ -390,6 +393,19 @@ export default function ResponsableDashboard() {
     });
   };
 
+  // Fonction pour normaliser les dates
+  const normalizeDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      return format(date, 'yyyy-MM-dd');
+    } catch (e) {
+      // Si c'est déjà au format yyyy-MM-dd ou yyyy-MM-dd HH:mm:ss
+      const datePart = dateStr.split('T')[0] || dateStr.split(' ')[0];
+      return datePart;
+    }
+  };
+
   // Fonction pour calculer la date effective pour la liste des élèves
   const getElevesEffectiveDate = () => {
     const today = new Date();
@@ -412,10 +428,20 @@ export default function ResponsableDashboard() {
 
   // Filtrer les élèves pour la liste (recalculé quand les filtres changent)
   const filteredElevesList = useMemo(() => {
+    if (!eleves || eleves.length === 0) return [];
+    
     return eleves.filter(eleve => {
-      const matchGroup = elevesGroupFilter === 'all' || eleve.groupe === elevesGroupFilter;
-      const matchSearch = eleve.nom.toLowerCase().includes(elevesSearchTerm.toLowerCase()) ||
-                         eleve.prenom.toLowerCase().includes(elevesSearchTerm.toLowerCase());
+      // Filtre par groupe
+      const matchGroup = elevesGroupFilter === 'all' || 
+                        elevesGroupFilter === '' || 
+                        (eleve.groupe && eleve.groupe.toString().toUpperCase() === elevesGroupFilter.toString().toUpperCase());
+      
+      // Filtre par recherche (nom ou prénom)
+      const searchLower = elevesSearchTerm.toLowerCase().trim();
+      const matchSearch = searchLower === '' || 
+                         (eleve.nom && eleve.nom.toLowerCase().includes(searchLower)) ||
+                         (eleve.prenom && eleve.prenom.toLowerCase().includes(searchLower)) ||
+                         (eleve.nom && eleve.prenom && `${eleve.prenom} ${eleve.nom}`.toLowerCase().includes(searchLower));
       
       return matchGroup && matchSearch;
     });
@@ -428,74 +454,124 @@ export default function ResponsableDashboard() {
         try {
           const effectiveDate = getElevesEffectiveDate();
           const responsableId = responsable?.type_id || responsable?.id;
-          console.log('Chargement présences pour date:', effectiveDate, 'bus:', bus.id);
+          console.log('🔄 Chargement présences pour date:', effectiveDate, 'bus:', bus.id, 'filtre:', elevesDateFilter);
+          
+          // Appeler l'API avec la date effective
           const presencesResponse = await presencesAPI.getByDate(effectiveDate, bus?.id);
           const presencesData = presencesResponse?.data || presencesResponse || [];
-          console.log('Présences reçues:', presencesData);
-          // Filtrer aussi par responsable_id côté client pour plus de sécurité
-          const filteredPresences = presencesData.filter(p => 
-            !p.bus_id || p.bus_id === bus.id || 
-            !p.responsable_id || p.responsable_id === responsableId
-          );
-          console.log('Présences filtrées:', filteredPresences);
+          console.log('📥 Présences reçues pour date', effectiveDate, ':', presencesData.length, 'présences');
+          
+          // Normaliser les dates dans les présences pour faciliter la comparaison
+          // Filtrer aussi par responsable_id et bus_id côté client pour plus de sécurité
+          const filteredPresences = presencesData
+            .map(p => {
+              const normalizedDate = normalizeDate(p.date);
+              return {
+                ...p,
+                date_normalized: normalizedDate,
+                // Garder la date originale aussi
+                date: p.date
+              };
+            })
+            .filter(p => {
+              const matchesBus = !p.bus_id || p.bus_id === bus.id;
+              const matchesResponsable = !p.responsable_id || p.responsable_id === responsableId;
+              const normalizedPresenceDate = p.date_normalized || normalizeDate(p.date);
+              const matchesDate = normalizedPresenceDate === effectiveDate;
+              
+              if (!matchesDate) {
+                console.log('❌ Date ne correspond pas:', {
+                  presenceDate: p.date,
+                  normalized: normalizedPresenceDate,
+                  effectiveDate: effectiveDate,
+                  eleve_id: p.eleve_id
+                });
+              }
+              
+              return matchesBus && matchesResponsable && matchesDate;
+            });
+          
+          console.log('✅ Présences filtrées pour date', effectiveDate, ':', filteredPresences.length, 'présences');
           setPresences(filteredPresences);
         } catch (err) {
-          console.error('Erreur chargement présences pour date filtrée:', err);
+          console.error('❌ Erreur chargement présences pour date filtrée:', err);
           setPresences([]);
         }
       };
       
       loadPresencesForDate();
+    } else if (activeTab === 'eleves' && !bus) {
+      // Si l'onglet est actif mais qu'il n'y a pas de bus, vider les présences
+      setPresences([]);
     }
-  }, [elevesDateFilter, elevesCustomDate, activeTab, bus?.id, responsable?.type_id, responsable?.id]);
+  }, [elevesDateFilter, elevesCustomDate, activeTab, bus?.id, responsable?.type_id, responsable?.id, getElevesEffectiveDate, normalizeDate]);
 
   // Composant pour les filtres de la liste des élèves
   const ElevesListFilters = ({ dateFilter, setDateFilter, customDate, setCustomDate, groupFilter, setGroupFilter, searchTerm, setSearchTerm }) => {
     return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-      <Input
-        placeholder="Rechercher un élève..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500"
-      />
-
-      <Select value={dateFilter} onValueChange={setDateFilter}>
-        <SelectTrigger className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500">
-          <SelectValue placeholder="Date" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="today">Aujourd'hui</SelectItem>
-          <SelectItem value="yesterday">Hier</SelectItem>
-          <SelectItem value="dayBefore">Avant-hier</SelectItem>
-          <SelectItem value="lastMonth">Mois dernier</SelectItem>
-          <SelectItem value="custom">Jour spécifique</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {dateFilter === 'custom' && (
-        <div className="relative">
-          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-600" />
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Input
-            type="date"
-            value={customDate}
-            onChange={(e) => setCustomDate(e.target.value)}
-            className="pl-10 bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500"
+            placeholder="Rechercher un élève..."
+            value={searchTerm || ''}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+            }}
+            className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500"
           />
+
+          <Select 
+            value={dateFilter} 
+            onValueChange={(value) => {
+              setDateFilter(value);
+              if (value !== 'custom') {
+                setCustomDate('');
+              }
+            }}
+          >
+            <SelectTrigger className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500">
+              <SelectValue placeholder="Date" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="today">Aujourd'hui</SelectItem>
+              <SelectItem value="yesterday">Hier</SelectItem>
+              <SelectItem value="dayBefore">Avant-hier</SelectItem>
+              <SelectItem value="lastMonth">Mois dernier</SelectItem>
+              <SelectItem value="custom">Jour spécifique</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select 
+            value={groupFilter} 
+            onValueChange={(value) => {
+              setGroupFilter(value);
+            }}
+          >
+            <SelectTrigger className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500">
+              <SelectValue placeholder="Groupe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les groupes</SelectItem>
+              <SelectItem value="A">Groupe A</SelectItem>
+              <SelectItem value="B">Groupe B</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      )}
-      
-      <Select value={groupFilter} onValueChange={setGroupFilter}>
-        <SelectTrigger className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500">
-          <SelectValue placeholder="Groupe" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Tous les groupes</SelectItem>
-          <SelectItem value="A">Groupe A</SelectItem>
-          <SelectItem value="B">Groupe B</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+
+        {dateFilter === 'custom' && (
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-600 z-10" />
+            <Input
+              type="date"
+              value={customDate || ''}
+              onChange={(e) => {
+                setCustomDate(e.target.value);
+              }}
+              className="pl-10 bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500"
+            />
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -505,6 +581,20 @@ export default function ResponsableDashboard() {
       setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, lue: true } : n));
     } catch (err) {
       console.error('Erreur lors de la mise à jour:', err);
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    if (!responsable) return;
+    
+    const responsableId = responsable.id || responsable.type_id;
+    if (!responsableId) return;
+
+    try {
+      await notificationsAPI.deleteAll(responsableId, 'responsable');
+      setNotifications([]);
+    } catch (err) {
+      console.error('Erreur lors de la suppression de toutes les notifications:', err);
     }
   };
 
@@ -659,7 +749,7 @@ export default function ResponsableDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <StatCard 
                 title="Mon Bus" 
-                value={bus?.numero || '-'} 
+                value={bus?.numero ? bus.numero.toString().replace(/^#\s*/, '') : '-'} 
                 icon={Bus} 
                 color="purple"
               />
@@ -699,7 +789,7 @@ export default function ResponsableDashboard() {
                   <div className="space-y-3">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Numéro:</span>
-                      <span className="font-bold text-purple-700">{bus.numero}</span>
+                      <span className="font-bold text-purple-700">{bus.numero.toString().replace(/^#\s*/, '')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">Marque:</span>
@@ -894,8 +984,13 @@ export default function ResponsableDashboard() {
               };
               const currentPeriod = getCurrentPeriod();
               
+              const normalizedEffectiveDate = normalizeDate(effectiveDate);
+              
               const elevesWithPresence = filteredElevesList.filter(eleve => {
-                const presence = presences.find(p => p.eleve_id === eleve.id && p.date === effectiveDate);
+                const presence = presences.find(p => {
+                  const normalizedPresenceDate = normalizeDate(p.date);
+                  return p.eleve_id === eleve.id && normalizedPresenceDate === normalizedEffectiveDate;
+                });
                 if (!presence) return false;
                 const presentMatin = presence.present_matin === true || presence.present_matin === 1 || presence.present_matin === '1';
                 const presentSoir = presence.present_soir === true || presence.present_soir === 1 || presence.present_soir === '1';
@@ -903,7 +998,10 @@ export default function ResponsableDashboard() {
               });
               
               const elevesAbsents = filteredElevesList.filter(eleve => {
-                const presence = presences.find(p => p.eleve_id === eleve.id && p.date === effectiveDate);
+                const presence = presences.find(p => {
+                  const normalizedPresenceDate = normalizeDate(p.date);
+                  return p.eleve_id === eleve.id && normalizedPresenceDate === normalizedEffectiveDate;
+                });
                 if (!presence) return false;
                 const presentMatin = presence.present_matin === true || presence.present_matin === 1 || presence.present_matin === '1';
                 const presentSoir = presence.present_soir === true || presence.present_soir === 1 || presence.present_soir === '1';
@@ -943,10 +1041,12 @@ export default function ResponsableDashboard() {
               {filteredElevesList.map((eleve) => {
                 // Calculer la date effective
                 const effectiveDate = getElevesEffectiveDate();
-                const elevePresence = presences.find(p => 
-                  p.eleve_id === eleve.id && 
-                  p.date === effectiveDate
-                );
+                const normalizedEffectiveDate = normalizeDate(effectiveDate);
+                
+                const elevePresence = presences.find(p => {
+                  const normalizedPresenceDate = normalizeDate(p.date);
+                  return p.eleve_id === eleve.id && normalizedPresenceDate === normalizedEffectiveDate;
+                });
                 
                 // Déterminer le statut selon la période (matin ou soir) - détection automatique
                 const getCurrentPeriod = () => {
@@ -975,7 +1075,8 @@ export default function ResponsableDashboard() {
                     key={eleve.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-4 hover:bg-purple-50/50 transition-colors"
+                    className="p-4 hover:bg-purple-50/50 transition-colors cursor-pointer"
+                    onClick={() => navigate(createPageUrl(`ResponsableEleveDetails?eleveId=${eleve.id}`))}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4 flex-1">
@@ -992,17 +1093,19 @@ export default function ResponsableDashboard() {
                           </div>
                         </div>
                       </div>
-                      {/* Indicateur de présence */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${
-                        !hasRecord ? 'bg-gray-200' : isPresent ? 'bg-green-500' : 'bg-red-500'
-                      }`}>
-                        {!hasRecord ? (
-                          <span className="text-gray-400 text-sm font-semibold">-</span>
-                        ) : isPresent ? (
-                          <Check className="w-5 h-5 text-white" strokeWidth={3} />
-                        ) : (
-                          <X className="w-5 h-5 text-white" strokeWidth={3} />
-                        )}
+                      <div className="flex items-center gap-3">
+                        {/* Indicateur de présence */}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${
+                          !hasRecord ? 'bg-gray-200' : isPresent ? 'bg-green-500' : 'bg-red-500'
+                        }`}>
+                          {!hasRecord ? (
+                            <span className="text-gray-400 text-sm font-semibold">-</span>
+                          ) : isPresent ? (
+                            <Check className="w-5 h-5 text-white" strokeWidth={3} />
+                          ) : (
+                            <X className="w-5 h-5 text-white" strokeWidth={3} />
+                          )}
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -1029,7 +1132,7 @@ export default function ResponsableDashboard() {
               {bus ? (
                 <div className="space-y-4">
                   <div className="bg-purple-50 rounded-2xl p-6 text-center">
-                    <p className="text-5xl font-bold text-purple-600">{bus.numero}</p>
+                    <p className="text-5xl font-bold text-purple-600">{bus.numero.toString().replace(/^#\s*/, '')}</p>
                     <p className="text-gray-500 mt-2">{bus.marque} {bus.modele}</p>
                   </div>
                   <div className="space-y-3">
@@ -1303,12 +1406,35 @@ export default function ResponsableDashboard() {
                       if (accident.photos) {
                         if (Array.isArray(accident.photos)) {
                           photos = accident.photos;
-                        } else if (typeof accident.photos === 'string') {
-                          photos = JSON.parse(accident.photos);
+                        } else if (typeof accident.photos === 'string' && accident.photos.trim() !== '') {
+                          // Si c'est une chaîne JSON
+                          if (accident.photos.trim().startsWith('[') || accident.photos.trim().startsWith('{')) {
+                            const parsed = JSON.parse(accident.photos);
+                            if (Array.isArray(parsed)) {
+                              photos = parsed;
+                            } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
+                              photos = parsed.photos;
+                            }
+                          } else if (accident.photos.startsWith('data:image')) {
+                            // Si c'est une seule photo en base64 directe
+                            photos = [accident.photos];
+                          }
                         }
                       }
+                      // Filtrer et normaliser les photos valides
+                      photos = photos
+                        .map(photo => {
+                          if (typeof photo === 'string') {
+                            return photo.startsWith('data:image') || photo.startsWith('http') ? photo : null;
+                          } else if (photo && typeof photo === 'object') {
+                            return photo.data || photo.src || photo.url || photo.base64 || null;
+                          }
+                          return null;
+                        })
+                        .filter(photo => photo && photo.trim() !== '');
                     } catch (e) {
                       console.error('Erreur parsing photos:', e);
+                      photos = [];
                     }
 
                     const isExpanded = expandedAccident === accident.id;
@@ -1500,6 +1626,57 @@ export default function ResponsableDashboard() {
                               </div>
                             </div>
                           )}
+                          
+                          {/* Boutons Modifier et Supprimer */}
+                          <div className="mt-4 flex gap-2 justify-end pt-4 border-t border-gray-200">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // Charger les données de l'accident dans le formulaire
+                                setEditingAccident(accident);
+                                setAccidentForm({
+                                  date: accident.date ? format(new Date(accident.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+                                  heure: accident.heure || format(new Date(), 'HH:mm'),
+                                  lieu: accident.lieu || '',
+                                  description: accident.description || '',
+                                  degats: accident.degats || '',
+                                  gravite: accident.gravite || 'Légère',
+                                  nombre_eleves: accident.nombre_eleves?.toString() || '',
+                                  nombre_blesses: accident.nombre_blesses?.toString() || '0'
+                                });
+                                
+                                // Charger les photos existantes
+                                if (photos.length > 0) {
+                                  setAccidentPhotos(photos.map((photoSrc, index) => {
+                                    const src = typeof photoSrc === 'string' ? photoSrc : (photoSrc?.data || photoSrc?.src || photoSrc);
+                                    return {
+                                      preview: src,
+                                      file: null,
+                                      id: `existing-${index}`
+                                    };
+                                  }));
+                                } else {
+                                  setAccidentPhotos([]);
+                                }
+                                
+                                setShowAccidentForm(true);
+                              }}
+                              className="rounded-xl text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                            >
+                              <Edit className="w-4 h-4 mr-2" />
+                              Modifier
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDeleteAccidentConfirm({ show: true, id: accident.id })}
+                              className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Supprimer
+                            </Button>
+                          </div>
                         </div>
                       </motion.div>
                     );
@@ -1509,6 +1686,35 @@ export default function ResponsableDashboard() {
             )}
           </div>
         )}
+
+        {/* ConfirmDialog pour la suppression d'accident */}
+        <ConfirmDialog
+          isOpen={deleteAccidentConfirm.show}
+          title="Supprimer l'accident"
+          message="Êtes-vous sûr de vouloir supprimer cet accident ? Cette action est irréversible."
+          onConfirm={async () => {
+            try {
+              await accidentsAPI.delete(deleteAccidentConfirm.id);
+              setDeleteAccidentConfirm({ show: false, id: null });
+              const responsableSessionReload = localStorage.getItem('responsable_session');
+              if (responsableSessionReload) {
+                const responsableDataReload = JSON.parse(responsableSessionReload);
+                await loadData(responsableDataReload);
+              } else {
+                await loadData(responsable);
+              }
+              showToast('Accident supprimé avec succès', 'success');
+            } catch (err) {
+              console.error('Erreur lors de la suppression:', err);
+              showToast('Erreur lors de la suppression: ' + (err.message || 'Erreur inconnue'), 'error');
+              setDeleteAccidentConfirm({ show: false, id: null });
+            }
+          }}
+          onCancel={() => setDeleteAccidentConfirm({ show: false, id: null })}
+          confirmText="Supprimer"
+          cancelText="Annuler"
+          variant="destructive"
+        />
 
         {/* Modal pour voir les photos en grand */}
         {selectedPhoto && (
@@ -1550,15 +1756,20 @@ export default function ResponsableDashboard() {
                   <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <AlertCircle className="w-6 h-6" />
-                  Déclarer un Accident
+                  {editingAccident ? 'Modifier un Accident' : 'Déclarer un Accident'}
                 </h2>
                 <button
                   type="button"
                   onClick={() => {
                     // Nettoyer les URLs de prévisualisation
-                    accidentPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                    accidentPhotos.forEach(photo => {
+                      if (photo.preview && photo.preview.startsWith('blob:')) {
+                        URL.revokeObjectURL(photo.preview);
+                      }
+                    });
                     setAccidentPhotos([]);
                     setShowAccidentForm(false);
+                    setEditingAccident(null);
                   }}
                   className="text-white hover:text-red-100 transition-colors"
                 >
@@ -1579,10 +1790,22 @@ export default function ResponsableDashboard() {
                   return;
                 }
 
-                // Compresser et convertir les photos en base64
-                const photosBase64 = await Promise.all(
-                  accidentPhotos.map(photo => compressImage(photo.file))
-                );
+                // Compresser et convertir les photos en base64 (seulement les nouvelles photos)
+                const newPhotos = accidentPhotos.filter(photo => photo.file);
+                const existingPhotos = accidentPhotos.filter(photo => !photo.file && photo.preview);
+                
+                let photosBase64 = [];
+                if (newPhotos.length > 0) {
+                  photosBase64 = await Promise.all(
+                    newPhotos.map(photo => compressImage(photo.file))
+                  );
+                }
+                
+                // Combiner les nouvelles photos avec les existantes
+                const allPhotos = [
+                  ...existingPhotos.map(photo => photo.preview),
+                  ...photosBase64.map(p => p.data)
+                ].filter(Boolean);
                 
                 // Calculer le responsable_id de la même manière que dans loadData
                 const responsableSession = localStorage.getItem('responsable_session');
@@ -1601,15 +1824,28 @@ export default function ResponsableDashboard() {
                   nombre_eleves: accidentForm.nombre_eleves ? parseInt(accidentForm.nombre_eleves) : null,
                   nombre_blesses: accidentForm.nombre_blesses ? parseInt(accidentForm.nombre_blesses) : 0,
                   blesses: parseInt(accidentForm.nombre_blesses) > 0,
-                  photos: photosBase64.length > 0 ? photosBase64 : null
+                  photos: allPhotos.length > 0 ? allPhotos : null
                 };
 
-                await accidentsAPI.create(accidentData);
+                if (editingAccident) {
+                  // Mode modification
+                  await accidentsAPI.update(editingAccident.id, accidentData);
+                  showToast('Accident modifié avec succès', 'success');
+                } else {
+                  // Mode création
+                  await accidentsAPI.create(accidentData);
+                  showToast('Accident déclaré avec succès', 'success');
+                }
                 
                 // Nettoyer les URLs de prévisualisation
-                accidentPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                accidentPhotos.forEach(photo => {
+                  if (photo.preview && photo.preview.startsWith('blob:')) {
+                    URL.revokeObjectURL(photo.preview);
+                  }
+                });
                 
                 setShowAccidentForm(false);
+                setEditingAccident(null);
                 setAccidentPhotos([]);
                 setAccidentForm({
                   date: format(new Date(), 'yyyy-MM-dd'),
@@ -1629,7 +1865,6 @@ export default function ResponsableDashboard() {
                 } else {
                   await loadData(responsable);
                 }
-                showToast('Accident déclaré avec succès', 'success');
               } catch (err) {
                 console.error('Erreur déclaration accident:', err);
                 showToast('Erreur lors de la déclaration: ' + (err.message || 'Erreur inconnue'), 'error');
@@ -1807,7 +2042,16 @@ export default function ResponsableDashboard() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowAccidentForm(false)}
+                  onClick={() => {
+                    accidentPhotos.forEach(photo => {
+                      if (photo.preview && photo.preview.startsWith('blob:')) {
+                        URL.revokeObjectURL(photo.preview);
+                      }
+                    });
+                    setAccidentPhotos([]);
+                    setShowAccidentForm(false);
+                    setEditingAccident(null);
+                  }}
                   className="rounded-xl border-purple-500 text-purple-600 hover:bg-purple-50 focus:ring-purple-500"
                 >
                   <X className="w-4 h-4 mr-2" />
@@ -1818,7 +2062,7 @@ export default function ResponsableDashboard() {
                   className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
                 >
                   <AlertCircle className="w-4 h-4 mr-2" />
-                  Déclarer l'accident
+                  {editingAccident ? 'Modifier l\'accident' : 'Déclarer l\'accident'}
                 </Button>
               </div>
             </form>
@@ -1946,7 +2190,7 @@ export default function ResponsableDashboard() {
                   {communicationForm.destinataire === 'bus' && bus && (
                 <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
                   <p className="text-sm text-purple-800">
-                    <strong>Bus sélectionné:</strong> Bus {bus.numero}
+                    <strong>Bus sélectionné:</strong> Bus {bus.numero.toString().replace(/^#\s*/, '')}
                     </p>
                   </div>
                   )}
@@ -2082,6 +2326,7 @@ export default function ResponsableDashboard() {
             console.error('Erreur lors de la suppression de la notification:', err);
           }
         }}
+        onDeleteAll={deleteAllNotifications}
       />
 
       {/* Modal de confirmation de suppression */}

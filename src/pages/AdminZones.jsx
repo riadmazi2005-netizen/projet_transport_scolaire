@@ -19,6 +19,7 @@ export default function AdminZones() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
 
   const villes = ['Rabat', 'Salé', 'Temara'];
   

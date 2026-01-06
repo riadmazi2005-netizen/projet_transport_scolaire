@@ -1,27 +1,26 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, busAPI, trajetsAPI, presencesAPI, inscriptionsAPI, chauffeursAPI, responsablesAPI } from '../services/apiService';
+import { elevesAPI, busAPI, trajetsAPI, presencesAPI, inscriptionsAPI, chauffeursAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import TuteurLayout from '../components/TuteurLayout';
+import ResponsableLayout from '../components/ResponsableLayout';
 import { 
   GraduationCap, ArrowLeft, Bus, Calendar,
-  User, Clock, BarChart3, Filter, AlertCircle
+  User, Clock, BarChart3, Filter
 } from 'lucide-react';
 import { format, subDays, subWeeks, subMonths, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-export default function TuteurEleveDetails() {
+export default function ResponsableEleveDetails() {
   const navigate = useNavigate();
   const [eleve, setEleve] = useState(null);
   const [bus, setBus] = useState(null);
   const [trajet, setTrajet] = useState(null);
   const [chauffeur, setChauffeur] = useState(null);
-  const [responsable, setResponsable] = useState(null);
   const [presences, setPresences] = useState([]);
   const [allPresences, setAllPresences] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,27 +28,7 @@ export default function TuteurEleveDetails() {
   const [filterType, setFilterType] = useState('semaine'); // jour, semaine, mois
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  // Log pour débogage
-  useEffect(() => {
-    console.log('TuteurEleveDetails - Composant monté');
-    console.log('URL:', window.location.href);
-    console.log('Search:', window.location.search);
-  }, []);
-
-  // S'assurer qu'on initialise le loading à false après un court délai pour éviter les pages blanches
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (loading && !eleve && !error) {
-        console.warn('Timeout: La page prend trop de temps à charger');
-        setError('Le chargement prend plus de temps que prévu. Vérifiez votre connexion.');
-        setLoading(false);
-      }
-    }, 10000); // 10 secondes de timeout
-    
-    return () => clearTimeout(timer);
-  }, [loading, eleve, error]);
-
-  const loadData = useCallback(async (eleveId) => {
+  const loadData = async (eleveId) => {
     if (!eleveId) {
       console.error('Aucun ID d\'élève fourni');
       setError('Aucun ID d\'élève fourni dans l\'URL');
@@ -60,35 +39,11 @@ export default function TuteurEleveDetails() {
     try {
       setLoading(true);
       setError(null);
-      console.log('Chargement des données pour l\'élève ID:', eleveId);
-      
       // Charger l'élève
-      let eleveResponse;
-      try {
-        eleveResponse = await elevesAPI.getById(eleveId);
-      } catch (apiError) {
-        console.error('Erreur API lors du chargement de l\'élève:', apiError);
-        throw new Error('Impossible de charger les données de l\'élève. Vérifiez votre connexion.');
-      }
+      const eleveResponse = await elevesAPI.getById(eleveId);
+      const eleveData = eleveResponse?.data || eleveResponse;
       
-      // Gérer différentes structures de réponse
-      let eleveData;
-      if (eleveResponse && eleveResponse.success === false) {
-        throw new Error(eleveResponse.message || 'Élève non trouvé');
-      } else if (eleveResponse && eleveResponse.data) {
-        eleveData = eleveResponse.data;
-      } else if (eleveResponse && eleveResponse.id) {
-        eleveData = eleveResponse;
-      } else if (eleveResponse) {
-        eleveData = eleveResponse;
-      } else {
-        throw new Error('Réponse invalide du serveur');
-      }
-      
-      console.log('Réponse élève:', eleveResponse);
-      console.log('Données élève:', eleveData);
-      
-      if (!eleveData || (!eleveData.id && eleveData.id !== 0)) {
+      if (!eleveData || !eleveData.id) {
         console.error('Élève non trouvé ou données invalides:', eleveResponse);
         setError('Élève non trouvé ou données invalides');
         setLoading(false);
@@ -103,51 +58,30 @@ export default function TuteurEleveDetails() {
           const inscriptionsRes = await inscriptionsAPI.getByEleve(eleveId);
           const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
           const eleveInscription = Array.isArray(inscriptionsData) 
-            ? inscriptionsData.find(i => i.statut === 'Active' || i.statut === 'active')
-            : (inscriptionsData && inscriptionsData.statut === 'Active' ? inscriptionsData : null);
+            ? inscriptionsData.find(i => i.statut === 'Active')
+            : inscriptionsData;
           
           if (eleveInscription && eleveInscription.bus_id) {
-            try {
-              const busResponse = await busAPI.getById(eleveInscription.bus_id);
-              const busData = busResponse?.data || busResponse;
-              if (busData && busData.id) {
-                setBus(busData);
-                
-                // Charger le trajet
-                if (busData.trajet_id) {
-                  try {
-                    const trajetResponse = await trajetsAPI.getById(busData.trajet_id);
-                    const trajetData = trajetResponse?.data || trajetResponse;
-                    if (trajetData) setTrajet(trajetData);
-                  } catch (err) {
-                    console.warn('Erreur lors du chargement du trajet:', err);
-                  }
-                }
-                
-                // Charger le chauffeur
-                if (busData.chauffeur_id) {
-                  try {
-                    const chauffeurResponse = await chauffeursAPI.getById(busData.chauffeur_id);
-                    const chauffeurData = chauffeurResponse?.data || chauffeurResponse;
-                    if (chauffeurData) setChauffeur(chauffeurData);
-                  } catch (err) {
-                    console.warn('Erreur lors du chargement du chauffeur:', err);
-                  }
-                }
-                
-                // Charger le responsable bus
-                if (busData.responsable_id) {
-                  try {
-                    const responsableResponse = await responsablesAPI.getById(busData.responsable_id);
-                    const responsableData = responsableResponse?.data || responsableResponse;
-                    if (responsableData) setResponsable(responsableData);
-                  } catch (err) {
-                    console.warn('Erreur lors du chargement du responsable:', err);
-                  }
-                }
+            const busResponse = await busAPI.getById(eleveInscription.bus_id);
+            const busData = busResponse?.data || busResponse;
+            setBus(busData);
+            
+            // Charger le trajet
+            if (busData && busData.trajet_id) {
+              const trajetResponse = await trajetsAPI.getById(busData.trajet_id);
+              const trajetData = trajetResponse?.data || trajetResponse;
+              setTrajet(trajetData);
+            }
+            
+            // Charger le chauffeur
+            if (busData && busData.chauffeur_id) {
+              try {
+                const chauffeurResponse = await chauffeursAPI.getById(busData.chauffeur_id);
+                const chauffeurData = chauffeurResponse?.data || chauffeurResponse;
+                setChauffeur(chauffeurData);
+              } catch (err) {
+                console.warn('Erreur lors du chargement du chauffeur:', err);
               }
-            } catch (err) {
-              console.warn('Erreur lors du chargement du bus:', err);
             }
           }
         } catch (err) {
@@ -162,9 +96,8 @@ export default function TuteurEleveDetails() {
           const presencesResponse = await presencesAPI.getByEleve(eleveId, startDate, endDate);
           const presencesData = presencesResponse?.data || presencesResponse || [];
           // Trier par date décroissante
-          const sortedPresences = Array.isArray(presencesData)
-            ? presencesData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
-            : [];
+          const sortedPresences = presencesData
+            .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
           setAllPresences(sortedPresences);
           // Par défaut, prendre les 7 derniers jours
           setPresences(sortedPresences.slice(0, 7));
@@ -176,111 +109,78 @@ export default function TuteurEleveDetails() {
       }
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
-      const errorMessage = err.message || 'Erreur inconnue lors du chargement des données';
-      setError(errorMessage);
-      // Ne pas bloquer l'affichage si on a au moins l'élève de base
-      if (!eleve) {
-        setLoading(false);
-      }
+      setError('Erreur lors du chargement des données de l\'élève: ' + (err.message || 'Erreur inconnue'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    const session = localStorage.getItem('tuteur_session');
+    const session = localStorage.getItem('responsable_session');
     if (!session) {
-      navigate(createPageUrl('TuteurLogin'));
+      navigate(createPageUrl('ResponsableLogin'));
       return;
     }
     
     const params = new URLSearchParams(window.location.search);
     // Vérifier les deux variantes possibles du paramètre (eleveId ou eleveld)
-    const eleveId = params.get('eleveId') || params.get('eleveld') || params.get('id');
-    console.log('TuteurEleveDetails - Paramètres URL:', { 
-      eleveId, 
-      search: window.location.search,
-      eleveIdParam: params.get('eleveId'),
-      eleveldParam: params.get('eleveld'),
-      idParam: params.get('id'),
-      allParams: Object.fromEntries(params.entries()),
-      fullUrl: window.location.href
-    });
-    
+    const eleveId = params.get('eleveId') || params.get('eleveld');
     if (eleveId) {
-      console.log('TuteurEleveDetails - Appel de loadData avec eleveId:', eleveId);
-      loadData(eleveId).catch(err => {
-        console.error('TuteurEleveDetails - Erreur dans loadData:', err);
-        setError(err.message || 'Erreur lors du chargement des données');
-        setLoading(false);
-      });
+      loadData(eleveId);
     } else {
       // Si pas d'ID, afficher une erreur
-      console.error('TuteurEleveDetails - Aucun ID d\'élève trouvé dans l\'URL');
-      setError('Aucun ID d\'élève fourni dans l\'URL. Veuillez sélectionner un élève depuis le tableau de bord.');
+      setError('Aucun ID d\'élève fourni dans l\'URL');
       setLoading(false);
     }
-  }, [navigate, loadData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate]);
 
-  // État de chargement
   if (loading) {
     return (
-      <TuteurLayout>
+      <ResponsableLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      </TuteurLayout>
+      </ResponsableLayout>
     );
   }
 
-  // Erreur sans élève chargé
-  if (error && !eleve) {
+  if (!loading && !eleve && !error) {
     return (
-      <TuteurLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-red-500 mb-2">{error}</p>
-            <Button 
-              onClick={() => navigate(createPageUrl('TuteurDashboard'))}
-              className="mt-4 bg-lime-500 hover:bg-lime-600 rounded-xl"
-            >
-              Retour au tableau de bord
-            </Button>
-          </div>
-        </div>
-      </TuteurLayout>
-    );
-  }
-
-  // Pas d'élève chargé (sans erreur explicite)
-  if (!eleve) {
-    return (
-      <TuteurLayout>
+      <ResponsableLayout>
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <p className="text-gray-500 mb-2">Élève non trouvé ou ID invalide.</p>
             <Button 
-              onClick={() => navigate(createPageUrl('TuteurDashboard'))}
-              className="mt-4 bg-lime-500 hover:bg-lime-600 rounded-xl"
+              onClick={() => navigate(createPageUrl('ResponsableDashboard'))}
+              className="mt-4 bg-purple-500 hover:bg-purple-600 rounded-xl"
             >
               Retour au tableau de bord
             </Button>
           </div>
         </div>
-      </TuteurLayout>
+      </ResponsableLayout>
     );
   }
 
-  const getStatusColor = (statut) => {
-    const colors = {
-      'Actif': 'bg-green-100 text-green-700',
-      'Inactif': 'bg-amber-100 text-amber-700',
-      'Suspendu': 'bg-red-100 text-red-700'
-    };
-    return colors[statut] || 'bg-gray-100 text-gray-700';
-  };
+  if (!loading && error && !eleve) {
+    return (
+      <ResponsableLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-500 mb-2">{error}</p>
+            <Button 
+              onClick={() => navigate(createPageUrl('ResponsableDashboard'))}
+              className="mt-4 bg-purple-500 hover:bg-purple-600 rounded-xl"
+            >
+              Retour au tableau de bord
+            </Button>
+          </div>
+        </div>
+      </ResponsableLayout>
+    );
+  }
 
-  // Filtrer les présences selon le type de filtre
   const filteredPresences = useMemo(() => {
     if (!allPresences || allPresences.length === 0) return [];
     
@@ -289,7 +189,6 @@ export default function TuteurEleveDetails() {
     
     switch (filterType) {
       case 'jour':
-        // Un seul jour sélectionné
         const selected = new Date(selectedDate);
         startDate = startOfDay(selected);
         endDate = endOfDay(selected);
@@ -298,7 +197,6 @@ export default function TuteurEleveDetails() {
           return pDate >= startDate && pDate <= endDate;
         });
       case 'semaine':
-        // 7 derniers jours
         startDate = subDays(today, 6);
         endDate = today;
         return allPresences.filter(p => {
@@ -306,7 +204,6 @@ export default function TuteurEleveDetails() {
           return pDate >= startDate && pDate <= endDate;
         }).slice(0, 7);
       case 'mois':
-        // 30 derniers jours
         startDate = subDays(today, 29);
         endDate = today;
         return allPresences.filter(p => {
@@ -318,11 +215,9 @@ export default function TuteurEleveDetails() {
     }
   }, [allPresences, filterType, selectedDate]);
 
-  // Calculer les statistiques d'absence pour le graphique
   const chartData = useMemo(() => {
     if (!filteredPresences || filteredPresences.length === 0) return [];
     
-    // Grouper par date et calculer les absences
     const grouped = {};
     
     filteredPresences.forEach(presence => {
@@ -331,7 +226,6 @@ export default function TuteurEleveDetails() {
         grouped[date] = { date, absents: 0, presents: 0 };
       }
       
-      // Compter les absences (matin et soir)
       if (!presence.present_matin) grouped[date].absents++;
       else grouped[date].presents++;
       
@@ -339,16 +233,15 @@ export default function TuteurEleveDetails() {
       else grouped[date].presents++;
     });
     
-    // Convertir en tableau et trier par date
     return Object.values(grouped)
       .sort((a, b) => {
         try {
-          // Convertir "dd/MM" en date (on utilise l'année actuelle)
           const [dayA, monthA] = a.date.split('/');
+          const dateA = new Date(new Date().getFullYear(), parseInt(monthA) - 1, parseInt(dayA));
+          
           const [dayB, monthB] = b.date.split('/');
-          const year = new Date().getFullYear();
-          const dateA = new Date(year, parseInt(monthA) - 1, parseInt(dayA));
-          const dateB = new Date(year, parseInt(monthB) - 1, parseInt(dayB));
+          const dateB = new Date(new Date().getFullYear(), parseInt(monthB) - 1, parseInt(dayB));
+          
           return dateA - dateB;
         } catch (e) {
           console.error('Erreur lors du tri des dates:', e);
@@ -357,14 +250,12 @@ export default function TuteurEleveDetails() {
       });
   }, [filteredPresences]);
 
-  // Charger les présences quand le filtre change
   useEffect(() => {
     if (eleve && eleve.id) {
       setPresences(filteredPresences);
     }
   }, [filterType, selectedDate, filteredPresences, eleve]);
 
-  // Vérifier si l'élève est absent à une date spécifique
   const getAbsenceForDate = (date) => {
     const dateStr = format(new Date(date), 'yyyy-MM-dd');
     const presence = allPresences.find(p => format(new Date(p.date), 'yyyy-MM-dd') === dateStr);
@@ -380,69 +271,43 @@ export default function TuteurEleveDetails() {
 
   const selectedDateAbsence = getAbsenceForDate(selectedDate);
 
-  // S'assurer qu'on a au moins l'élève avant de rendre le contenu principal
-  // Mais toujours afficher quelque chose pour éviter la page blanche
-  if (!eleve && !loading) {
-    // Si on n'a pas d'élève et qu'on n'est plus en chargement, afficher un message
+  const getStatusColor = (statut) => {
+    const colors = {
+      'Actif': 'bg-green-100 text-green-700',
+      'Inactif': 'bg-amber-100 text-amber-700',
+      'Suspendu': 'bg-red-100 text-red-700'
+    };
+    return colors[statut] || 'bg-gray-100 text-gray-700';
+  };
+
+  if (!eleve) {
     return (
-      <TuteurLayout>
+      <ResponsableLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center max-w-md mx-auto p-6">
-            {error ? (
-              <>
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="w-8 h-8 text-red-600" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">Erreur de chargement</h2>
-                <p className="text-red-600 mb-4">{error}</p>
-              </>
-            ) : (
-              <>
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <User className="w-8 h-8 text-gray-400" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-800 mb-2">Aucune donnée disponible</h2>
-                <p className="text-gray-500 mb-4">Impossible de charger les informations de l'élève.</p>
-              </>
-            )}
+          <div className="text-center">
+            <p className="text-gray-500">Élève non trouvé ou ID invalide.</p>
             <Button 
-              onClick={() => navigate(createPageUrl('TuteurDashboard'))}
-              className="bg-lime-500 hover:bg-lime-600 text-white rounded-xl px-6 py-2"
+              onClick={() => navigate(createPageUrl('ResponsableDashboard'))}
+              className="mt-4 bg-purple-500 hover:bg-purple-600 rounded-xl"
             >
               Retour au tableau de bord
             </Button>
           </div>
         </div>
-      </TuteurLayout>
+      </ResponsableLayout>
     );
   }
 
-  // Si on a l'élève, afficher le contenu principal
-  if (!eleve) {
-    // Encore en chargement
-    return (
-      <TuteurLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-gray-500">Chargement des données...</p>
-          </div>
-        </div>
-      </TuteurLayout>
-    );
-  }
-
-  // S'assurer qu'on a toujours quelque chose à afficher
   return (
-    <TuteurLayout title={`Détails - ${eleve?.prenom || ''} ${eleve?.nom || ''}`}>
+    <ResponsableLayout title={`Détails - ${eleve?.prenom || ''} ${eleve?.nom || ''}`}>
       <div className="max-w-6xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
           <button
-            onClick={() => navigate(createPageUrl('TuteurDashboard'))}
-            className="flex items-center gap-2 text-gray-600 hover:text-lime-600 mb-6 transition-colors"
+            onClick={() => navigate(createPageUrl('ResponsableDashboard'))}
+            className="flex items-center gap-2 text-gray-600 hover:text-purple-600 mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Retour au tableau de bord
@@ -457,9 +322,8 @@ export default function TuteurEleveDetails() {
             </div>
           )}
 
-          {/* Header Card */}
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden mb-6">
-            <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
+            <div className="p-6 bg-gradient-to-r from-purple-500 to-purple-600">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-xl bg-white/20 flex items-center justify-center">
                   <GraduationCap className="w-8 h-8 text-white" />
@@ -478,45 +342,43 @@ export default function TuteurEleveDetails() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Infos Élève */}
             <div className="bg-white rounded-3xl shadow-xl p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-lime-500" />
+                <User className="w-5 h-5 text-purple-500" />
                 Informations personnelles
               </h2>
               <div className="space-y-3">
-                    <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-600">Classe</span>
-                      <span className="font-medium text-gray-800">{eleve?.classe || 'N/A'}</span>
-                    </div>
-                    {eleve?.date_naissance && (
-                      <div className="flex justify-between py-2 border-b border-gray-100">
-                        <span className="text-gray-600">Date de naissance</span>
-                        <span className="font-medium text-gray-800">
-                          {format(new Date(eleve.date_naissance), 'dd/MM/yyyy', { locale: fr })}
-                        </span>
-                      </div>
-                    )}
-                    {eleve?.adresse && (
-                      <div className="flex justify-between py-2">
-                        <span className="text-gray-600">Adresse</span>
-                        <span className="font-medium text-gray-800 text-right max-w-[200px]">{eleve.adresse}</span>
-                      </div>
-                    )}
+                <div className="flex justify-between py-2 border-b border-gray-100">
+                  <span className="text-gray-600">Classe</span>
+                  <span className="font-medium text-gray-800">{eleve?.classe || 'N/A'}</span>
+                </div>
+                {eleve?.date_naissance && (
+                  <div className="flex justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600">Date de naissance</span>
+                    <span className="font-medium text-gray-800">
+                      {format(new Date(eleve.date_naissance), 'dd/MM/yyyy', { locale: fr })}
+                    </span>
+                  </div>
+                )}
+                {eleve?.adresse && (
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Adresse</span>
+                    <span className="font-medium text-gray-800 text-right max-w-[200px]">{eleve.adresse}</span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Infos Bus */}
             <div className="bg-white rounded-3xl shadow-xl p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Bus className="w-5 h-5 text-lime-500" />
+                <Bus className="w-5 h-5 text-purple-500" />
                 Informations de transport
               </h2>
               
               {(bus && eleve?.statut === 'Actif') ? (
                 <div className="space-y-3">
-                  <div className="bg-lime-50 rounded-2xl p-4 border border-lime-100">
-                    <p className="text-sm text-lime-600 font-medium mb-1">Bus assigné</p>
+                  <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100">
+                    <p className="text-sm text-purple-600 font-medium mb-1">Bus assigné</p>
                     <p className="text-2xl font-bold text-gray-800">{bus.numero ? bus.numero.toString().replace(/^#\s*/, '') : 'N/A'}</p>
                     {bus.immatriculation && (
                       <p className="text-sm text-gray-500 mt-1">{bus.immatriculation}</p>
@@ -537,13 +399,6 @@ export default function TuteurEleveDetails() {
                     </div>
                   )}
                   
-                  {bus.plaque && (
-                    <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-600">Plaque d'immatriculation</span>
-                      <span className="font-medium text-gray-800">{bus.plaque}</span>
-                    </div>
-                  )}
-                  
                   {chauffeur && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
                       <p className="text-sm font-semibold text-gray-700 mb-3">Chauffeur</p>
@@ -556,24 +411,6 @@ export default function TuteurEleveDetails() {
                           <div className="flex justify-between py-2">
                             <span className="text-gray-600">Téléphone</span>
                             <span className="font-medium text-gray-800">{chauffeur.telephone}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {responsable && (
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-sm font-semibold text-gray-700 mb-3">Responsable bus</p>
-                      <div className="space-y-2">
-                        <div className="flex justify-between py-2">
-                          <span className="text-gray-600">Nom</span>
-                          <span className="font-medium text-gray-800">{responsable.prenom} {responsable.nom}</span>
-                        </div>
-                        {responsable.telephone && (
-                          <div className="flex justify-between py-2">
-                            <span className="text-gray-600">Téléphone</span>
-                            <span className="font-medium text-gray-800">{responsable.telephone}</span>
                           </div>
                         )}
                       </div>
@@ -619,15 +456,13 @@ export default function TuteurEleveDetails() {
             </div>
           </div>
 
-          {/* Historique des présences */}
           <div className="bg-white rounded-3xl shadow-xl p-6 mt-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-lime-500" />
+                <BarChart3 className="w-5 h-5 text-purple-500" />
                 Historique des absences
               </h2>
               
-              {/* Filtres */}
               <div className="flex items-center gap-3">
                 <Select value={filterType} onValueChange={setFilterType}>
                   <SelectTrigger className="w-40 rounded-xl">
@@ -652,9 +487,8 @@ export default function TuteurEleveDetails() {
               </div>
             </div>
 
-            {/* Affichage pour un jour spécifique */}
             {filterType === 'jour' && (
-              <div className="mb-6 p-4 bg-gray-50 rounded-xl border-2 border-lime-200">
+              <div className="mb-6 p-4 bg-gray-50 rounded-xl border-2 border-purple-200">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-1">
@@ -679,7 +513,6 @@ export default function TuteurEleveDetails() {
               </div>
             )}
 
-            {/* Diagramme des absences */}
             {chartData.length > 0 ? (
               <div className="mb-6">
                 <ResponsiveContainer width="100%" height={300}>
@@ -707,7 +540,6 @@ export default function TuteurEleveDetails() {
               </div>
             )}
 
-            {/* Liste détaillée des présences */}
             <div className="border-t border-gray-200 pt-6">
               <h3 className="text-md font-semibold text-gray-700 mb-4">
                 Détail des présences {filterType === 'jour' ? 'du jour' : filterType === 'semaine' ? 'de la semaine' : 'du mois'}
@@ -730,13 +562,13 @@ export default function TuteurEleveDetails() {
                         key={presence.id || index}
                         className={`flex items-center justify-between p-4 rounded-xl transition-colors ${
                           isSelected 
-                            ? 'bg-lime-100 border-2 border-lime-300' 
+                            ? 'bg-purple-100 border-2 border-purple-300' 
                             : 'bg-gray-50 hover:bg-gray-100'
                         }`}
                       >
                         <span className="font-medium text-gray-700">
                           {format(presenceDate, 'EEEE d MMMM', { locale: fr })}
-                          {isToday && <span className="ml-2 text-xs text-lime-600">(Aujourd'hui)</span>}
+                          {isToday && <span className="ml-2 text-xs text-purple-600">(Aujourd'hui)</span>}
                         </span>
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-2">
@@ -765,6 +597,7 @@ export default function TuteurEleveDetails() {
           </div>
         </motion.div>
       </div>
-    </TuteurLayout>
+    </ResponsableLayout>
   );
 }
+

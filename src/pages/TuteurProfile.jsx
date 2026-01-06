@@ -45,6 +45,15 @@ export default function TuteurProfile() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Faire perdre le focus au bouton pour qu'il ne reste pas "actif"
+    if (e.target) {
+      const submitButton = e.target.querySelector('button[type="submit"]');
+      if (submitButton) {
+        submitButton.blur();
+      }
+    }
+    
     setLoading(true);
     setError('');
     setSuccess(false);
@@ -179,6 +188,10 @@ export default function TuteurProfile() {
             <Button
               type="submit"
               disabled={loading}
+              onClick={(e) => {
+                // Faire perdre le focus immédiatement après le clic
+                setTimeout(() => e.currentTarget.blur(), 0);
+              }}
               className="w-full h-12 bg-gradient-to-r from-lime-500 to-lime-600 hover:from-lime-600 hover:to-lime-700 text-white rounded-xl font-semibold shadow-lg mt-4"
             >
               {loading ? (
