@@ -60,6 +60,23 @@ export default function TuteurDemandes() {
     const tuteurId = tuteurData.type_id || tuteurData.id;
     loadDemandes(tuteurId);
   }, [navigate]);
+  
+  // Ouvrir automatiquement le formulaire d'édition si un demandeId est dans l'URL
+  useEffect(() => {
+    if (demandes.length > 0 && !editingDemande) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const demandeIdParam = urlParams.get('demandeId');
+      if (demandeIdParam) {
+        const demande = demandes.find(d => d.id === parseInt(demandeIdParam));
+        if (demande) {
+          console.log('Ouverture automatique du formulaire d\'édition pour la demande:', demandeIdParam);
+          handleEdit(demande);
+          // Nettoyer l'URL pour éviter de rouvrir à chaque rechargement
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      }
+    }
+  }, [demandes, editingDemande]);
 
   const loadDemandes = async (tuteurId) => {
     try {

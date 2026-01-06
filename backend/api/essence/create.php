@@ -20,10 +20,22 @@ try {
         exit;
     }
     
+    // Debug: vérifier si la photo est présente
+    $hasPhoto = !empty($data['photo_ticket']);
+    $photoLength = $hasPhoto ? strlen($data['photo_ticket']) : 0;
+    error_log("Essence create - Photo présente: " . ($hasPhoto ? 'OUI' : 'NON') . ", Longueur: $photoLength");
+    
     $stmt = $pdo->prepare('
         INSERT INTO prise_essence (chauffeur_id, bus_id, date, heure, quantite_litres, prix_total, station_service, photo_ticket)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ');
+    
+    $photoTicket = $data['photo_ticket'] ?? null;
+    // Si la photo est trop longue pour VARCHAR(255), elle sera tronquée
+    // On va vérifier après l'insertion
+    if ($photoTicket && strlen($photoTicket) > 255) {
+        error_log("ATTENTION: Photo trop longue (" . strlen($photoTicket) . " chars) pour VARCHAR(255). Migration nécessaire!");
+    }
     
     $stmt->execute([
         $data['chauffeur_id'],
@@ -33,7 +45,7 @@ try {
         $data['quantite_litres'],
         $data['prix_total'],
         $data['station_service'] ?? null,
-        $data['photo_ticket'] ?? null
+        $photoTicket
     ]);
     
     $id = $pdo->lastInsertId();
@@ -70,6 +82,17 @@ try {
     $admins = $stmtAdmins->fetchAll(PDO::FETCH_ASSOC);
     
     foreach ($admins as $admin) {
+        $message = "Le chauffeur {$chauffeur['prenom']} {$chauffeur['nom']} (Bus {$bus['numero']}) a effectué une prise d'essence.\n\n" .
+            "Quantité: {$data['quantite_litres']} L\n" .
+            "Prix total: {$data['prix_total']} DH\n" .
+            "Date: {$data['date']} à {$data['heure']}" .
+            ($data['station_service'] ? "\nStation: {$data['station_service']}" : '');
+        
+        // Ajouter une mention si une photo est incluse
+        if (!empty($data['photo_ticket'])) {
+            $message .= "\n\n📷 Photo du ticket incluse";
+        }
+        
         $stmtNotif = $pdo->prepare('
             INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
             VALUES (?, ?, ?, ?, ?)
@@ -78,11 +101,7 @@ try {
             $admin['utilisateur_id'],
             'admin',
             'Rapport de prise d\'essence',
-            "Le chauffeur {$chauffeur['prenom']} {$chauffeur['nom']} (Bus {$bus['numero']}) a effectué une prise d'essence.\n\n" .
-            "Quantité: {$data['quantite_litres']} L\n" .
-            "Prix total: {$data['prix_total']} DH\n" .
-            "Date: {$data['date']} à {$data['heure']}" .
-            ($data['station_service'] ? "\nStation: {$data['station_service']}" : ''),
+            $message,
             'info'
         ]);
     }

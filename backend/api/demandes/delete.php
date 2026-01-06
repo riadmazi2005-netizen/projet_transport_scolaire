@@ -37,10 +37,10 @@ try {
         exit;
     }
     
-    // Vérifier que la demande n'est pas encore traitée (seulement "En attente" peut être supprimée)
-    if ($demande['statut'] !== 'En attente') {
+    // Vérifier que la demande peut être supprimée (seulement "En attente" ou "En cours de traitement" peuvent être supprimées)
+    if ($demande['statut'] !== 'En attente' && $demande['statut'] !== 'En cours de traitement') {
         http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'Cette demande ne peut plus être supprimée car elle est déjà en cours de traitement']);
+        echo json_encode(['success' => false, 'message' => 'Cette demande ne peut plus être supprimée car elle est déjà traitée']);
         exit;
     }
     

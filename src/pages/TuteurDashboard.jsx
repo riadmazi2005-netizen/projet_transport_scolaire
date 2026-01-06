@@ -262,29 +262,37 @@ function TuteurDashboardContent() {
     const eleve = cancelConfirm.eleve;
     
     try {
-      // Si une demande existe, mettre à jour son statut
+      // Si une demande existe, la supprimer d'abord
       if (eleve.demande_inscription?.id) {
-        // Note: Il faudrait peut-être créer une API pour mettre à jour le statut de la demande
-        // Pour l'instant, on peut supprimer l'élève si la demande n'est pas encore traitée
-        if (eleve.statut_demande === 'En cours de traitement') {
-          await elevesAPI.delete(eleve.id);
+        try {
+          await demandesAPI.delete(eleve.demande_inscription.id);
+          console.log('Demande supprimée avec succès');
+        } catch (demandeErr) {
+          console.warn('Erreur lors de la suppression de la demande:', demandeErr);
+          // Continuer quand même pour supprimer l'élève
         }
-      } else {
-        // Supprimer l'élève s'il n'y a pas de demande
+      }
+      
+      // Supprimer l'élève
+      try {
         await elevesAPI.delete(eleve.id);
+        console.log('Élève supprimé avec succès');
+      } catch (eleveErr) {
+        console.error('Erreur lors de la suppression de l\'élève:', eleveErr);
+        throw eleveErr;
       }
       
       // Recharger les données
       if (!tuteur) return;
       const tuteurId = tuteur.type_id || tuteur.id;
-      loadData(tuteurId, tuteur.id);
+      await loadData(tuteurId, tuteur.id);
       setCancelConfirm({ show: false, eleve: null });
       setSuccessMessage('Demande annulée avec succès');
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Erreur lors de l\'annulation:', err);
       setCancelConfirm({ show: false, eleve: null });
-      setErrorMessage('Erreur lors de l\'annulation de la demande');
+      setErrorMessage('Erreur lors de l\'annulation de la demande: ' + (err.message || 'Erreur inconnue'));
       setTimeout(() => setErrorMessage(''), 5000);
     }
   };
@@ -617,8 +625,7 @@ function TuteurDashboardContent() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.1 * index }}
-                  className="p-6 hover:bg-lime-50/50 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/TuteurEleveDetails?eleveId=${eleve.id}`)}
+                  className="p-6 hover:bg-lime-50/50 transition-colors"
                 >
                   <div className="flex flex-col md:flex-row justify-between gap-4">
                     <div className="flex items-center gap-4">
@@ -669,17 +676,42 @@ function TuteurDashboardContent() {
                         {eleve.statut_demande}
                       </span>
                       
+                      {/* Bouton Détails - toujours visible */}
+                      <Button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          navigate(`/TuteurEleveDetails?eleveId=${eleve.id}`);
+                        }}
+                        className="rounded-xl bg-blue-500 hover:bg-blue-600 text-white border-2 border-blue-600"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Détails
+                      </Button>
+                      
                       {/* Boutons selon le statut */}
                       {(eleve.statut_demande === 'En cours de traitement' || eleve.statut_demande === 'En attente') && (
                         <>
-                          <Link to={createPageUrl(`TuteurDemandes`)}>
+                          <Link 
+                            to={createPageUrl(`TuteurDemandes${eleve.demande_inscription?.id ? `?demandeId=${eleve.demande_inscription.id}` : ''}`)}
+                            onClick={(e) => {
+                              // Si pas de demande_id, on peut quand même aller à la page des demandes
+                              if (!eleve.demande_inscription?.id) {
+                                console.warn('Pas d\'ID de demande trouvé pour l\'élève:', eleve);
+                              }
+                            }}
+                          >
                             <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
                               <Edit className="w-4 h-4 mr-2" />
                               Modifier
                             </Button>
                           </Link>
                           <Button
-                            onClick={() => handleCancelDemandeClick(eleve)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleCancelDemandeClick(eleve);
+                            }}
                             className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
                           >
                             <XCircle className="w-4 h-4 mr-2" />

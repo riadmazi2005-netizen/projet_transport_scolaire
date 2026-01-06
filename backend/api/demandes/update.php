@@ -37,11 +37,11 @@ try {
     // Champs autorisés pour la mise à jour
     $allowedFields = ['description', 'zone_geographique', 'type_demande'];
     
-    // Si la demande n'est pas "En attente", on peut quand même modifier la zone_geographique
-    $canUpdateAll = ($demande['statut'] === 'En attente');
+    // Permettre la modification si la demande est "En attente" ou "En cours de traitement"
+    $canUpdateAll = ($demande['statut'] === 'En attente' || $demande['statut'] === 'En cours de traitement');
     
     foreach ($data as $key => $value) {
-        // Si la demande n'est pas "En attente", on ne permet que la modification de zone_geographique
+        // Si la demande n'est pas "En attente" ou "En cours de traitement", on ne permet que la modification de zone_geographique
         if (!$canUpdateAll && $key !== 'zone_geographique') {
             continue;
         }

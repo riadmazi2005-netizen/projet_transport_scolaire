@@ -29,11 +29,17 @@ export default function TuteurEleveDetails() {
   const [filterType, setFilterType] = useState('semaine'); // jour, semaine, mois
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  // Log pour débogage
+  // Log pour débogage et gestion d'erreur globale
   useEffect(() => {
-    console.log('TuteurEleveDetails - Composant monté');
-    console.log('URL:', window.location.href);
-    console.log('Search:', window.location.search);
+    try {
+      console.log('TuteurEleveDetails - Composant monté');
+      console.log('URL:', window.location.href);
+      console.log('Search:', window.location.search);
+    } catch (err) {
+      console.error('Erreur dans useEffect initial:', err);
+      setError('Erreur lors de l\'initialisation: ' + err.message);
+      setLoading(false);
+    }
   }, []);
 
   // S'assurer qu'on initialise le loading à false après un court délai pour éviter les pages blanches
@@ -101,57 +107,186 @@ export default function TuteurEleveDetails() {
       if (eleveData) {
         try {
           const inscriptionsRes = await inscriptionsAPI.getByEleve(eleveId);
+          console.log('📋 Réponse inscriptions:', inscriptionsRes);
           const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
+          console.log('📋 Données inscriptions:', inscriptionsData);
+          
+          // Chercher une inscription active
           const eleveInscription = Array.isArray(inscriptionsData) 
             ? inscriptionsData.find(i => i.statut === 'Active' || i.statut === 'active')
-            : (inscriptionsData && inscriptionsData.statut === 'Active' ? inscriptionsData : null);
+            : (inscriptionsData && (inscriptionsData.statut === 'Active' || inscriptionsData.statut === 'active') ? inscriptionsData : null);
+          
+          console.log('📋 Inscription trouvée:', eleveInscription);
           
           if (eleveInscription && eleveInscription.bus_id) {
-            try {
-              const busResponse = await busAPI.getById(eleveInscription.bus_id);
-              const busData = busResponse?.data || busResponse;
-              if (busData && busData.id) {
-                setBus(busData);
+            console.log('🚌 Bus ID trouvé:', eleveInscription.bus_id);
+            
+            // L'API getByEleve retourne déjà les données du bus via JOIN
+            // Si on a déjà les données du bus dans l'inscription, on les utilise
+            if (eleveInscription.bus_numero) {
+              console.log('✅ Données bus trouvées dans l\'inscription');
+              // Construire l'objet bus à partir des données de l'inscription
+              const busDataFromInscription = {
+                id: eleveInscription.bus_id,
+                numero: eleveInscription.bus_numero,
+                marque: eleveInscription.bus_marque,
+                modele: eleveInscription.bus_modele,
+                capacite: eleveInscription.bus_capacite,
+                trajet_id: null, // On devra le charger séparément
+                chauffeur_id: null, // On devra le charger séparément
+                responsable_id: null // On devra le charger séparément
+              };
+              
+              // Charger les données complètes du bus pour avoir trajet_id, chauffeur_id, responsable_id
+              try {
+                const busResponse = await busAPI.getById(eleveInscription.bus_id);
+                console.log('🚌 Réponse bus complète:', busResponse);
+                const busData = busResponse?.data || busResponse;
+                console.log('🚌 Données bus complètes:', busData);
                 
-                // Charger le trajet
-                if (busData.trajet_id) {
-                  try {
-                    const trajetResponse = await trajetsAPI.getById(busData.trajet_id);
-                    const trajetData = trajetResponse?.data || trajetResponse;
-                    if (trajetData) setTrajet(trajetData);
-                  } catch (err) {
-                    console.warn('Erreur lors du chargement du trajet:', err);
+                if (busData && busData.id) {
+                  // Fusionner les données (priorité aux données complètes du bus)
+                  const finalBusData = {
+                    ...busDataFromInscription,
+                    ...busData,
+                    numero: busData.numero || busDataFromInscription.numero,
+                    marque: busData.marque || busDataFromInscription.marque,
+                    modele: busData.modele || busDataFromInscription.modele,
+                    capacite: busData.capacite || busDataFromInscription.capacite
+                  };
+                  
+                  setBus(finalBusData);
+                  console.log('✅ Bus défini dans le state:', finalBusData);
+                  
+                  // Charger le trajet
+                  if (finalBusData.trajet_id) {
+                    try {
+                      const trajetResponse = await trajetsAPI.getById(finalBusData.trajet_id);
+                      const trajetData = trajetResponse?.data || trajetResponse;
+                      if (trajetData) {
+                        setTrajet(trajetData);
+                        console.log('✅ Trajet défini:', trajetData);
+                      }
+                    } catch (err) {
+                      console.warn('Erreur lors du chargement du trajet:', err);
+                    }
+                  } else if (eleveInscription.trajet_nom) {
+                    // Si on a le nom du trajet mais pas l'ID, créer un objet minimal
+                    setTrajet({ nom: eleveInscription.trajet_nom });
+                  }
+                  
+                  // Charger le chauffeur
+                  if (finalBusData.chauffeur_id) {
+                    try {
+                      const chauffeurResponse = await chauffeursAPI.getById(finalBusData.chauffeur_id);
+                      const chauffeurData = chauffeurResponse?.data || chauffeurResponse;
+                      if (chauffeurData) {
+                        setChauffeur(chauffeurData);
+                        console.log('✅ Chauffeur défini:', chauffeurData);
+                      }
+                    } catch (err) {
+                      console.warn('Erreur lors du chargement du chauffeur:', err);
+                    }
+                  }
+                  
+                  // Charger le responsable bus
+                  if (finalBusData.responsable_id) {
+                    try {
+                      const responsableResponse = await responsablesAPI.getById(finalBusData.responsable_id);
+                      const responsableData = responsableResponse?.data || responsableResponse;
+                      if (responsableData) {
+                        setResponsable(responsableData);
+                        console.log('✅ Responsable défini:', responsableData);
+                      }
+                    } catch (err) {
+                      console.warn('Erreur lors du chargement du responsable:', err);
+                    }
+                  }
+                } else {
+                  // Si l'appel API échoue, utiliser au moins les données de l'inscription
+                  console.warn('⚠️ Impossible de charger les données complètes du bus, utilisation des données de l\'inscription');
+                  setBus(busDataFromInscription);
+                  if (eleveInscription.trajet_nom) {
+                    setTrajet({ nom: eleveInscription.trajet_nom });
                   }
                 }
-                
-                // Charger le chauffeur
-                if (busData.chauffeur_id) {
-                  try {
-                    const chauffeurResponse = await chauffeursAPI.getById(busData.chauffeur_id);
-                    const chauffeurData = chauffeurResponse?.data || chauffeurResponse;
-                    if (chauffeurData) setChauffeur(chauffeurData);
-                  } catch (err) {
-                    console.warn('Erreur lors du chargement du chauffeur:', err);
-                  }
-                }
-                
-                // Charger le responsable bus
-                if (busData.responsable_id) {
-                  try {
-                    const responsableResponse = await responsablesAPI.getById(busData.responsable_id);
-                    const responsableData = responsableResponse?.data || responsableResponse;
-                    if (responsableData) setResponsable(responsableData);
-                  } catch (err) {
-                    console.warn('Erreur lors du chargement du responsable:', err);
-                  }
+              } catch (err) {
+                console.error('❌ Erreur lors du chargement du bus complet:', err);
+                // En cas d'erreur, utiliser au moins les données de l'inscription
+                console.log('⚠️ Utilisation des données bus de l\'inscription');
+                setBus(busDataFromInscription);
+                if (eleveInscription.trajet_nom) {
+                  setTrajet({ nom: eleveInscription.trajet_nom });
                 }
               }
-            } catch (err) {
-              console.warn('Erreur lors du chargement du bus:', err);
+            } else {
+              // Si pas de données bus dans l'inscription, charger via API
+              try {
+                const busResponse = await busAPI.getById(eleveInscription.bus_id);
+                console.log('🚌 Réponse bus:', busResponse);
+                const busData = busResponse?.data || busResponse;
+                console.log('🚌 Données bus:', busData);
+                
+                if (busData && busData.id) {
+                  setBus(busData);
+                  console.log('✅ Bus défini dans le state:', busData);
+                  
+                  // Charger le trajet
+                  if (busData.trajet_id) {
+                    try {
+                      const trajetResponse = await trajetsAPI.getById(busData.trajet_id);
+                      const trajetData = trajetResponse?.data || trajetResponse;
+                      if (trajetData) {
+                        setTrajet(trajetData);
+                        console.log('✅ Trajet défini:', trajetData);
+                      }
+                    } catch (err) {
+                      console.warn('Erreur lors du chargement du trajet:', err);
+                    }
+                  }
+                  
+                  // Charger le chauffeur
+                  if (busData.chauffeur_id) {
+                    try {
+                      const chauffeurResponse = await chauffeursAPI.getById(busData.chauffeur_id);
+                      const chauffeurData = chauffeurResponse?.data || chauffeurResponse;
+                      if (chauffeurData) {
+                        setChauffeur(chauffeurData);
+                        console.log('✅ Chauffeur défini:', chauffeurData);
+                      }
+                    } catch (err) {
+                      console.warn('Erreur lors du chargement du chauffeur:', err);
+                    }
+                  }
+                  
+                  // Charger le responsable bus
+                  if (busData.responsable_id) {
+                    try {
+                      const responsableResponse = await responsablesAPI.getById(busData.responsable_id);
+                      const responsableData = responsableResponse?.data || responsableResponse;
+                      if (responsableData) {
+                        setResponsable(responsableData);
+                        console.log('✅ Responsable défini:', responsableData);
+                      }
+                    } catch (err) {
+                      console.warn('Erreur lors du chargement du responsable:', err);
+                    }
+                  }
+                } else {
+                  console.warn('⚠️ Bus data invalide:', busData);
+                }
+              } catch (err) {
+                console.error('❌ Erreur lors du chargement du bus:', err);
+              }
+            }
+          } else {
+            console.warn('⚠️ Aucune inscription active avec bus_id trouvée pour l\'élève');
+            if (eleveInscription) {
+              console.warn('📋 Inscription trouvée mais sans bus_id:', eleveInscription);
             }
           }
         } catch (err) {
-          console.warn('Erreur lors du chargement des inscriptions:', err);
+          console.error('❌ Erreur lors du chargement des inscriptions:', err);
         }
         
         // Charger les présences (30 derniers jours pour avoir assez de données)
@@ -188,100 +323,50 @@ export default function TuteurEleveDetails() {
   }, []);
 
   useEffect(() => {
-    const session = localStorage.getItem('tuteur_session');
-    if (!session) {
-      navigate(createPageUrl('TuteurLogin'));
-      return;
-    }
-    
-    const params = new URLSearchParams(window.location.search);
-    // Vérifier les deux variantes possibles du paramètre (eleveId ou eleveld)
-    const eleveId = params.get('eleveId') || params.get('eleveld') || params.get('id');
-    console.log('TuteurEleveDetails - Paramètres URL:', { 
-      eleveId, 
-      search: window.location.search,
-      eleveIdParam: params.get('eleveId'),
-      eleveldParam: params.get('eleveld'),
-      idParam: params.get('id'),
-      allParams: Object.fromEntries(params.entries()),
-      fullUrl: window.location.href
-    });
-    
-    if (eleveId) {
-      console.log('TuteurEleveDetails - Appel de loadData avec eleveId:', eleveId);
-      loadData(eleveId).catch(err => {
-        console.error('TuteurEleveDetails - Erreur dans loadData:', err);
-        setError(err.message || 'Erreur lors du chargement des données');
-        setLoading(false);
+    try {
+      const session = localStorage.getItem('tuteur_session');
+      if (!session) {
+        navigate(createPageUrl('TuteurLogin'));
+        return;
+      }
+      
+      const params = new URLSearchParams(window.location.search);
+      // Vérifier les deux variantes possibles du paramètre (eleveId ou eleveld)
+      const eleveId = params.get('eleveId') || params.get('eleveld') || params.get('id');
+      console.log('TuteurEleveDetails - Paramètres URL:', { 
+        eleveId, 
+        search: window.location.search,
+        eleveIdParam: params.get('eleveId'),
+        eleveldParam: params.get('eleveld'),
+        idParam: params.get('id'),
+        allParams: Object.fromEntries(params.entries()),
+        fullUrl: window.location.href
       });
-    } else {
-      // Si pas d'ID, afficher une erreur
-      console.error('TuteurEleveDetails - Aucun ID d\'élève trouvé dans l\'URL');
-      setError('Aucun ID d\'élève fourni dans l\'URL. Veuillez sélectionner un élève depuis le tableau de bord.');
+      
+      if (eleveId) {
+        console.log('TuteurEleveDetails - Appel de loadData avec eleveId:', eleveId);
+        loadData(eleveId).catch(err => {
+          console.error('TuteurEleveDetails - Erreur dans loadData:', err);
+          setError(err.message || 'Erreur lors du chargement des données');
+          setLoading(false);
+        });
+      } else {
+        // Si pas d'ID, afficher une erreur
+        console.error('TuteurEleveDetails - Aucun ID d\'élève trouvé dans l\'URL');
+        setError('Aucun ID d\'élève fourni dans l\'URL. Veuillez sélectionner un élève depuis le tableau de bord.');
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error('TuteurEleveDetails - Erreur dans useEffect:', err);
+      setError('Erreur lors de l\'initialisation: ' + (err.message || 'Erreur inconnue'));
       setLoading(false);
     }
   }, [navigate, loadData]);
 
-  // État de chargement
-  if (loading) {
-    return (
-      <TuteurLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      </TuteurLayout>
-    );
-  }
-
-  // Erreur sans élève chargé
-  if (error && !eleve) {
-    return (
-      <TuteurLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-red-500 mb-2">{error}</p>
-            <Button 
-              onClick={() => navigate(createPageUrl('TuteurDashboard'))}
-              className="mt-4 bg-lime-500 hover:bg-lime-600 rounded-xl"
-            >
-              Retour au tableau de bord
-            </Button>
-          </div>
-        </div>
-      </TuteurLayout>
-    );
-  }
-
-  // Pas d'élève chargé (sans erreur explicite)
-  if (!eleve) {
-    return (
-      <TuteurLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-gray-500 mb-2">Élève non trouvé ou ID invalide.</p>
-            <Button 
-              onClick={() => navigate(createPageUrl('TuteurDashboard'))}
-              className="mt-4 bg-lime-500 hover:bg-lime-600 rounded-xl"
-            >
-              Retour au tableau de bord
-            </Button>
-          </div>
-        </div>
-      </TuteurLayout>
-    );
-  }
-
-  const getStatusColor = (statut) => {
-    const colors = {
-      'Actif': 'bg-green-100 text-green-700',
-      'Inactif': 'bg-amber-100 text-amber-700',
-      'Suspendu': 'bg-red-100 text-red-700'
-    };
-    return colors[statut] || 'bg-gray-100 text-gray-700';
-  };
-
+  // Tous les hooks doivent être appelés AVANT les returns conditionnels
   // Filtrer les présences selon le type de filtre
   const filteredPresences = useMemo(() => {
+    // Si pas de présences, retourner un tableau vide
     if (!allPresences || allPresences.length === 0) return [];
     
     const today = new Date();
@@ -365,7 +450,7 @@ export default function TuteurEleveDetails() {
   }, [filterType, selectedDate, filteredPresences, eleve]);
 
   // Vérifier si l'élève est absent à une date spécifique
-  const getAbsenceForDate = (date) => {
+  const getAbsenceForDate = useCallback((date) => {
     const dateStr = format(new Date(date), 'yyyy-MM-dd');
     const presence = allPresences.find(p => format(new Date(p.date), 'yyyy-MM-dd') === dateStr);
     
@@ -376,9 +461,21 @@ export default function TuteurEleveDetails() {
       matin: !presence.present_matin,
       soir: !presence.present_soir
     };
-  };
+  }, [allPresences]);
 
-  const selectedDateAbsence = getAbsenceForDate(selectedDate);
+  const selectedDateAbsence = useMemo(() => {
+    return getAbsenceForDate(selectedDate);
+  }, [selectedDate, getAbsenceForDate]);
+
+  // Fonction helper pour le statut (doit être avant les returns)
+  const getStatusColor = (statut) => {
+    const colors = {
+      'Actif': 'bg-green-100 text-green-700',
+      'Inactif': 'bg-amber-100 text-amber-700',
+      'Suspendu': 'bg-red-100 text-red-700'
+    };
+    return colors[statut] || 'bg-gray-100 text-gray-700';
+  };
 
   // S'assurer qu'on a au moins l'élève avant de rendre le contenu principal
   // Mais toujours afficher quelque chose pour éviter la page blanche
@@ -418,21 +515,33 @@ export default function TuteurEleveDetails() {
   }
 
   // Si on a l'élève, afficher le contenu principal
+  // Cette condition est redondante mais on la garde pour sécurité
+
+  // S'assurer qu'on a toujours quelque chose à afficher
+  // Si on arrive ici sans élève, c'est une erreur
   if (!eleve) {
-    // Encore en chargement
     return (
       <TuteurLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-gray-500">Chargement des données...</p>
+          <div className="text-center max-w-md mx-auto p-6">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-red-600" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-800 mb-2">Erreur</h2>
+            <p className="text-red-600 mb-4">{error || 'Impossible de charger les données de l\'élève.'}</p>
+            <Button 
+              onClick={() => navigate(createPageUrl('TuteurDashboard'))}
+              className="bg-lime-500 hover:bg-lime-600 text-white rounded-xl px-6 py-2"
+            >
+              Retour au tableau de bord
+            </Button>
           </div>
         </div>
       </TuteurLayout>
     );
   }
 
-  // S'assurer qu'on a toujours quelque chose à afficher
+  // Rendu principal - on s'assure qu'on a toujours quelque chose à afficher
   return (
     <TuteurLayout title={`Détails - ${eleve?.prenom || ''} ${eleve?.nom || ''}`}>
       <div className="max-w-6xl mx-auto">
@@ -513,7 +622,7 @@ export default function TuteurEleveDetails() {
                 Informations de transport
               </h2>
               
-              {(bus && eleve?.statut === 'Actif') ? (
+              {bus ? (
                 <div className="space-y-3">
                   <div className="bg-lime-50 rounded-2xl p-4 border border-lime-100">
                     <p className="text-sm text-lime-600 font-medium mb-1">Bus assigné</p>
@@ -522,13 +631,6 @@ export default function TuteurEleveDetails() {
                       <p className="text-sm text-gray-500 mt-1">{bus.immatriculation}</p>
                     )}
                   </div>
-                  
-                  {bus.marque && (
-                    <div className="flex justify-between py-2 border-b border-gray-100">
-                      <span className="text-gray-600">Marque/Modèle</span>
-                      <span className="font-medium text-gray-800">{bus.marque} {bus.modele || ''}</span>
-                    </div>
-                  )}
                   
                   {bus.capacite && (
                     <div className="flex justify-between py-2 border-b border-gray-100">

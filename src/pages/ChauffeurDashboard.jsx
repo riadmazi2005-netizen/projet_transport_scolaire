@@ -305,6 +305,15 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       try {
         const essenceResponse = await essenceAPI.getByChauffeur(chauffeurId);
         const essenceData = essenceResponse?.data || essenceResponse || [];
+        console.log('Prises essence chargées:', essenceData);
+        // Debug: vérifier les photos
+        essenceData.forEach((prise, index) => {
+          if (prise.photo_ticket) {
+            console.log(`Prise ${index} - photo_ticket existe, longueur:`, prise.photo_ticket.length, 'premiers caractères:', prise.photo_ticket.substring(0, 50));
+          } else {
+            console.log(`Prise ${index} - pas de photo_ticket`);
+          }
+        });
         setPriseEssence(essenceData);
       } catch (err) {
         console.error('Erreur chargement essence:', err);
@@ -1254,41 +1263,72 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                             </div>
                             
                             {/* Photo du ticket */}
-                            {essence.photo_ticket && (() => {
-                              let photoSrc = essence.photo_ticket;
-                              try {
-                                // Essayer de parser si c'est du JSON
-                                if (photoSrc.trim().startsWith('[') || photoSrc.trim().startsWith('{')) {
-                                  const parsed = JSON.parse(photoSrc);
-                                  if (Array.isArray(parsed) && parsed.length > 0) {
-                                    photoSrc = parsed[0];
-                                  } else if (parsed && typeof parsed === 'object' && parsed.data) {
-                                    photoSrc = parsed.data;
-                                  }
-                                }
-                              } catch (e) {
-                                // Si le parsing échoue, utiliser tel quel
+                            {(() => {
+                              // Debug
+                              console.log('Essence photo_ticket:', essence.photo_ticket ? `Existe (${essence.photo_ticket.length} chars)` : 'NULL');
+                              
+                              if (!essence.photo_ticket) {
+                                return null;
                               }
                               
-                              if (photoSrc && photoSrc.startsWith('data:image')) {
-                                return (
-                                  <div className="mt-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <ImageIcon className="w-4 h-4 text-green-600" />
-                                      <span className="text-sm font-medium text-gray-700">Photo du ticket</span>
-                                    </div>
-                                    <div className="relative group cursor-pointer" onClick={() => setSelectedEssenceTicketPhoto(photoSrc)}>
-                                      <img
-                                        src={photoSrc}
-                                        alt="Ticket essence"
-                                        className="w-full h-32 object-contain rounded-lg border-2 border-green-200 bg-gray-50 hover:border-green-400 transition-colors"
-                                      />
-                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg">
-                                        <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              let photoSrc = essence.photo_ticket;
+                              
+                              // Nettoyer et parser la photo
+                              if (typeof photoSrc === 'string' && photoSrc.trim()) {
+                                try {
+                                  // Essayer de parser si c'est du JSON
+                                  if (photoSrc.trim().startsWith('[') || photoSrc.trim().startsWith('{')) {
+                                    const parsed = JSON.parse(photoSrc);
+                                    if (Array.isArray(parsed) && parsed.length > 0) {
+                                      photoSrc = parsed[0];
+                                    } else if (parsed && typeof parsed === 'object' && parsed.data) {
+                                      photoSrc = parsed.data;
+                                    }
+                                  }
+                                } catch (e) {
+                                  // Si le parsing échoue, utiliser tel quel
+                                  console.log('Erreur parsing photo:', e);
+                                }
+                                
+                                // Si la photo ne commence pas par data:image, l'ajouter
+                                if (photoSrc && !photoSrc.startsWith('data:image') && !photoSrc.startsWith('http')) {
+                                  // Si c'est du base64 pur, ajouter le préfixe
+                                  if (photoSrc.length > 100) {
+                                    photoSrc = `data:image/jpeg;base64,${photoSrc}`;
+                                  }
+                                }
+                                
+                                // Vérifier que c'est une image valide
+                                if (photoSrc && (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'))) {
+                                  console.log('Photo valide, affichage...');
+                                  return (
+                                    <div className="mt-4">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <ImageIcon className="w-4 h-4 text-green-600" />
+                                        <span className="text-sm font-medium text-gray-700">Photo du ticket</span>
+                                      </div>
+                                      <div className="relative group cursor-pointer" onClick={() => setSelectedEssenceTicketPhoto(photoSrc)}>
+                                        <img
+                                          src={photoSrc}
+                                          alt="Ticket essence"
+                                          className="w-full h-32 object-contain rounded-lg border-2 border-green-200 bg-gray-50 hover:border-green-400 transition-colors"
+                                          onError={(e) => {
+                                            console.error('Erreur chargement image - longueur:', photoSrc.length, 'premiers chars:', photoSrc.substring(0, 50));
+                                            e.target.style.display = 'none';
+                                          }}
+                                          onLoad={() => {
+                                            console.log('Image chargée avec succès');
+                                          }}
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg">
+                                          <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                );
+                                  );
+                                } else {
+                                  console.log('Photo invalide - photoSrc:', photoSrc ? photoSrc.substring(0, 50) : 'null');
+                                }
                               }
                               return null;
                             })()}

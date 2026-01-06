@@ -30,6 +30,7 @@ export default function AdminInscriptions() {
   const [showInscriptionModal, setShowInscriptionModal] = useState(false);
   const [availableBuses, setAvailableBuses] = useState([]);
   const [error, setError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState(null);
   const [adminUser, setAdminUser] = useState(null);
   const [inscriptionForm, setInscriptionForm] = useState({
     date_debut: format(new Date(), 'yyyy-MM-dd'),
@@ -185,6 +186,14 @@ export default function AdminInscriptions() {
       
       if (zone) {
         const busesResponse = await busAPI.getByZone(zone);
+        console.log('🔍 Réponse getByZone pour zone "' + zone + '":', busesResponse);
+        
+        // Toujours stocker les informations de débogage si disponibles
+        if (busesResponse.debug) {
+          setDebugInfo(busesResponse.debug);
+          console.log('📊 Informations de débogage:', busesResponse.debug);
+        }
+        
         if (busesResponse.success && busesResponse.data && busesResponse.data.length > 0) {
           const busesWithCapacity = busesResponse.data.map(bus => {
             const trajet = trajets.find(t => t.id === bus.trajet_id);
@@ -196,8 +205,11 @@ export default function AdminInscriptions() {
             };
           });
           setAvailableBuses(busesWithCapacity);
+          setError(null);
         } else {
           setAvailableBuses([]);
+          // Toujours afficher un message d'erreur, même si on a des infos de débogage
+          setError(busesResponse.message || `Aucun bus disponible pour la zone "${zone}"`);
         }
       } else {
         setAvailableBuses([]);
@@ -206,7 +218,7 @@ export default function AdminInscriptions() {
     } catch (err) {
       console.error('Erreur lors du chargement des bus:', err);
       setAvailableBuses([]);
-      setError('Erreur lors du chargement des bus disponibles');
+      setError('Erreur lors du chargement des bus disponibles: ' + (err.message || 'Erreur inconnue'));
     }
     
     setShowInscriptionModal(true);
@@ -1003,9 +1015,35 @@ export default function AdminInscriptions() {
                       <p className="text-sm text-yellow-800 font-medium mb-2">
                         ⚠️ Aucun bus disponible pour la zone "{selectedEleve.demande_inscription?.zone_geographique || selectedEleve.zone || 'non spécifiée'}"
                       </p>
-                      <p className="text-xs text-yellow-700">
+                      <p className="text-xs text-yellow-700 mb-3">
                         Vérifiez que des trajets couvrent cette zone et que des bus actifs y sont assignés avant de valider l'inscription.
                       </p>
+                      {debugInfo && (
+                        <div className="mt-3 p-3 bg-white rounded-lg border border-yellow-300">
+                          <p className="text-xs font-semibold text-gray-700 mb-2">Informations de diagnostic:</p>
+                          <ul className="text-xs text-gray-600 space-y-1">
+                            <li>• Total bus actifs: {debugInfo.total_bus_actifs}</li>
+                            <li>• Bus sans trajet assigné: {debugInfo.bus_sans_trajet}</li>
+                            <li>• Trajets sans zones définies: {debugInfo.bus_trajets_vides}</li>
+                            <li>• Bus avec zones ne correspondant pas: {debugInfo.bus_zones_non_match}</li>
+                            {debugInfo.bus_pleins > 0 && (
+                              <li>• Bus trouvés mais pleins (pas de places): {debugInfo.bus_pleins}</li>
+                            )}
+                          </ul>
+                          {debugInfo.exemples_trajets_zones && debugInfo.exemples_trajets_zones.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-yellow-200">
+                              <p className="text-xs font-semibold text-gray-700 mb-2">Exemples de zones dans les trajets:</p>
+                              {debugInfo.exemples_trajets_zones.map((ex, idx) => (
+                                <div key={idx} className="text-xs text-gray-600 mb-2 p-2 bg-gray-50 rounded">
+                                  <p className="font-medium">Bus {ex.bus_numero} - {ex.trajet_nom}:</p>
+                                  <p className="text-gray-500">Zones: {Array.isArray(ex.zones) ? ex.zones.join(', ') : ex.zones}</p>
+                                  <p className="text-gray-500">Places restantes: {ex.places_restantes}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3 mb-6">

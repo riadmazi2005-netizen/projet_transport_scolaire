@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   GraduationCap, ArrowLeft, UserPlus, User, 
-  MapPin, Bus, CheckCircle, Plus, X, Trash2
+  MapPin, Bus, CheckCircle, Plus, X, Trash2, AlertCircle
 } from 'lucide-react';
 
 export default function TuteurInscription() {
@@ -75,6 +75,14 @@ export default function TuteurInscription() {
     loadZones();
   }, [navigate]);
 
+  // Recharger les zones si elles ne sont pas chargées
+  useEffect(() => {
+    if (zones.length === 0) {
+      console.log('🔄 Rechargement des zones car aucune zone n\'est chargée');
+      loadZones();
+    }
+  }, [zones.length]);
+  
   useEffect(() => {
     // Filtrer les zones selon la ville sélectionnée
     if (formData.ville) {
@@ -97,14 +105,67 @@ export default function TuteurInscription() {
 
   const loadZones = async () => {
     try {
+      console.log('🔄 Chargement des zones...');
       const zonesRes = await zonesAPI.getAll();
-      const zonesData = zonesRes?.data || zonesRes || [];
+      console.log('📦 Réponse brute zonesAPI.getAll():', zonesRes);
+      console.log('📦 Type de réponse:', typeof zonesRes);
+      console.log('📦 Est un tableau?', Array.isArray(zonesRes));
+      
+      // Gérer différentes structures de réponse
+      let zonesData;
+      
+      // Cas 1: { success: true, data: [...] }
+      if (zonesRes && typeof zonesRes === 'object' && zonesRes.success !== false && zonesRes.data) {
+        zonesData = zonesRes.data;
+        console.log('✅ Format détecté: { success, data }');
+      }
+      // Cas 2: Tableau direct
+      else if (Array.isArray(zonesRes)) {
+        zonesData = zonesRes;
+        console.log('✅ Format détecté: Tableau direct');
+      }
+      // Cas 3: { data: [...] } sans success
+      else if (zonesRes && typeof zonesRes === 'object' && zonesRes.data && Array.isArray(zonesRes.data)) {
+        zonesData = zonesRes.data;
+        console.log('✅ Format détecté: { data }');
+      }
+      // Cas 4: Réponse vide ou invalide
+      else {
+        console.warn('⚠️ Format de réponse non reconnu:', zonesRes);
+        zonesData = [];
+      }
+      
       const zonesArray = Array.isArray(zonesData) ? zonesData : [];
+      console.log(`✅ Zones chargées: ${zonesArray.length} zone(s)`);
+      
+      if (zonesArray.length > 0) {
+        console.log('📋 Exemple de zone:', zonesArray[0]);
+        const villesUniques = [...new Set(zonesArray.map(z => z.ville).filter(Boolean))];
+        console.log('🏙️ Villes disponibles:', villesUniques);
+        console.log('📊 Répartition par ville:', villesUniques.map(ville => ({
+          ville,
+          count: zonesArray.filter(z => z.ville === ville).length
+        })));
+      } else {
+        console.warn('⚠️ Aucune zone chargée!');
+      }
+      
       setZones(zonesArray);
-      console.log('Zones chargées:', zonesArray.length, zonesArray);
+      return zonesArray;
     } catch (err) {
-      console.error('Erreur lors du chargement des zones:', err);
+      console.error('❌ Erreur lors du chargement des zones:', err);
+      console.error('❌ Détails:', err.message, err.stack);
+      
+      // Afficher un message d'erreur à l'utilisateur
+      const errorMessage = err.message || 'Erreur inconnue';
+      if (errorMessage.includes('connexion') || errorMessage.includes('base de données') || errorMessage.includes('MySQL')) {
+        setError('Impossible de charger les zones. Vérifiez que MySQL est démarré dans XAMPP.');
+      } else {
+        setError('Erreur lors du chargement des zones: ' + errorMessage);
+      }
+      
       setZones([]);
+      return [];
     }
   };
 
@@ -120,9 +181,14 @@ export default function TuteurInscription() {
       if (name === 'niveau') {
         newList[index].classe = '';
       }
-      // Si on change la ville, réinitialiser la zone
+      // Si on change la ville, réinitialiser la zone et recharger les zones si nécessaire
       if (name === 'ville') {
         newList[index].zone = '';
+        // Recharger les zones si elles ne sont pas encore chargées
+        if (zones.length === 0) {
+          console.log('🔄 Rechargement des zones car la ville a changé et aucune zone n\'est chargée');
+          loadZones();
+        }
       }
       return newList;
     });
@@ -475,11 +541,32 @@ export default function TuteurInscription() {
                   const classesDisponibles = getClassesDisponibles(eleve.niveau);
                   const zonesFiltreesEleve = eleve.ville 
                     ? zones.filter(z => {
-                        const matchVille = z.ville && z.ville.trim() === eleve.ville.trim();
-                        const estActif = z.actif === true || z.actif === 1 || z.actif === '1';
-                        return matchVille && estActif;
+                        // Comparaison insensible à la casse et aux espaces
+                        const zoneVille = (z.ville || '').toString().trim();
+                        const eleveVille = (eleve.ville || '').toString().trim();
+                        const matchVille = zoneVille.toLowerCase() === eleveVille.toLowerCase();
+                        // Gérer actif comme boolean (true/false) ou comme entier (1/0) depuis MySQL
+                        const estActif = z.actif === true || z.actif === 1 || z.actif === '1' || z.actif === 'true';
+                        const result = matchVille && estActif;
+                        return result;
                       })
                     : [];
+                  
+                  // Debug: afficher les zones filtrées
+                  if (eleve.ville) {
+                    console.log(`Filtrage zones pour "${eleve.ville}":`);
+                    console.log(`  - Total zones chargées: ${zones.length}`);
+                    console.log(`  - Zones filtrées: ${zonesFiltreesEleve.length}`);
+                    console.log(`  - Zones trouvées:`, zonesFiltreesEleve.map(z => z.nom));
+                    if (zonesFiltreesEleve.length === 0 && zones.length > 0) {
+                      const zonesMemeVille = zones.filter(z => {
+                        const zoneVille = (z.ville || '').toString().trim().toLowerCase();
+                        const eleveVille = (eleve.ville || '').toString().trim().toLowerCase();
+                        return zoneVille === eleveVille;
+                      });
+                      console.log(`  - Zones avec même ville (sans filtre actif): ${zonesMemeVille.length}`, zonesMemeVille);
+                    }
+                  }
 
                   return (
                     <div key={index} className="bg-gray-50 rounded-2xl p-6 border-2 border-lime-200 relative">
@@ -617,7 +704,7 @@ export default function TuteurInscription() {
                           onValueChange={(v) => handleEleveChange(index, 'zone', v)}
                           disabled={!eleve.ville || zonesFiltreesEleve.length === 0}
                         >
-                          <SelectTrigger className="mt-1 h-12 rounded-xl">
+                          <SelectTrigger className={`mt-1 h-12 rounded-xl ${!eleve.ville || zonesFiltreesEleve.length === 0 ? 'border-orange-300' : ''}`}>
                             <SelectValue placeholder={eleve.ville ? "Sélectionnez votre zone" : "Sélectionnez d'abord la ville"} />
                           </SelectTrigger>
                           <SelectContent>
@@ -626,12 +713,46 @@ export default function TuteurInscription() {
                                 <SelectItem key={z.id || z.nom} value={z.nom}>{z.nom}</SelectItem>
                               ))
                             ) : (
-                              <SelectItem value="" disabled>
-                                {eleve.ville ? "Aucune zone disponible" : "Sélectionnez d'abord la ville"}
-                              </SelectItem>
+                              <div className="px-2 py-1.5 text-sm text-gray-500">
+                                {eleve.ville ? "Aucune zone disponible pour cette ville" : "Sélectionnez d'abord la ville"}
+                              </div>
                             )}
                           </SelectContent>
                         </Select>
+                        {eleve.ville && zonesFiltreesEleve.length === 0 && (
+                          <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p className="text-sm text-amber-700 flex items-center gap-2 mb-2">
+                              <AlertCircle className="w-4 h-4" />
+                              Aucune zone disponible pour {eleve.ville}
+                            </p>
+                            <div className="text-xs text-amber-600 space-y-1">
+                              <p>• Zones chargées: {zones.length}</p>
+                              <p>• Zones pour cette ville: {zones.filter(z => {
+                                const zoneVille = (z.ville || '').toString().trim().toLowerCase();
+                                const eleveVille = (eleve.ville || '').toString().trim().toLowerCase();
+                                return zoneVille === eleveVille;
+                              }).length}</p>
+                              {zones.length === 0 && (
+                                <p className="text-red-600 font-medium mt-2">
+                                  ⚠️ Les zones ne sont pas chargées. Vérifiez que MySQL est démarré dans XAMPP.
+                                </p>
+                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  console.log('🔄 Rechargement manuel des zones');
+                                  setError('');
+                                  await loadZones();
+                                }}
+                                className="mt-2 text-xs"
+                              >
+                                Recharger les zones
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="mt-4">

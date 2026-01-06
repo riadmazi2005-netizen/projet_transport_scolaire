@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
 import { 
-  Fuel, Calendar, Bus, User, ArrowLeft, TrendingUp, TrendingDown, Filter
+  Fuel, Calendar, Bus, User, ArrowLeft, TrendingUp, TrendingDown, Filter, Image as ImageIcon, ZoomIn, X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -22,6 +22,7 @@ export default function AdminEssence() {
   const [filterBus, setFilterBus] = useState('all');
   const [filterDate, setFilterDate] = useState('');
   const [filterPeriode, setFilterPeriode] = useState('mois'); // mois, semaine, jour, tous
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -400,6 +401,64 @@ export default function AdminEssence() {
                           </div>
                         )}
                       </div>
+                      
+                      {/* Photo du ticket */}
+                      {prise.photo_ticket && (() => {
+                        let photoSrc = prise.photo_ticket;
+                        
+                        // Nettoyer et parser la photo
+                        if (typeof photoSrc === 'string' && photoSrc.trim()) {
+                          try {
+                            // Essayer de parser si c'est du JSON
+                            if (photoSrc.trim().startsWith('[') || photoSrc.trim().startsWith('{')) {
+                              const parsed = JSON.parse(photoSrc);
+                              if (Array.isArray(parsed) && parsed.length > 0) {
+                                photoSrc = parsed[0];
+                              } else if (parsed && typeof parsed === 'object' && parsed.data) {
+                                photoSrc = parsed.data;
+                              }
+                            }
+                          } catch (e) {
+                            // Si le parsing échoue, utiliser tel quel
+                            console.log('Erreur parsing photo:', e);
+                          }
+                          
+                          // Si la photo ne commence pas par data:image, l'ajouter
+                          if (photoSrc && !photoSrc.startsWith('data:image') && !photoSrc.startsWith('http')) {
+                            // Si c'est du base64 pur, ajouter le préfixe
+                            if (photoSrc.length > 100) {
+                              photoSrc = `data:image/jpeg;base64,${photoSrc}`;
+                            }
+                          }
+                          
+                          // Vérifier que c'est une image valide
+                          if (photoSrc && (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'))) {
+                            return (
+                              <div className="mt-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <ImageIcon className="w-4 h-4 text-amber-600" />
+                                  <span className="text-sm font-medium text-gray-700">Photo du ticket</span>
+                                </div>
+                                <div className="relative group cursor-pointer" onClick={() => setSelectedPhoto(photoSrc)}>
+                                  <img
+                                    src={photoSrc}
+                                    alt="Ticket essence"
+                                    className="w-full max-w-xs h-32 object-contain rounded-lg border-2 border-amber-200 bg-gray-50 hover:border-amber-400 transition-colors"
+                                    onError={(e) => {
+                                      console.error('Erreur chargement image:', photoSrc.substring(0, 50));
+                                      e.target.style.display = 'none';
+                                    }}
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg">
+                                    <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -408,6 +467,34 @@ export default function AdminEssence() {
           )}
         </div>
       </motion.div>
+      
+      {/* Modal pour voir la photo en grand */}
+      {selectedPhoto && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="relative max-w-5xl max-h-[90vh] w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedPhoto(null)}
+              className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 shadow-lg transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={selectedPhoto}
+              alt="Photo ticket essence"
+              className="w-full h-auto rounded-lg shadow-2xl"
+            />
+          </motion.div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
