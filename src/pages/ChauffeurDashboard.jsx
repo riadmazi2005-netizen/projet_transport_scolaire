@@ -75,6 +75,9 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
   const [signalementUrgenceFilter, setSignalementUrgenceFilter] = useState('all');
   const [signalementPhotos, setSignalementPhotos] = useState([]);
   const [selectedSignalementPhoto, setSelectedSignalementPhoto] = useState(null);
+  const [essenceTicketPhoto, setEssenceTicketPhoto] = useState(null);
+  const [selectedEssenceTicketPhoto, setSelectedEssenceTicketPhoto] = useState(null);
+  const [signalementToDelete, setSignalementToDelete] = useState(null);
   
   // État pour le formulaire de profil
   const [profileForm, setProfileForm] = useState({
@@ -1180,6 +1183,46 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                                 </div>
                               )}
                             </div>
+                            
+                            {/* Photo du ticket */}
+                            {essence.photo_ticket && (() => {
+                              let photoSrc = essence.photo_ticket;
+                              try {
+                                // Essayer de parser si c'est du JSON
+                                if (photoSrc.trim().startsWith('[') || photoSrc.trim().startsWith('{')) {
+                                  const parsed = JSON.parse(photoSrc);
+                                  if (Array.isArray(parsed) && parsed.length > 0) {
+                                    photoSrc = parsed[0];
+                                  } else if (parsed && typeof parsed === 'object' && parsed.data) {
+                                    photoSrc = parsed.data;
+                                  }
+                                }
+                              } catch (e) {
+                                // Si le parsing échoue, utiliser tel quel
+                              }
+                              
+                              if (photoSrc && photoSrc.startsWith('data:image')) {
+                                return (
+                                  <div className="mt-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <ImageIcon className="w-4 h-4 text-green-600" />
+                                      <span className="text-sm font-medium text-gray-700">Photo du ticket</span>
+                                    </div>
+                                    <div className="relative group cursor-pointer" onClick={() => setSelectedEssenceTicketPhoto(photoSrc)}>
+                                      <img
+                                        src={photoSrc}
+                                        alt="Ticket essence"
+                                        className="w-full h-32 object-contain rounded-lg border-2 border-green-200 bg-gray-50 hover:border-green-400 transition-colors"
+                                      />
+                                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg">
+                                        <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         </motion.div>
                       );
@@ -1346,11 +1389,11 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                           >
                             <div className="p-5">
                               <div className="flex justify-between items-start mb-4">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 flex-1">
                                   <div className={`p-2 rounded-lg ${typeColors.bg} ${typeColors.icon}`}>
                                     <Wrench className="w-5 h-5" />
                                   </div>
-                                  <div>
+                                  <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                                       <h3 className="font-semibold text-gray-800 text-lg">
                                         {getTypeLabel(signalement.type_probleme)}
@@ -1374,6 +1417,14 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                                     </div>
                                   </div>
                                 </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSignalementToDelete(signalement)}
+                                  className="ml-4 text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400 rounded-xl"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
 
                               {/* Description */}
@@ -1862,6 +1913,18 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
             <form onSubmit={async (e) => {
               e.preventDefault();
               try {
+                // Compresser la photo si elle existe
+                let photoTicketBase64 = null;
+                if (essenceTicketPhoto) {
+                  try {
+                    const compressed = await compressImage(essenceTicketPhoto.file);
+                    photoTicketBase64 = compressed.data;
+                  } catch (photoErr) {
+                    showToast('Erreur lors de la compression de la photo', 'error');
+                    return;
+                  }
+                }
+                
                 const essenceData = {
                   chauffeur_id: chauffeur?.id || chauffeur?.type_id,
                   bus_id: bus?.id,
@@ -1869,11 +1932,18 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   heure: essenceForm.heure,
                   quantite_litres: parseFloat(essenceForm.quantite_litres),
                   prix_total: parseFloat(essenceForm.prix_total),
-                  station_service: essenceForm.station_service || null
+                  station_service: essenceForm.station_service || null,
+                  photo_ticket: photoTicketBase64
                 };
                 
                 const response = await essenceAPI.create(essenceData);
                 if (response.success) {
+                  // Nettoyer la photo
+                  if (essenceTicketPhoto) {
+                    URL.revokeObjectURL(essenceTicketPhoto.preview);
+                    setEssenceTicketPhoto(null);
+                  }
+                  
                   // Recharger les données
                   const essenceResponse = await essenceAPI.getByChauffeur(chauffeur?.id || chauffeur?.type_id);
                   const essenceData = essenceResponse?.data || essenceResponse || [];
@@ -1915,8 +1985,82 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <Input value={essenceForm.station_service} onChange={(e) => setEssenceForm({...essenceForm, station_service: e.target.value})} className="mt-1 rounded-xl" />
                 </div>
               </div>
+              
+              {/* Upload Photo Ticket */}
+              <div>
+                <Label>Photo du ticket/reçu</Label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      // Vérifier la taille (max 5 MB)
+                      const maxFileSize = 5 * 1024 * 1024; // 5 MB
+                      if (file.size > maxFileSize) {
+                        showToast('L\'image est trop grande (max 5 MB)', 'error');
+                        return;
+                      }
+                      
+                      setEssenceTicketPhoto({
+                        file: file,
+                        preview: URL.createObjectURL(file)
+                      });
+                    }
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                  id="essence-ticket-photo-upload"
+                />
+                <label
+                  htmlFor="essence-ticket-photo-upload"
+                  className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors mt-1"
+                >
+                  <ImageIcon className="w-5 h-5 text-gray-400" />
+                  <span className="text-sm text-gray-600">
+                    {essenceTicketPhoto ? 'Photo sélectionnée' : 'Cliquez pour ajouter une photo du ticket'}
+                  </span>
+                </label>
+                
+                {/* Prévisualisation de la photo */}
+                {essenceTicketPhoto && (
+                  <div className="mt-4 relative">
+                    <div className="relative group">
+                      <img
+                        src={essenceTicketPhoto.preview}
+                        alt="Ticket essence"
+                        className="w-full h-48 object-contain rounded-lg border-2 border-green-200 bg-gray-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          URL.revokeObjectURL(essenceTicketPhoto.preview);
+                          setEssenceTicketPhoto(null);
+                        }}
+                        className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center opacity-90 hover:opacity-100 shadow-md hover:bg-red-600 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEssenceTicketPhoto(essenceTicketPhoto.preview)}
+                        className="absolute top-2 left-2 w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center opacity-90 hover:opacity-100 shadow-md hover:bg-green-600 transition-colors"
+                      >
+                        <ZoomIn className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               <div className="flex gap-3 justify-end pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => setShowEssenceForm(false)} className="rounded-xl">
+                <Button type="button" variant="outline" onClick={() => {
+                  if (essenceTicketPhoto) {
+                    URL.revokeObjectURL(essenceTicketPhoto.preview);
+                    setEssenceTicketPhoto(null);
+                  }
+                  setShowEssenceForm(false);
+                }} className="rounded-xl">
                   <X className="w-4 h-4 mr-2" /> Annuler
                 </Button>
                 <Button type="submit" className="bg-green-500 hover:bg-green-600 text-white rounded-xl">
@@ -2166,6 +2310,120 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               alt="Photo problème"
               className="w-full h-auto rounded-lg shadow-2xl"
             />
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal pour voir la photo du ticket d'essence en grand */}
+      {selectedEssenceTicketPhoto && (
+        <div 
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedEssenceTicketPhoto(null)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="relative max-w-5xl max-h-[90vh] w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelectedEssenceTicketPhoto(null)}
+              className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 shadow-lg transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={selectedEssenceTicketPhoto}
+              alt="Photo ticket essence"
+              className="w-full h-auto rounded-lg shadow-2xl"
+            />
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal de confirmation de suppression de signalement */}
+      {signalementToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-md w-full"
+          >
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Supprimer le signalement</h2>
+                  <p className="text-sm text-gray-500 mt-1">Cette action est irréversible</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                Êtes-vous sûr de vouloir supprimer ce signalement de problème ? Cette action ne peut pas être annulée.
+              </p>
+              {signalementToDelete && (() => {
+                const getTypeLabel = (type) => {
+                  const labels = {
+                    'mecanique': 'Mécanique',
+                    'eclairage': 'Éclairage',
+                    'portes': 'Portes',
+                    'climatisation': 'Climatisation',
+                    'pneus': 'Pneus',
+                    'autre': 'Autre'
+                  };
+                  return labels[type] || type;
+                };
+                return (
+                  <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                    <p className="text-sm font-medium text-gray-800">
+                      Type: {getTypeLabel(signalementToDelete.type_probleme)}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                      {signalementToDelete.description}
+                    </p>
+                  </div>
+                );
+              })()}
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setSignalementToDelete(null)}
+                  className="rounded-xl"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      const response = await signalementsAPI.delete(signalementToDelete.id);
+                      if (response.success) {
+                        // Recharger les signalements
+                        const chauffeurId = chauffeur?.id || chauffeur?.type_id;
+                        const signalementsResponse = await signalementsAPI.getByChauffeur(chauffeurId);
+                        const signalementsData = signalementsResponse?.data || signalementsResponse || [];
+                        setSignalements(signalementsData);
+                        
+                        showToast('Signalement supprimé avec succès', 'success');
+                        setSignalementToDelete(null);
+                      } else {
+                        showToast('Erreur lors de la suppression: ' + (response.message || 'Erreur inconnue'), 'error');
+                      }
+                    } catch (err) {
+                      console.error('Erreur suppression signalement:', err);
+                      showToast('Erreur lors de la suppression: ' + (err.message || 'Erreur inconnue'), 'error');
+                    }
+                  }}
+                  className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Supprimer
+                </Button>
+              </div>
+            </div>
           </motion.div>
         </div>
       )}
