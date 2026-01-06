@@ -208,6 +208,7 @@ export const elevesAPI = {
   getAll: () => fetchAPI('/eleves/getAll.php'),
   getById: (id) => fetchAPI(`/eleves/getById.php?id=${id}`),
   getByBus: (busId) => fetchAPI(`/eleves/getByBus.php?bus_id=${busId}`),
+  getTransportInfo: (eleveId) => fetchAPI(`/eleves/getTransportInfo.php?eleve_id=${eleveId}`),
   create: (data) => fetchAPI('/eleves/create.php', {
     method: 'POST',
     body: JSON.stringify(data),

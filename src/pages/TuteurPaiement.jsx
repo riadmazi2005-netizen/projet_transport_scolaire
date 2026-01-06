@@ -175,6 +175,8 @@ export default function TuteurPaiement() {
                   const desc = typeof demande.description === 'string' ? JSON.parse(demande.description) : demande.description;
                   const tauxReduction = desc?.taux_reduction ?? 0;
                   const montantReduction = desc?.montant_reduction ?? 0;
+                  const rangEleve = desc?.rang_eleve ?? 0;
+                  const rangTexte = desc?.rang_eleve_texte ?? '';
                   const nombreElevesTotal = desc?.nombre_eleves_total ?? 0;
                   
                   if (tauxReduction > 0 && montantReduction > 0) {
@@ -183,32 +185,35 @@ export default function TuteurPaiement() {
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-green-50 rounded-xl p-4 mb-6 border border-green-200 flex items-center gap-4"
+                        className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-5 mb-6 border-2 border-green-200 shadow-lg"
                       >
-                        {/* Icône */}
-                        <div className="flex-shrink-0 w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                          <Sparkles className="w-6 h-6 text-green-600" />
-                        </div>
-                        
-                        {/* Contenu principal */}
-                        <div className="flex-1">
-                          <div className="font-bold text-green-800 mb-1">
-                            {pourcentageReduction === 10 
-                              ? "🎉 Félicitations ! Vous avez bénéficié d'une réduction de 10%"
-                              : pourcentageReduction === 20
-                              ? "🎉 Félicitations ! Vous avez bénéficié d'une réduction de 20%"
-                              : "Réduction familiale appliquée !"}
+                        <div className="flex items-center gap-4">
+                          {/* Icône */}
+                          <div className="flex-shrink-0 w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center">
+                            <Sparkles className="w-7 h-7 text-green-600" />
                           </div>
-                          <div className="text-sm text-green-700">
-                            {nombreElevesTotal} {nombreElevesTotal === 1 ? 'élève inscrit' : 'élèves inscrits'} • -{pourcentageReduction}% sur ce paiement
+                          
+                          {/* Contenu principal */}
+                          <div className="flex-1">
+                            <div className="font-bold text-green-800 mb-1 text-lg">
+                              🎉 Réduction familiale appliquée !
+                            </div>
+                            <div className="text-sm text-green-700 space-y-1">
+                              <div>
+                                <span className="font-semibold">{rangTexte || `${rangEleve}ème élève`}</span> de la famille • Réduction de <span className="font-bold">{pourcentageReduction}%</span>
+                              </div>
+                              <div className="text-xs text-green-600">
+                                {nombreElevesTotal} {nombreElevesTotal === 1 ? 'élève inscrit' : 'élèves inscrits'} dans votre famille
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                        
-                        {/* Économie totale */}
-                        <div className="flex-shrink-0 text-right">
-                          <div className="text-xs text-green-600 mb-1">Économie totale</div>
-                          <div className="text-2xl font-bold text-green-700">
-                            {montantReduction.toFixed(2)} DH
+                          
+                          {/* Économie totale */}
+                          <div className="flex-shrink-0 text-right bg-white rounded-lg p-3 border border-green-200">
+                            <div className="text-xs text-green-600 mb-1 font-medium">Économie</div>
+                            <div className="text-2xl font-bold text-green-700">
+                              -{montantReduction.toFixed(2)} DH
+                            </div>
                           </div>
                         </div>
                       </motion.div>
@@ -267,21 +272,28 @@ export default function TuteurPaiement() {
                       const montantReduction = desc?.montant_reduction ?? 0;
                       const tauxReduction = desc?.taux_reduction ?? 0;
                       
+                      const rangEleve = desc?.rang_eleve ?? 0;
+                      const rangTexte = desc?.rang_eleve_texte ?? '';
+                      
                       if (tauxReduction > 0 && montantAvantReduction) {
                         return (
                           <>
-                            <div className="border-t border-amber-200 pt-3">
-                              <div className="flex justify-between mb-2">
-                                <span className="text-gray-600">Montant initial:</span>
+                            <div className="border-t border-amber-200 pt-3 space-y-2">
+                              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200 mb-2">
+                                <div className="text-xs text-blue-600 font-medium mb-1">Rang dans la famille</div>
+                                <div className="text-sm font-semibold text-blue-800">{rangTexte || `${rangEleve}ème élève`}</div>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Prix initial:</span>
                                 <span className="font-medium text-gray-700">{parseFloat(montantAvantReduction).toFixed(2)} DH</span>
                               </div>
-                              <div className="flex justify-between mb-2">
-                                <span className="text-green-600 font-medium">Réduction ({Math.round(tauxReduction * 100)}%):</span>
-                                <span className="font-medium text-green-600">-{parseFloat(montantReduction).toFixed(2)} DH</span>
+                              <div className="flex justify-between bg-green-50 rounded-lg p-2 border border-green-200">
+                                <span className="text-green-700 font-semibold">Réduction familiale ({Math.round(tauxReduction * 100)}%):</span>
+                                <span className="font-bold text-green-700">-{parseFloat(montantReduction).toFixed(2)} DH</span>
                               </div>
                             </div>
-                            <div className="border-t border-amber-200 pt-3 flex justify-between">
-                              <span className="text-lg font-semibold text-gray-800">Montant total:</span>
+                            <div className="border-t-2 border-amber-300 pt-3 flex justify-between bg-amber-50 rounded-lg p-3">
+                              <span className="text-lg font-semibold text-gray-800">Montant total à payer:</span>
                               <span className="text-2xl font-bold text-amber-600">{calculateAmount().toFixed(2)} DH</span>
                             </div>
                           </>

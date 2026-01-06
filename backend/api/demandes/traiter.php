@@ -67,41 +67,62 @@ try {
         $montantFactureInitial = ($abonnement === 'Annuel') ? $basePrice * 10 : $basePrice;
         
         // Calculer la réduction familiale
-        // Compter le nombre d'élèves déjà inscrits du tuteur (inscriptions actives + demandes payées)
+        // Déterminer le rang exact de l'élève dans la famille basé sur la date d'inscription
         $tuteurId = $demandeActuelle['tuteur_id'];
-        $stmtCount = $pdo->prepare('
-            SELECT COUNT(DISTINCT e.id) as nombre_eleves_inscrits
+        $eleveIdActuel = $demandeActuelle['eleve_id'];
+        $dateCreationDemande = $demandeActuelle['date_creation'];
+        
+        // Récupérer tous les élèves du tuteur avec leurs dates d'inscription (triés par date)
+        // On considère soit la date d'inscription (si inscription active), soit la date de création de la demande (si payée/validée)
+        $stmtRang = $pdo->prepare('
+            SELECT 
+                e.id as eleve_id,
+                COALESCE(
+                    (SELECT MIN(i.date_inscription) FROM inscriptions i WHERE i.eleve_id = e.id AND i.statut = "Active"),
+                    (SELECT MIN(d.date_creation) FROM demandes d 
+                     WHERE d.eleve_id = e.id 
+                       AND d.type_demande = "inscription" 
+                       AND d.statut IN ("Payée", "Validée", "Inscrit", "En attente de paiement")
+                       AND d.id != ?)
+                ) as date_inscription
             FROM eleves e
             WHERE e.tuteur_id = ?
-              AND (
-                  EXISTS (
-                      SELECT 1 FROM inscriptions i 
-                      WHERE i.eleve_id = e.id AND i.statut = "Active"
-                  )
-                  OR EXISTS (
-                      SELECT 1 FROM demandes d 
-                      WHERE d.eleve_id = e.id 
-                        AND d.type_demande = "inscription"
-                        AND d.statut = "Payée"
-                        AND d.id != ?
-                  )
-              )
+            HAVING date_inscription IS NOT NULL
+            ORDER BY date_inscription ASC
         ');
-        $stmtCount->execute([$tuteurId, $data['id']]);
-        $resultCount = $stmtCount->fetch(PDO::FETCH_ASSOC);
-        $nombreElevesInscrits = intval($resultCount['nombre_eleves_inscrits'] ?? 0);
+        $stmtRang->execute([$data['id'], $tuteurId]);
+        $elevesInscrits = $stmtRang->fetchAll(PDO::FETCH_ASSOC);
         
-        // Appliquer la réduction selon le nombre d'élèves inscrits
-        // 0 élève inscrit → 1er élève → pas de réduction (0%)
-        // 1 élève inscrit → 2ème élève → 10% de réduction
-        // 2+ élèves inscrits → 3ème, 4ème, 5ème élève → 20% de réduction
+        // Compter les élèves déjà inscrits (avec date d'inscription antérieure à la demande actuelle)
+        $nombreElevesAvant = 0;
+        foreach ($elevesInscrits as $eleveInscrit) {
+            if ($eleveInscrit['eleve_id'] != $eleveIdActuel) {
+                $dateInscription = $eleveInscrit['date_inscription'];
+                if ($dateInscription && $dateInscription < $dateCreationDemande) {
+                    $nombreElevesAvant++;
+                }
+            }
+        }
+        
+        // Le rang de l'élève actuel = nombre d'élèves inscrits avant lui + 1
+        $rangEleve = $nombreElevesAvant + 1;
+        $nombreElevesTotal = $rangEleve; // Total incluant l'élève actuel
+        
+        // Appliquer la réduction selon le rang exact de l'élève
+        // 1er élève → pas de réduction (0%)
+        // 2ème élève → 10% de réduction
+        // 3ème élève et plus → 20% de réduction
         $tauxReduction = 0;
-        if ($nombreElevesInscrits === 1) {
-            // 2ème élève : 10% de réduction
-            $tauxReduction = 0.10;
-        } elseif ($nombreElevesInscrits >= 2) {
-            // 3ème, 4ème, 5ème élève : 20% de réduction
-            $tauxReduction = 0.20;
+        $rangTexte = '';
+        if ($rangEleve === 1) {
+            $tauxReduction = 0;
+            $rangTexte = '1er élève';
+        } elseif ($rangEleve === 2) {
+            $tauxReduction = 0.10; // 10% de réduction
+            $rangTexte = '2ème élève';
+        } else {
+            $tauxReduction = 0.20; // 20% de réduction
+            $rangTexte = $rangEleve . 'ème élève';
         }
         
         $montantFacture = $montantFactureInitial;
@@ -113,8 +134,9 @@ try {
         $descriptionData['montant_avant_reduction'] = $montantFactureInitial;
         $descriptionData['taux_reduction'] = $tauxReduction;
         $descriptionData['montant_reduction'] = $tauxReduction > 0 ? ($montantFactureInitial - $montantFacture) : 0;
-        // Nombre total d'élèves inscrits (y compris l'élève actuel)
-        $descriptionData['nombre_eleves_total'] = $nombreElevesInscrits + 1;
+        $descriptionData['rang_eleve'] = $rangEleve;
+        $descriptionData['rang_eleve_texte'] = $rangTexte;
+        $descriptionData['nombre_eleves_total'] = $nombreElevesTotal;
     }
     
     // Récupérer la raison du refus si fournie
@@ -187,16 +209,17 @@ try {
                     $message = "Votre demande d'inscription pour {$demandeActuelle['eleve_prenom']} {$demandeActuelle['eleve_nom']} a été approuvée.\n\n";
                     
                     // Ajouter le message de félicitations pour les réductions
-                    if (isset($tauxReduction) && $tauxReduction > 0 && isset($descriptionData['nombre_eleves_total'])) {
+                    if (isset($tauxReduction) && $tauxReduction > 0 && isset($descriptionData['rang_eleve'])) {
                         $pourcentageReduction = round($tauxReduction * 100);
-                        $nombreElevesTotal = $descriptionData['nombre_eleves_total'];
+                        $rangEleve = $descriptionData['rang_eleve'];
+                        $rangTexte = $descriptionData['rang_eleve_texte'] ?? $rangEleve . 'ème élève';
                         
-                        if ($nombreElevesTotal === 2) {
+                        if ($rangEleve === 2) {
                             // 2ème élève : 10% de réduction
-                            $message .= "🎉 Félicitations ! Vu que vous avez fait deux inscriptions, vous avez bénéficié d'une réduction de {$pourcentageReduction}% sur l'inscription du deuxième élève.\n\n";
-                        } elseif ($nombreElevesTotal >= 3) {
+                            $message .= "🎉 Félicitations ! En tant que {$rangTexte} de la famille, vous bénéficiez d'une réduction de {$pourcentageReduction}% sur cette inscription.\n\n";
+                        } elseif ($rangEleve >= 3) {
                             // 3ème, 4ème, 5ème élève : 20% de réduction
-                            $message .= "🎉 Félicitations ! Vu que vous avez fait plus de deux inscriptions, vous avez bénéficié d'une réduction de {$pourcentageReduction}%.\n\n";
+                            $message .= "🎉 Félicitations ! En tant que {$rangTexte} de la famille, vous bénéficiez d'une réduction de {$pourcentageReduction}% sur cette inscription.\n\n";
                         }
                     }
                     
@@ -207,10 +230,10 @@ try {
                     // Afficher le montant avant réduction si réduction appliquée
                     if (isset($tauxReduction) && $tauxReduction > 0 && isset($descriptionData['montant_avant_reduction'])) {
                         $message .= "- Montant initial: " . number_format($descriptionData['montant_avant_reduction'], 2) . " DH\n";
-                        $message .= "- Réduction: -" . number_format($descriptionData['montant_reduction'] ?? 0, 2) . " DH\n";
+                        $message .= "- Réduction familiale (" . round($tauxReduction * 100) . "%): -" . number_format($descriptionData['montant_reduction'] ?? 0, 2) . " DH\n";
                     }
                     
-                    $message .= "- Montant: " . number_format($montantFacture, 2) . " DH\n" .
+                    $message .= "- Montant total à payer: " . number_format($montantFacture, 2) . " DH\n" .
                                 "- Type de transport: " . ($descriptionData['type_transport'] ?? 'Non spécifié') . "\n\n" .
                                 "Veuillez vous rendre à l'école pour effectuer le paiement. Après le paiement, vous devez récupérer votre code de vérification à l'école et le saisir sur le site dans la section 'Mes Enfants'.";
                     

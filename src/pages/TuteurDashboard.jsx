@@ -160,6 +160,8 @@ function TuteurDashboardContent() {
         let montantAvantReduction = null;
         let tauxReduction = 0;
         let montantReduction = 0;
+        let rangEleve = null;
+        let rangEleveTexte = null;
         if (demandeInscription?.description) {
           try {
             const desc = typeof demandeInscription.description === 'string'
@@ -170,6 +172,9 @@ function TuteurDashboardContent() {
               tauxReduction = desc?.taux_reduction;
               montantReduction = desc?.montant_reduction || 0;
             }
+            // Extraire le rang de l'élève
+            rangEleve = desc?.rang_eleve;
+            rangEleveTexte = desc?.rang_eleve_texte;
           } catch (err) {
             // Ignorer les erreurs de parsing
           }
@@ -211,7 +216,9 @@ function TuteurDashboardContent() {
           montant_total_paye: montantTotalPaye,
           montant_avant_reduction: montantAvantReduction,
           taux_reduction: tauxReduction,
-          montant_reduction: montantReduction
+          montant_reduction: montantReduction,
+          rang_eleve: rangEleve,
+          rang_eleve_texte: rangEleveTexte
         };
       });
       
@@ -642,15 +649,18 @@ function TuteurDashboardContent() {
                           <div className="mt-2 space-y-1">
                             {eleve.taux_reduction > 0 && eleve.montant_avant_reduction ? (
                               <>
-                                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-medium bg-green-100 text-green-700 flex-wrap">
+                                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-medium bg-green-100 text-green-700 flex-wrap border border-green-200">
                                   <CreditCard className="w-4 h-4" />
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-semibold">
+                                    {eleve.rang_eleve_texte || `${eleve.rang_eleve || ''}ème élève`}
+                                  </span>
                                   <span className="line-through text-gray-500">{parseFloat(eleve.montant_avant_reduction).toFixed(2)} DH</span>
                                   <span>→</span>
                                   <span className="font-bold">Total payé: {eleve.montant_total_paye.toFixed(2)} DH</span>
-                                  <span className="text-xs bg-green-200 px-2 py-0.5 rounded">-{Math.round(eleve.taux_reduction * 100)}%</span>
+                                  <span className="text-xs bg-green-200 px-2 py-0.5 rounded font-semibold">-{Math.round(eleve.taux_reduction * 100)}%</span>
                                 </div>
                                 <div className="text-xs text-green-600 ml-3">
-                                  Réduction: {eleve.montant_reduction.toFixed(2)} DH
+                                  Réduction familiale: -{eleve.montant_reduction.toFixed(2)} DH
                                 </div>
                               </>
                             ) : (
@@ -664,55 +674,62 @@ function TuteurDashboardContent() {
                       </div>
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className={getStatusBadge(eleve.statut_demande)}>
-                        {eleve.statut_demande}
-                      </span>
-                      
-                      {/* Boutons selon le statut */}
-                      {(eleve.statut_demande === 'En cours de traitement' || eleve.statut_demande === 'En attente') && (
-                        <>
-                          <Link to={createPageUrl(`TuteurDemandes`)}>
-                            <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
-                              <Edit className="w-4 h-4 mr-2" />
-                              Modifier
+                    <div className="flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className={getStatusBadge(eleve.statut_demande)}>
+                          {eleve.statut_demande}
+                        </span>
+                        
+                        {/* Boutons selon le statut */}
+                        {(eleve.statut_demande === 'En cours de traitement' || eleve.statut_demande === 'En attente') && (
+                          <>
+                            <Link to={createPageUrl(`TuteurDemandes`)} onClick={(e) => e.stopPropagation()}>
+                              <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
+                                <Edit className="w-4 h-4 mr-2" />
+                                Modifier
+                              </Button>
+                            </Link>
+                            <Button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCancelDemandeClick(eleve);
+                              }}
+                              className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
+                            >
+                              <XCircle className="w-4 h-4 mr-2" />
+                              Annuler
                             </Button>
-                          </Link>
-                          <Button
-                            onClick={() => handleCancelDemandeClick(eleve)}
-                            className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
+                          </>
+                        )}
+                        
+                        {eleve.statut_demande === 'En attente de paiement' && eleve.demande_inscription?.id && (
+                          <Button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedEleveForPayment(eleve);
+                              setShowPaymentModal(true);
+                              setPaymentCode('');
+                              setPaymentError('');
+                            }}
+                            className="bg-gradient-to-r from-lime-600 to-lime-600 hover:from-lime-700 hover:to-lime-700 text-white rounded-xl font-semibold shadow-md"
                           >
-                            <XCircle className="w-4 h-4 mr-2" />
-                            Annuler
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Payer
                           </Button>
-                        </>
-                      )}
+                        )}
+                      </div>
                       
-                      {eleve.statut_demande === 'En attente de paiement' && eleve.demande_inscription?.id && (
-                        <Button 
-                          onClick={() => {
-                            setSelectedEleveForPayment(eleve);
-                            setShowPaymentModal(true);
-                            setPaymentCode('');
-                            setPaymentError('');
-                          }}
-                          className="bg-gradient-to-r from-lime-600 to-lime-600 hover:from-lime-700 hover:to-lime-700 text-white rounded-xl font-semibold shadow-md"
-                        >
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Payer
-                        </Button>
-                      )}
-                      
-                      
+                      {/* Bouton Désabonnement - Séparé des autres actions */}
                       {eleve.statut_demande === 'Inscrit' && (
-                        <>
+                        <div className="border-t border-gray-200 pt-3 mt-2">
                           <Button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSelectedEleveForDesabonnement(eleve);
                               setShowDesabonnementModal(true);
                               setDesabonnementRaison('');
                             }}
-                            className="rounded-xl text-white border-2"
+                            className="w-full rounded-xl text-white border-2 font-semibold"
                             style={{ backgroundColor: '#E57373', borderColor: '#E57373' }}
                             onMouseEnter={(e) => e.target.style.backgroundColor = '#EF5350'}
                             onMouseLeave={(e) => e.target.style.backgroundColor = '#E57373'}
@@ -720,7 +737,7 @@ function TuteurDashboardContent() {
                             <LogOut className="w-4 h-4 mr-2" />
                             Désabonnement
                           </Button>
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1267,23 +1284,52 @@ function TuteurDashboardContent() {
                 submitButton.blur();
               }
               handleDesabonnement(); 
-            }} className="p-6 space-y-4">
-              <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                <p className="text-sm text-red-800">
-                  <strong>Attention :</strong> Vous êtes sur le point de désabonner <strong>{selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}</strong>. Cette action est irréversible et supprimera définitivement toutes les données de l'élève.
+            }} className="p-6 space-y-5">
+              {/* Message de confirmation en rouge */}
+              <div className="bg-red-100 rounded-xl p-5 border-2 border-red-400">
+                <div className="flex items-center gap-3 mb-3">
+                  <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+                  <p className="text-lg font-bold text-red-700">
+                    Êtes-vous sûr de cette opération ?
+                  </p>
+                </div>
+                <p className="text-sm text-red-800 ml-9">
+                  Vous êtes sur le point de désabonner <strong>{selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}</strong>. 
+                  Cette action est <strong className="underline">irréversible</strong> et supprimera définitivement toutes les données de l'élève.
                 </p>
               </div>
+
+              {/* Informations de l'élève */}
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                <div className="flex items-center gap-3">
+                  <GraduationCap className="w-5 h-5 text-gray-600" />
+                  <div>
+                    <p className="font-semibold text-gray-800">
+                      {selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {selectedEleveForDesabonnement.classe || 'Classe non spécifiée'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Raison du désabonnement */}
               <div>
-                <Label className="block text-sm font-medium text-gray-600 mb-1">Raison du désabonnement *</Label>
+                <Label className="block text-sm font-medium text-gray-700 mb-2">
+                  Raison du désabonnement <span className="text-red-500">*</span>
+                </Label>
                 <Textarea
                   value={desabonnementRaison}
                   onChange={(e) => setDesabonnementRaison(e.target.value)}
-                  className="rounded-xl border-2 border-gray-200 focus:border-red-500 min-h-[100px]"
+                  className="rounded-xl border-2 border-gray-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 min-h-[120px]"
                   placeholder="Veuillez indiquer la raison du désabonnement..."
                   required
                 />
               </div>
-              <div className="flex justify-end gap-3 mt-6">
+
+              {/* Boutons d'action */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <Button
                   type="button"
                   onClick={() => {
@@ -1291,13 +1337,16 @@ function TuteurDashboardContent() {
                     setSelectedEleveForDesabonnement(null);
                     setDesabonnementRaison('');
                   }}
-                  className="rounded-xl bg-gray-500 hover:bg-gray-600 text-white border-2 border-gray-600"
+                  className="rounded-xl bg-gray-500 hover:bg-gray-600 text-white border-2 border-gray-600 px-6 py-2 font-semibold"
                 >
                   Annuler
                 </Button>
-                <Button type="submit" className="rounded-xl bg-red-500 hover:bg-red-600 text-white border-2 border-red-600">
+                <Button 
+                  type="submit" 
+                  className="rounded-xl bg-red-600 hover:bg-red-700 text-white border-2 border-red-700 px-6 py-2 font-semibold shadow-lg"
+                >
                   <LogOut className="w-4 h-4 mr-2" />
-                  Confirmer le désabonnement
+                  Valider le désabonnement
                 </Button>
               </div>
             </form>
