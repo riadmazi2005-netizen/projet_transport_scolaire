@@ -571,59 +571,6 @@ function TuteurDashboardContent() {
           />
         </div>
 
-        {/* Onglets de navigation internes */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-6"
-        >
-          <div className="bg-white rounded-2xl shadow-lg p-2 flex gap-2 flex-wrap">
-            <Button
-              onClick={() => {
-                setActiveTab('eleves');
-                navigate('/TuteurDashboard?tab=eleves');
-              }}
-              className={`rounded-xl px-6 py-3 transition-all font-semibold ${
-                activeTab === 'eleves'
-                  ? 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 shadow-md'
-                  : 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 opacity-75 hover:opacity-100'
-              }`}
-            >
-              <GraduationCap className="w-5 h-5 mr-2" />
-              Mes Enfants
-            </Button>
-            <Button
-              onClick={() => {
-                setActiveTab('historique');
-                navigate('/TuteurDashboard?tab=historique');
-              }}
-              className={`rounded-xl px-6 py-3 transition-all font-semibold ${
-                activeTab === 'historique'
-                  ? 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 shadow-md'
-                  : 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 opacity-75 hover:opacity-100'
-              }`}
-            >
-              <XCircle className="w-5 h-5 mr-2" />
-              Demandes refusées ({elevesRefuses.length})
-            </Button>
-            <Button
-              onClick={() => {
-                setActiveTab('paiements');
-                navigate('/TuteurDashboard?tab=paiements');
-              }}
-              className={`rounded-xl px-6 py-3 transition-all font-semibold ${
-                activeTab === 'paiements'
-                  ? 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 shadow-md'
-                  : 'bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 opacity-75 hover:opacity-100'
-              }`}
-            >
-              <CreditCard className="w-5 h-5 mr-2" />
-              Paiements
-            </Button>
-          </div>
-        </motion.div>
-
         {/* Content */}
         {activeTab === 'eleves' && (
         <motion.div 
@@ -1240,7 +1187,10 @@ function TuteurDashboardContent() {
                     Annuler
                   </Button>
                   <Button
-                    onClick={async () => {
+                    onClick={async (e) => {
+                      // Faire perdre le focus immédiatement après le clic
+                      setTimeout(() => e.currentTarget.blur(), 0);
+                      
                       if (!paymentCode || paymentCode.length < 4) {
                         setPaymentError('Veuillez saisir le code de vérification');
                         return;
@@ -1320,7 +1270,15 @@ function TuteurDashboardContent() {
                 </button>
               </div>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); handleDesabonnement(); }} className="p-6 space-y-4">
+            <form onSubmit={(e) => { 
+              e.preventDefault(); 
+              // Faire perdre le focus au bouton après la soumission
+              const submitButton = e.target.querySelector('button[type="submit"]');
+              if (submitButton) {
+                submitButton.blur();
+              }
+              handleDesabonnement(); 
+            }} className="p-6 space-y-4">
               <div className="bg-red-50 rounded-xl p-4 border border-red-200">
                 <p className="text-sm text-red-800">
                   <strong>Attention :</strong> Vous êtes sur le point de désabonner <strong>{selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}</strong>. Cette action est irréversible et supprimera définitivement toutes les données de l'élève.
@@ -1384,7 +1342,15 @@ function TuteurDashboardContent() {
                 </button>
               </div>
             </div>
-            <form onSubmit={(e) => { e.preventDefault(); handleChangementDemande(); }} className="p-6 space-y-4">
+            <form onSubmit={(e) => { 
+              e.preventDefault(); 
+              // Faire perdre le focus au bouton après la soumission
+              const submitButton = e.target.querySelector('button[type="submit"]');
+              if (submitButton) {
+                submitButton.blur();
+              }
+              handleChangementDemande(); 
+            }} className="p-6 space-y-4">
               <div className="bg-lime-50 rounded-xl p-4 border border-lime-200">
                 <p className="text-sm text-lime-800">
                   Demande de changement pour <strong>{selectedEleveForChangement.prenom} {selectedEleveForChangement.nom}</strong>.
@@ -1514,6 +1480,13 @@ function DemandeFormTuteur({ tuteur, eleves }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Faire perdre le focus au bouton après la soumission
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.blur();
+    }
+    
     setLoading(true);
     
     try {

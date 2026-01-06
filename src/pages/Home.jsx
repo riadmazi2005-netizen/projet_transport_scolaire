@@ -332,9 +332,9 @@ export default function Home() {
         >
           <div className="flex items-center justify-center gap-3 mb-2">
             <Bus className="w-5 h-5 text-amber-500" />
-            <span className="font-semibold">Mohammed 5 School Bus</span>
+            <span className="font-semibold">Mohammed V School Bus</span>
           </div>
-          <p>© 2024 Mohammed 5 School Bus. Tous droits réservés.</p>
+          <p>© 2025 Mohammed V School Bus. Tous droits réservés.</p>
         </motion.div>
       </div>
     </div>

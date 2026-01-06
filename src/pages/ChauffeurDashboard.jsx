@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Bus, Bell, LogOut, Users, AlertCircle, DollarSign,
   Navigation, User, CheckCircle, Calendar, MapPin, Plus, X, Search,
-  Fuel, FileText, ClipboardCheck, Wrench, Clock, TrendingUp, Building2, AlertTriangle, Image as ImageIcon, Trash2, ZoomIn, UserCircle, Save
+  Fuel, FileText, ClipboardCheck, Wrench, Clock, TrendingUp, Building2, AlertTriangle, Image as ImageIcon, Trash2, ZoomIn, UserCircle, Save, Edit
 } from 'lucide-react';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
@@ -33,6 +33,7 @@ import { format, startOfMonth, subMonths, isWithinInterval, startOfDay, endOfDay
 import { fr } from 'date-fns/locale';
 import ChauffeurSidebar from '../components/ChauffeurSidebar';
 import ChauffeurLayout from '../components/ChauffeurLayout';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 
 function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
   const navigate = useNavigate();
@@ -47,6 +48,8 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [showAccidentForm, setShowAccidentForm] = useState(false);
+  const [editingAccident, setEditingAccident] = useState(null);
+  const [deleteAccidentConfirm, setDeleteAccidentConfirm] = useState({ show: false, id: null });
   const [searchEleve, setSearchEleve] = useState('');
   const [filterGroupe, setFilterGroupe] = useState('tous');
   const [accidentForm, setAccidentForm] = useState({
@@ -777,25 +780,43 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 {accidents.map((accident) => {
                   // Parser les photos si présentes
                   let photos = [];
-                  if (accident.photos) {
-                    try {
+                  try {
+                    if (accident.photos) {
                       if (Array.isArray(accident.photos)) {
                         photos = accident.photos;
-                      } else if (typeof accident.photos === 'string') {
-                        const parsed = JSON.parse(accident.photos);
-                        if (Array.isArray(parsed)) {
-                          photos = parsed;
+                      } else if (typeof accident.photos === 'string' && accident.photos.trim() !== '') {
+                        // Si c'est une chaîne JSON
+                        if (accident.photos.trim().startsWith('[') || accident.photos.trim().startsWith('{')) {
+                          const parsed = JSON.parse(accident.photos);
+                          if (Array.isArray(parsed)) {
+                            photos = parsed;
+                          } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
+                            photos = parsed.photos;
+                          }
+                        } else if (accident.photos.startsWith('data:image')) {
+                          // Si c'est une seule photo en base64 directe
+                          photos = [accident.photos];
                         }
                       }
-                    } catch (e) {
-                      console.error('Erreur parsing photos accident:', e);
                     }
+                    // Filtrer et normaliser les photos valides
+                    const validPhotos = photos
+                      .map(photo => {
+                        if (typeof photo === 'string') {
+                          return photo.startsWith('data:image') || photo.startsWith('http') ? photo : null;
+                        } else if (photo && typeof photo === 'object') {
+                          return photo.data || photo.src || photo.url || photo.base64 || null;
+                        }
+                        return null;
+                      })
+                      .filter(photo => photo && photo.trim() !== '');
+                    
+                    // Utiliser validPhotos au lieu de photos
+                    var validPhotosForDisplay = validPhotos;
+                  } catch (e) {
+                    console.error('Erreur parsing photos accident:', e);
+                    var validPhotosForDisplay = [];
                   }
-                  
-                  const validPhotos = photos.filter(photo => {
-                    const photoSrc = typeof photo === 'string' ? photo : (photo?.data || photo?.src || photo);
-                    return photoSrc && typeof photoSrc === 'string' && photoSrc.startsWith('data:image');
-                  });
                   
                   return (
                     <div key={accident.id} className="p-6 hover:bg-gray-50 transition-colors">
@@ -856,14 +877,14 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                       </div>
                       
                       {/* Photos si disponibles */}
-                      {validPhotos.length > 0 && (
+                      {validPhotosForDisplay.length > 0 && (
                         <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
                           <div className="flex items-center gap-2 mb-3">
                             <ImageIcon className="w-4 h-4 text-red-600" />
-                            <span className="text-sm font-semibold text-gray-700">Photos ({validPhotos.length})</span>
+                            <span className="text-sm font-semibold text-gray-700">Photos ({validPhotosForDisplay.length})</span>
                           </div>
                           <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
-                            {validPhotos.map((photoSrc, photoIndex) => (
+                            {validPhotosForDisplay.map((photoSrc, photoIndex) => (
                               <motion.div
                                 key={photoIndex}
                                 whileHover={{ scale: 1.05 }}
@@ -893,6 +914,54 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                           Des blessés ont été signalés
                         </div>
                       )}
+                      
+                      {/* Boutons Modifier et Supprimer */}
+                      <div className="mt-4 flex gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Charger les données de l'accident dans le formulaire
+                            setEditingAccident(accident);
+                            setAccidentForm({
+                              date: accident.date ? format(new Date(accident.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+                              heure: accident.heure || format(new Date(), 'HH:mm'),
+                              lieu: accident.lieu || '',
+                              description: accident.description || '',
+                              degats: accident.degats || '',
+                              gravite: accident.gravite || 'Légère',
+                              nombre_eleves: accident.nombre_eleves?.toString() || '',
+                              nombre_blesses: accident.nombre_blesses?.toString() || '0'
+                            });
+                            
+                            // Charger les photos existantes
+                            if (validPhotosForDisplay.length > 0) {
+                              setAccidentPhotos(validPhotosForDisplay.map((photoSrc, index) => ({
+                                preview: photoSrc,
+                                file: null,
+                                id: `existing-${index}`
+                              })));
+                            } else {
+                              setAccidentPhotos([]);
+                            }
+                            
+                            setShowAccidentForm(true);
+                          }}
+                          className="rounded-xl text-green-600 hover:text-green-700 hover:bg-green-50"
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          Modifier
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDeleteAccidentConfirm({ show: true, id: accident.id })}
+                          className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Supprimer
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
@@ -1555,14 +1624,19 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <AlertCircle className="w-6 h-6" />
-                  Déclarer un Accident
+                  {editingAccident ? 'Modifier un Accident' : 'Déclarer un Accident'}
                 </h2>
                 <button
                   onClick={() => {
                     // Nettoyer les URLs des prévisualisations
-                    accidentPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                    accidentPhotos.forEach(photo => {
+                      if (photo.preview && photo.preview.startsWith('blob:')) {
+                        URL.revokeObjectURL(photo.preview);
+                      }
+                    });
                     setAccidentPhotos([]);
                     setShowAccidentForm(false);
+                    setEditingAccident(null);
                   }}
                   className="text-white hover:text-red-100 transition-colors"
                 >
@@ -1592,10 +1666,22 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   return;
                 }
 
-                // Compresser et convertir les photos en base64
-                const photosBase64 = await Promise.all(
-                  accidentPhotos.map(photo => compressImage(photo.file))
-                );
+                // Compresser et convertir les photos en base64 (seulement les nouvelles photos)
+                const newPhotos = accidentPhotos.filter(photo => photo.file);
+                const existingPhotos = accidentPhotos.filter(photo => !photo.file && photo.preview);
+                
+                let photosBase64 = [];
+                if (newPhotos.length > 0) {
+                  photosBase64 = await Promise.all(
+                    newPhotos.map(photo => compressImage(photo.file))
+                  );
+                }
+                
+                // Combiner les nouvelles photos avec les existantes
+                const allPhotos = [
+                  ...existingPhotos.map(photo => photo.preview),
+                  ...photosBase64.map(p => p.data)
+                ].filter(Boolean);
 
                 const accidentData = {
                   date: accidentForm.date,
@@ -1609,11 +1695,27 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   nombre_eleves: accidentForm.nombre_eleves ? parseInt(accidentForm.nombre_eleves) : null,
                   nombre_blesses: accidentForm.nombre_blesses ? parseInt(accidentForm.nombre_blesses) : 0,
                   blesses: parseInt(accidentForm.nombre_blesses) > 0,
-                  photos: photosBase64.length > 0 ? photosBase64.map(p => p.data) : null
+                  photos: allPhotos.length > 0 ? allPhotos : null
                 };
 
-                const response = await accidentsAPI.create(accidentData);
+                if (editingAccident) {
+                  // Mode modification
+                  await accidentsAPI.update(editingAccident.id, accidentData);
+                  showToast('Accident modifié avec succès !', 'success');
+                } else {
+                  // Mode création
+                  await accidentsAPI.create(accidentData);
+                  // Vérifier si c'est le 3ème accident
+                  const newAccidentsCount = (chauffeur?.nombre_accidents || accidents.length) + 1;
+                  if (newAccidentsCount >= 3) {
+                    showToast('Tu es licencié et tu dois payer une amende de 1000 DH à l\'école. Sinon l\'école va te poursuivre.', 'error');
+                  } else {
+                    showToast('Accident déclaré avec succès ! L\'administrateur a été notifié.', 'success');
+                  }
+                }
+                
                 setShowAccidentForm(false);
+                setEditingAccident(null);
                 setAccidentForm({
                   date: format(new Date(), 'yyyy-MM-dd'),
                   heure: format(new Date(), 'HH:mm'),
@@ -1625,17 +1727,13 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   nombre_blesses: '0'
                 });
                 // Nettoyer les URLs des prévisualisations
-                accidentPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                accidentPhotos.forEach(photo => {
+                  if (photo.preview && photo.preview.startsWith('blob:')) {
+                    URL.revokeObjectURL(photo.preview);
+                  }
+                });
                 setAccidentPhotos([]);
                 await loadData(chauffeur);
-                
-                // Vérifier si c'est le 3ème accident
-                const newAccidentsCount = (chauffeur?.nombre_accidents || accidents.length) + 1;
-                if (newAccidentsCount >= 3) {
-                  showToast('Tu es licencié et tu dois payer une amende de 1000 DH à l\'école. Sinon l\'école va te poursuivre.', 'error');
-                } else {
-                  showToast('Accident déclaré avec succès ! L\'administrateur a été notifié.', 'success');
-                }
               } catch (err) {
                 console.error('Erreur déclaration accident:', err);
                 showToast('Erreur lors de la déclaration: ' + (err.message || 'Erreur inconnue'), 'error');
@@ -1818,9 +1916,14 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   variant="outline"
                   onClick={() => {
                     // Nettoyer les URLs des prévisualisations
-                    accidentPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
+                    accidentPhotos.forEach(photo => {
+                      if (photo.preview && photo.preview.startsWith('blob:')) {
+                        URL.revokeObjectURL(photo.preview);
+                      }
+                    });
                     setAccidentPhotos([]);
                     setShowAccidentForm(false);
+                    setEditingAccident(null);
                   }}
                   className="rounded-xl"
                 >
@@ -1832,7 +1935,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
                 >
                   <AlertCircle className="w-4 h-4 mr-2" />
-                  Déclarer l'accident
+                  {editingAccident ? 'Modifier l\'accident' : 'Déclarer l\'accident'}
                 </Button>
               </div>
             </form>
@@ -2141,6 +2244,29 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
           </motion.div>
         </div>
       )}
+
+      {/* ConfirmDialog pour la suppression d'accident */}
+      <ConfirmDialog
+        isOpen={deleteAccidentConfirm.show}
+        title="Supprimer l'accident"
+        message="Êtes-vous sûr de vouloir supprimer cet accident ? Cette action est irréversible."
+        onConfirm={async () => {
+          try {
+            await accidentsAPI.delete(deleteAccidentConfirm.id);
+            setDeleteAccidentConfirm({ show: false, id: null });
+            await loadData(chauffeur);
+            showToast('Accident supprimé avec succès', 'success');
+          } catch (err) {
+            console.error('Erreur lors de la suppression:', err);
+            showToast('Erreur lors de la suppression: ' + (err.message || 'Erreur inconnue'), 'error');
+            setDeleteAccidentConfirm({ show: false, id: null });
+          }
+        }}
+        onCancel={() => setDeleteAccidentConfirm({ show: false, id: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
 
       {/* Modal pour voir les photos en grand */}
       {selectedSignalementPhoto && (

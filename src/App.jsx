@@ -9,6 +9,7 @@ import ChauffeurDashboard from './pages/ChauffeurDashboard';
 import ChauffeurNotifications from './pages/ChauffeurNotifications';
 import ResponsableLogin from './pages/ResponsableLogin';
 import ResponsableDashboard from './pages/ResponsableDashboard';
+import ResponsableEleveDetails from './pages/ResponsableEleveDetails';
 import TuteurLogin from './pages/TuteurLogin';
 import TuteurDashboard from './pages/TuteurDashboard';
 import TuteurRegister from './pages/TuteurRegister';
@@ -49,6 +50,7 @@ function App() {
         {/* Responsable Routes */}
         <Route path="/ResponsableLogin" element={<ResponsableLogin />} />
         <Route path="/ResponsableDashboard" element={<ResponsableDashboard />} />
+        <Route path="/ResponsableEleveDetails" element={<ResponsableEleveDetails />} />
 
         {/* Tuteur Routes */}
         <Route path="/TuteurLogin" element={<TuteurLogin />} />

@@ -155,6 +155,7 @@ export default function AdminInscriptions() {
 
   const handleValidate = async (eleve) => {
     setSelectedEleve(eleve);
+    setError(null);
     
     // Extraire le type d'abonnement depuis la demande
     let abonnement = 'Mensuel'; // Par défaut
@@ -177,6 +178,36 @@ export default function AdminInscriptions() {
       date_debut: dateDebut,
       date_fin: dateFin
     });
+    
+    // Charger les bus disponibles pour la zone de l'élève
+    try {
+      const zone = eleve.demande_inscription?.zone_geographique || eleve.zone;
+      
+      if (zone) {
+        const busesResponse = await busAPI.getByZone(zone);
+        if (busesResponse.success && busesResponse.data && busesResponse.data.length > 0) {
+          const busesWithCapacity = busesResponse.data.map(bus => {
+            const trajet = trajets.find(t => t.id === bus.trajet_id);
+            return {
+              ...bus,
+              trajet,
+              placesRestantes: bus.places_restantes || 0,
+              elevesInscrits: bus.eleves_inscrits || 0
+            };
+          });
+          setAvailableBuses(busesWithCapacity);
+        } else {
+          setAvailableBuses([]);
+        }
+      } else {
+        setAvailableBuses([]);
+        setError('Aucune zone géographique définie pour cet élève');
+      }
+    } catch (err) {
+      console.error('Erreur lors du chargement des bus:', err);
+      setAvailableBuses([]);
+      setError('Erreur lors du chargement des bus disponibles');
+    }
     
     setShowInscriptionModal(true);
   };
@@ -955,6 +986,117 @@ export default function AdminInscriptions() {
                 );
               })()}
 
+              {/* Bus disponibles pour la zone de l'élève */}
+              {(selectedEleve.statut_demande === 'En attente' || selectedEleve.statut_demande === 'En cours de traitement') && !selectedEleve.inscription && (
+                <div className="border-t border-gray-200 pt-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <Bus className="w-5 h-5 text-blue-500" />
+                    Bus disponibles pour cette zone
+                  </h3>
+                  {error && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                      {error}
+                    </div>
+                  )}
+                  {availableBuses.length === 0 ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                      <p className="text-sm text-yellow-800 font-medium mb-2">
+                        ⚠️ Aucun bus disponible pour la zone "{selectedEleve.demande_inscription?.zone_geographique || selectedEleve.zone || 'non spécifiée'}"
+                      </p>
+                      <p className="text-xs text-yellow-700">
+                        Vérifiez que des trajets couvrent cette zone et que des bus actifs y sont assignés avant de valider l'inscription.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 mb-6">
+                      <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
+                        <p className="text-sm text-blue-800 font-medium">
+                          Zone de l'élève: <span className="font-bold">{selectedEleve.demande_inscription?.zone_geographique || selectedEleve.zone || 'Non spécifiée'}</span>
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          {availableBuses.length} bus disponible(s) pour cette zone (données réelles de la base de données)
+                        </p>
+                      </div>
+                      {availableBuses.map((bus) => {
+                        // Extraire les zones du trajet pour affichage
+                        let trajetZones = [];
+                        if (bus.trajet_zones) {
+                          try {
+                            const decoded = JSON.parse(bus.trajet_zones);
+                            trajetZones = Array.isArray(decoded) ? decoded : [bus.trajet_zones];
+                          } catch {
+                            trajetZones = typeof bus.trajet_zones === 'string' ? bus.trajet_zones.split(',').map(z => z.trim()) : [];
+                          }
+                        }
+                        
+                        return (
+                          <div 
+                            key={bus.id}
+                            className="p-4 rounded-2xl border-2 border-gray-200 hover:border-blue-300 transition-colors bg-white"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h4 className="font-bold text-gray-800 text-lg">{bus.numero}</h4>
+                                  {bus.statut === 'Actif' && (
+                                    <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-lg">
+                                      Actif
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 mb-1">
+                                  <span className="font-medium">Marque/Modèle:</span> {bus.marque || 'N/A'} {bus.modele || ''}
+                                </p>
+                                <p className="text-sm text-gray-600 mb-1">
+                                  <span className="font-medium">Plaque:</span> {bus.plaque || 'N/A'}
+                                </p>
+                                <p className="text-sm text-gray-600 mb-2">
+                                  <span className="font-medium">Trajet:</span> {bus.trajet?.nom || bus.trajet_nom || 'Non assigné'}
+                                </p>
+                                {trajetZones.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-1">
+                                    <span className="text-xs text-gray-500">Zones couvertes:</span>
+                                    {trajetZones.map((zone, idx) => (
+                                      <span 
+                                        key={idx}
+                                        className={`text-xs px-2 py-1 rounded-lg ${
+                                          zone.trim().toLowerCase() === (selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || '').toLowerCase()
+                                            ? 'bg-green-100 text-green-700 font-medium'
+                                            : 'bg-gray-100 text-gray-600'
+                                        }`}
+                                      >
+                                        {zone.trim()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="mt-2 flex items-center gap-4 text-sm">
+                                  <span className="text-gray-600">
+                                    <span className="font-medium">Capacité:</span> {bus.capacite || 'N/A'} places
+                                  </span>
+                                  <span className="text-gray-600">
+                                    <span className="font-medium">Élèves inscrits:</span> {bus.elevesInscrits || bus.eleves_inscrits || 0}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right ml-4">
+                                <p className={`text-3xl font-bold ${
+                                  (bus.placesRestantes || bus.places_restantes || 0) > 5 ? 'text-green-600' : 
+                                  (bus.placesRestantes || bus.places_restantes || 0) > 0 ? 'text-orange-500' : 'text-red-500'
+                                }`}>
+                                  {bus.placesRestantes || bus.places_restantes || 0}
+                                </p>
+                                <p className="text-xs text-gray-500">places restantes</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Formulaire de validation (seulement si pas encore validé) */}
               {(selectedEleve.statut_demande === 'En attente' || selectedEleve.statut_demande === 'En cours de traitement') && !selectedEleve.inscription && (
                 <div className="border-t border-gray-200 pt-6">
@@ -962,6 +1104,23 @@ export default function AdminInscriptions() {
                     <CheckCircle className="w-5 h-5 text-green-500" />
                     Valider l'inscription
                   </h3>
+                  {availableBuses.length === 0 && (
+                    <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                      <p className="text-sm text-red-800 font-medium mb-1">
+                        ⚠️ Validation impossible
+                      </p>
+                      <p className="text-xs text-red-700">
+                        Vous ne pouvez pas valider cette inscription car aucun bus n'est disponible pour la zone "{selectedEleve.demande_inscription?.zone_geographique || selectedEleve.zone || 'non spécifiée'}". Veuillez d'abord créer un trajet couvrant cette zone et y affecter un bus actif.
+                      </p>
+                    </div>
+                  )}
+                  {availableBuses.length > 0 && (
+                    <div className="mb-4 p-4 bg-green-50 border-2 border-green-200 rounded-xl">
+                      <p className="text-sm text-green-800 font-medium">
+                        ✓ {availableBuses.length} bus disponible(s) pour cette zone. Vous pouvez valider l'inscription.
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1025,7 +1184,13 @@ export default function AdminInscriptions() {
               {(selectedEleve.statut_demande === 'En attente' || selectedEleve.statut_demande === 'En cours de traitement') && !selectedEleve.inscription && (
                 <Button
                   onClick={handleCreateInscription}
-                  className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                  disabled={availableBuses.length === 0}
+                  className={`rounded-xl ${
+                    availableBuses.length === 0
+                      ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed opacity-60'
+                      : 'bg-green-500 hover:bg-green-600'
+                  } text-white`}
+                  title={availableBuses.length === 0 ? 'Aucun bus disponible pour cette zone. Impossible de valider l\'inscription.' : ''}
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Valider l'inscription

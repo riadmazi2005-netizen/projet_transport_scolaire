@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import { accidentsAPI, busAPI, chauffeursAPI, notificationsAPI, elevesAPI, inscriptionsAPI, tuteursAPI } from '../services/apiService';
@@ -6,8 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import AdminLayout from '../components/AdminLayout';
 import AlertDialog from '../components/ui/AlertDialog';
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X
+  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X, BookOpen, Filter
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -28,6 +30,13 @@ export default function AdminAccidents() {
   const [showLicencierModal, setShowLicencierModal] = useState(false);
   const [chauffeurToLicencier, setChauffeurToLicencier] = useState(null);
   const [alertDialog, setAlertDialog] = useState({ show: false, message: '', type: 'success' });
+  const [filters, setFilters] = useState({
+    statut: 'all',
+    gravite: 'all',
+    bus: 'all',
+    dateDebut: '',
+    dateFin: ''
+  });
 
   useEffect(() => {
     loadData();
@@ -53,7 +62,10 @@ export default function AdminAccidents() {
       const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
       const tuteursData = tuteursRes?.data || tuteursRes || [];
       
-      setAccidents(Array.isArray(accidentsData) ? accidentsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)) : []);
+      const sortedAccidents = Array.isArray(accidentsData) 
+        ? accidentsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)) 
+        : [];
+      setAccidents(sortedAccidents);
       setBuses(Array.isArray(busesData) ? busesData : []);
       setChauffeurs(Array.isArray(chauffeursData) ? chauffeursData : []);
       setEleves(Array.isArray(elevesData) ? elevesData : []);
@@ -71,11 +83,11 @@ export default function AdminAccidents() {
     try {
       await accidentsAPI.validate(accidentId);
       await loadData();
-      setAlertDialog({ show: true, message: 'Rapport validé avec succès', type: 'success' });
+      setAlertDialog({ show: true, message: 'Accident marqué comme lu avec succès', type: 'success' });
     } catch (err) {
       console.error('Erreur lors de la validation:', err);
-      setError('Erreur lors de la validation du rapport');
-      setAlertDialog({ show: true, message: 'Erreur lors de la validation du rapport', type: 'error' });
+      setError('Erreur lors du marquage comme lu');
+      setAlertDialog({ show: true, message: 'Erreur lors du marquage comme lu', type: 'error' });
     }
   };
 
@@ -229,20 +241,111 @@ export default function AdminAccidents() {
               <p className="text-red-100 mt-1">Rapports reçus des chauffeurs et responsables bus</p>
             </div>
 
+            {/* Filtres */}
+            <div className="p-6 border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center gap-2 mb-4">
+                <Filter className="w-5 h-5 text-gray-600" />
+                <h3 className="text-lg font-semibold text-gray-800">Filtres</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
+                  <Select value={filters.statut} onValueChange={(value) => setFilters({...filters, statut: value})}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      <SelectItem value="En attente">En attente</SelectItem>
+                      <SelectItem value="Validé">Validé</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Gravité</label>
+                  <Select value={filters.gravite} onValueChange={(value) => setFilters({...filters, gravite: value})}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toutes les gravités</SelectItem>
+                      <SelectItem value="Légère">Légère</SelectItem>
+                      <SelectItem value="Moyenne">Moyenne</SelectItem>
+                      <SelectItem value="Grave">Grave</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Bus</label>
+                  <Select value={filters.bus} onValueChange={(value) => setFilters({...filters, bus: value})}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les bus</SelectItem>
+                      {buses.map(bus => (
+                        <SelectItem key={bus.id} value={bus.id.toString()}>
+                          {bus.numero}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date début</label>
+                  <Input
+                    type="date"
+                    value={filters.dateDebut}
+                    onChange={(e) => setFilters({...filters, dateDebut: e.target.value})}
+                    className="rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date fin</label>
+                  <Input
+                    type="date"
+                    value={filters.dateFin}
+                    onChange={(e) => setFilters({...filters, dateFin: e.target.value})}
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+              {(filters.statut !== 'all' || filters.gravite !== 'all' || filters.bus !== 'all' || filters.dateDebut || filters.dateFin) && (
+                <Button
+                  variant="outline"
+                  onClick={() => setFilters({ statut: 'all', gravite: 'all', bus: 'all', dateDebut: '', dateFin: '' })}
+                  className="mt-4 rounded-xl"
+                >
+                  Réinitialiser les filtres
+                </Button>
+              )}
+            </div>
+
             <div className="divide-y divide-gray-100">
-              {accidents.length === 0 ? (
+              {filteredAccidents.length === 0 ? (
                 <div className="p-12 text-center text-gray-400">
                   <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucun accident déclaré</p>
+                  <p>Aucun accident déclaré{filters.statut !== 'all' || filters.gravite !== 'all' || filters.bus !== 'all' || filters.dateDebut || filters.dateFin ? ' (après filtrage)' : ''}</p>
                 </div>
               ) : (
-                accidents.map((accident) => {
-                  const bus = buses.find(b => b.id === accident.bus_id);
-                  const chauffeur = accident.chauffeur_id ? chauffeurs.find(c => c.id === accident.chauffeur_id) : null;
-                  const chauffeurAccidents = accident.chauffeur_id ? accidents.filter(a => a.chauffeur_id === accident.chauffeur_id) : [];
-                  const has3Accidents = chauffeurAccidents.length >= 3;
-                  
-                  return (
+                <>
+                  {(filters.statut !== 'all' || filters.gravite !== 'all' || filters.bus !== 'all' || filters.dateDebut || filters.dateFin) && (
+                    <div className="p-4 bg-blue-50 border-b border-blue-200">
+                      <p className="text-sm text-blue-700">
+                        <strong>{filteredAccidents.length}</strong> accident(s) trouvé(s)
+                        {filteredAccidents.length !== accidents.length && (
+                          <span> sur {accidents.length} total</span>
+                        )}
+                      </p>
+                    </div>
+                  )}
+                  {filteredAccidents.map((accident) => {
+                    const bus = buses.find(b => b.id === accident.bus_id);
+                    const chauffeur = accident.chauffeur_id ? chauffeurs.find(c => c.id === accident.chauffeur_id) : null;
+                    const chauffeurAccidents = accident.chauffeur_id ? accidents.filter(a => a.chauffeur_id === accident.chauffeur_id) : [];
+                    const has3Accidents = chauffeurAccidents.length >= 3;
+                    
+                    return (
                     <div key={accident.id} className="p-6 hover:bg-red-50/50 transition-colors">
                       <div className="flex flex-col lg:flex-row justify-between gap-4">
                         <div className="flex-1">
@@ -322,6 +425,33 @@ export default function AdminAccidents() {
                               <strong>Dégâts:</strong> {accident.degats}
                             </p>
                           )}
+                          {accident.photos && (() => {
+                            try {
+                              let hasPhotos = false;
+                              if (Array.isArray(accident.photos) && accident.photos.length > 0) {
+                                hasPhotos = true;
+                              } else if (typeof accident.photos === 'string' && accident.photos.trim() !== '') {
+                                if (accident.photos.startsWith('data:image')) {
+                                  hasPhotos = true;
+                                } else {
+                                  try {
+                                    const parsed = JSON.parse(accident.photos);
+                                    hasPhotos = Array.isArray(parsed) && parsed.length > 0;
+                                  } catch (e) {
+                                    hasPhotos = false;
+                                  }
+                                }
+                              }
+                              return hasPhotos ? (
+                                <div className="flex items-center gap-2 text-blue-600 text-sm mt-2">
+                                  <Camera className="w-4 h-4" />
+                                  <span>Photos disponibles</span>
+                                </div>
+                              ) : null;
+                            } catch (e) {
+                              return null;
+                            }
+                          })()}
                         </div>
                         
                         <div className="flex gap-2">
@@ -341,8 +471,8 @@ export default function AdminAccidents() {
                               onClick={() => handleValidate(accident.id)}
                               className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
                             >
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Valider
+                              <BookOpen className="w-4 h-4 mr-2" />
+                              Marquer comme lu
                             </Button>
                           )}
                           {accident.bus_id && (
@@ -373,8 +503,9 @@ export default function AdminAccidents() {
                         </div>
                       </div>
                     </div>
-                  );
-                })
+                    );
+                  })}
+                </>
               )}
             </div>
           </motion.div>
@@ -555,67 +686,97 @@ export default function AdminAccidents() {
                 </div>
               )}
 
-              {selectedAccident.photos && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
-                    <Camera className="w-4 h-4" />
-                    Photos
-                  </label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {(() => {
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
+                  <Camera className="w-4 h-4" />
+                  Photos
+                </label>
+                {(() => {
+                  try {
+                    let photosArray = [];
+                    const photosField = selectedAccident.photos;
+                    
+                    // Si les photos sont null ou undefined
+                    if (!photosField) {
+                      return (
+                        <div className="bg-gray-50 rounded-xl p-6 text-center">
+                          <Camera className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-gray-500 text-sm">Aucune photo disponible</p>
+                        </div>
+                      );
+                    }
+                    
+                    // Si c'est déjà un tableau (déjà décodé par le backend)
+                    if (Array.isArray(photosField)) {
+                      photosArray = photosField;
+                    } 
+                    // Si c'est une chaîne JSON
+                    else if (typeof photosField === 'string' && photosField.trim() !== '') {
                       try {
-                        let photosArray = [];
-                        
-                        // Si c'est déjà un tableau
-                        if (Array.isArray(selectedAccident.photos)) {
-                          photosArray = selectedAccident.photos;
-                        } 
-                        // Si c'est une chaîne JSON
-                        else if (typeof selectedAccident.photos === 'string' && selectedAccident.photos.trim() !== '') {
-                          try {
-                            // Vérifier si la chaîne commence par [ ou {
-                            if (selectedAccident.photos.trim().startsWith('[') || selectedAccident.photos.trim().startsWith('{')) {
-                              const parsed = JSON.parse(selectedAccident.photos);
-                              if (Array.isArray(parsed)) {
-                                photosArray = parsed;
-                              } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
-                                photosArray = parsed.photos;
-                              }
-                            } else if (selectedAccident.photos.startsWith('data:image')) {
-                              // Si c'est une seule photo en base64
-                              photosArray = [selectedAccident.photos];
+                        // Vérifier si la chaîne commence par [ ou {
+                        if (photosField.trim().startsWith('[') || photosField.trim().startsWith('{')) {
+                          const parsed = JSON.parse(photosField);
+                          if (Array.isArray(parsed)) {
+                            photosArray = parsed;
+                          } else if (parsed && typeof parsed === 'object') {
+                            // Si c'est un objet avec une propriété photos
+                            if (Array.isArray(parsed.photos)) {
+                              photosArray = parsed.photos;
+                            } 
+                            // Si l'objet contient directement les données
+                            else if (parsed.data && Array.isArray(parsed.data)) {
+                              photosArray = parsed.data;
                             }
-                          } catch (parseError) {
-                            console.error('Erreur parsing photos:', parseError);
-                            // Si le parsing échoue, essayer de traiter comme une seule photo
-                            if (selectedAccident.photos.startsWith('data:image')) {
-                              photosArray = [selectedAccident.photos];
+                            // Si c'est un objet unique avec une propriété data/base64
+                            else if (parsed.data || parsed.src || parsed.url) {
+                              photosArray = [parsed.data || parsed.src || parsed.url];
                             }
                           }
+                        } else if (photosField.startsWith('data:image')) {
+                          // Si c'est une seule photo en base64 directe
+                          photosArray = [photosField];
                         }
-                        
-                        // Filtrer et normaliser les photos valides
-                        const validPhotos = photosArray
-                          .map(photo => {
-                            if (typeof photo === 'string') {
-                              return photo;
-                            } else if (photo && typeof photo === 'object') {
-                              return photo.data || photo.src || photo.url || null;
-                            }
-                            return null;
-                          })
-                          .filter(photoSrc => {
-                            return photoSrc && 
-                                   typeof photoSrc === 'string' && 
-                                   photoSrc.trim() !== '' && 
-                                   photoSrc.startsWith('data:image');
-                          });
-                        
-                        if (validPhotos.length === 0) {
-                          return <p className="text-gray-500 text-sm">Aucune photo valide</p>;
+                      } catch (parseError) {
+                        console.error('Erreur parsing photos:', parseError, photosField);
+                        // Si le parsing échoue, essayer de traiter comme une seule photo
+                        if (photosField.startsWith('data:image')) {
+                          photosArray = [photosField];
                         }
-                        
-                        return validPhotos.map((photoSrc, index) => (
+                      }
+                    }
+                    
+                    // Filtrer et normaliser les photos valides
+                    const validPhotos = photosArray
+                      .map((photo, idx) => {
+                        if (typeof photo === 'string') {
+                          // Vérifier que c'est bien une URL base64 valide
+                          return photo.trim() !== '' && (photo.startsWith('data:image') || photo.startsWith('http')) ? photo : null;
+                        } else if (photo && typeof photo === 'object') {
+                          // Extraire l'URL depuis l'objet
+                          return photo.data || photo.src || photo.url || photo.base64 || null;
+                        }
+                        return null;
+                      })
+                      .filter(photoSrc => {
+                        return photoSrc && 
+                               typeof photoSrc === 'string' && 
+                               photoSrc.trim() !== '' && 
+                               (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'));
+                      });
+                    
+                    if (validPhotos.length === 0) {
+                      return (
+                        <div className="bg-gray-50 rounded-xl p-6 text-center">
+                          <Camera className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-gray-500 text-sm">Aucune photo valide</p>
+                          <p className="text-xs text-gray-400 mt-1">Les photos peuvent être corrompues ou dans un format non supporté</p>
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {validPhotos.map((photoSrc, index) => (
                           <motion.div
                             key={index}
                             whileHover={{ scale: 1.05 }}
@@ -623,30 +784,41 @@ export default function AdminAccidents() {
                             className="relative group cursor-pointer"
                             onClick={() => setSelectedPhoto(photoSrc)}
                           >
-                            <div className="relative overflow-hidden rounded-xl border-2 border-gray-200 group-hover:border-red-400 transition-colors bg-white">
+                            <div className="relative overflow-hidden rounded-xl border-2 border-gray-200 group-hover:border-red-400 transition-colors bg-gray-100">
                               <img 
                                 src={photoSrc} 
                                 alt={`Photo ${index + 1}`}
                                 className="w-full h-32 object-cover"
                                 onError={(e) => {
-                                  console.error('Erreur chargement image:', index);
-                                  e.target.style.display = 'none';
+                                  console.error('Erreur chargement image:', index, photoSrc?.substring(0, 50));
+                                  e.target.parentElement.style.display = 'none';
+                                }}
+                                onLoad={() => {
+                                  console.log('Image chargée avec succès:', index);
                                 }}
                               />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                                 <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
+                              <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                Photo {index + 1}
+                              </div>
                             </div>
                           </motion.div>
-                        ));
-                      } catch (e) {
-                        console.error('Erreur traitement photos:', e);
-                        return <p className="text-gray-500 text-sm">Erreur lors du chargement des photos</p>;
-                      }
-                    })()}
-                  </div>
-                </div>
-              )}
+                        ))}
+                      </div>
+                    );
+                  } catch (e) {
+                    console.error('Erreur traitement photos:', e, selectedAccident.photos);
+                    return (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                        <p className="text-red-600 text-sm font-medium">Erreur lors du chargement des photos</p>
+                        <p className="text-red-500 text-xs mt-1">{e.message}</p>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
             </div>
 
             <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
@@ -669,8 +841,8 @@ export default function AdminAccidents() {
                   }}
                   className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
                 >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Valider
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  Marquer comme lu
                 </Button>
               )}
               {selectedAccident.bus_id && (
