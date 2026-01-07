@@ -38,7 +38,7 @@ if ($bus) {
     $result = [
         'id' => $bus['id'],
         'numero' => $bus['numero'],
-        'immatriculation' => $bus['immatriculation'],
+        'immatriculation' => $bus['immatriculation'] ?? null,
         'marque' => $bus['marque'],
         'modele' => $bus['modele'],
         'annee_fabrication' => $bus['annee_fabrication'],
@@ -48,7 +48,7 @@ if ($bus) {
         'responsable_id' => $bus['responsable_id'],
         'trajet_id' => $bus['trajet_id'],
         'date_creation' => $bus['date_creation'],
-        'date_modification' => $bus['date_modification']
+        'date_modification' => $bus['date_modification'] ?? null
     ];
     
     // Ajouter les informations du chauffeur si disponible

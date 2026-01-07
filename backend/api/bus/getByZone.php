@@ -72,47 +72,49 @@ try {
             continue;
         }
         
-        $trajetZones = null;
+        $trajetZones = [];
         $zonesRaw = trim($bus['trajet_zones']);
         
+        // Helper pour nettoyer une zone
+        $cleanZone = function($z) {
+            return trim($z, " \t\n\r\0\x0B\"'[]");
+        };
+
         // Essayer de parser comme JSON d'abord
         $decoded = json_decode($zonesRaw, true);
         if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-            // C'est un array JSON valide
-            $trajetZones = array_map('trim', $decoded); // Nettoyer les espaces
+            $trajetZones = array_map($cleanZone, $decoded);
         } else {
-            // Essayer de parser comme JSON avec des guillemets simples ou doubles
-            // Parfois le JSON est malformé avec des espaces ou des guillemets supplémentaires
+            // Fallback: nettoyage manuel pour les formats bâtards (ex: "[\"Zone 1\", \"Zone 2\"]" mal parsé ou "Zone 1, Zone 2")
             $cleaned = trim($zonesRaw, '[]"\'');
             if (strpos($cleaned, ',') !== false) {
-                // C'est probablement une liste séparée par des virgules
-                $trajetZones = array_map('trim', explode(',', $cleaned));
+                $trajetZones = array_map($cleanZone, explode(',', $cleaned));
             } else {
-                // Une seule zone
-                $trajetZones = [trim($cleaned)];
+                $trajetZones = [$cleanZone($cleaned)];
             }
         }
         
-        // Nettoyer et normaliser toutes les zones
-        $trajetZones = array_filter(array_map(function($z) {
-            $cleaned = trim($z, ' "\'[]');
-            return $cleaned;
-        }, $trajetZones));
+        // Normalisation pour comparaison robuste
+        $normalize = function($str) {
+            $str = mb_strtolower(trim($str), 'UTF-8');
+            // Remplacer les accents courants pour une recherche plus souple
+            $search  = ['à', 'á', 'â', 'ã', 'ä', 'å', 'ç', 'è', 'é', 'ê', 'ë', 'ì', 'í', 'î', 'ï', 'ñ', 'ò', 'ó', 'ô', 'õ', 'ö', 'ù', 'ú', 'û', 'ü', 'ý', 'ÿ'];
+            $replace = ['a', 'a', 'a', 'a', 'a', 'a', 'c', 'e', 'e', 'e', 'e', 'i', 'i', 'i', 'i', 'n', 'o', 'o', 'o', 'o', 'o', 'u', 'u', 'u', 'u', 'y', 'y'];
+            return str_replace($search, $replace, $str);
+        };
+
+        $zoneSearchNorm = $normalize($zoneNormalized);
         
-        // Vérifier si la zone recherchée correspond exactement à une des zones du trajet
+        // Vérifier si la zone recherchée correspond
         $zoneFound = false;
-        $zoneSearchLower = mb_strtolower(trim($zoneNormalized), 'UTF-8');
+        $matchedZoneName = '';
         
-        if (is_array($trajetZones) && count($trajetZones) > 0) {
-            foreach ($trajetZones as $trajetZone) {
-                $trajetZoneCleaned = trim($trajetZone, ' "\'[]');
-                $trajetZoneLower = mb_strtolower($trajetZoneCleaned, 'UTF-8');
-                
-                // Correspondance exacte après normalisation
-                if ($trajetZoneLower === $zoneSearchLower) {
-                    $zoneFound = true;
-                    break;
-                }
+        foreach ($trajetZones as $tz) {
+            $tzNorm = $normalize($tz);
+            if ($tzNorm === $zoneSearchNorm || strpos($tzNorm, $zoneSearchNorm) !== false || strpos($zoneSearchNorm, $tzNorm) !== false) {
+                $zoneFound = true;
+                $matchedZoneName = $tz;
+                break;
             }
         }
         
@@ -120,23 +122,19 @@ try {
         $debugInfo['exemples_trajets_zones'][] = [
             'bus_numero' => $bus['numero'],
             'trajet_nom' => $bus['trajet_nom'],
-            'trajet_id' => $bus['trajet_id'],
-            'zones' => array_values($trajetZones), // Réindexer l'array
-            'zones_raw' => $bus['trajet_zones'],
-            'places_restantes' => $bus['places_restantes'],
+            'zones' => array_values($trajetZones),
             'zone_match' => $zoneFound,
-            'zone_recherchee' => $zoneNormalized,
-            'zone_search_lower' => $zoneSearchLower
+            'matched_zone' => $matchedZoneName,
+            'places_restantes' => intval($bus['places_restantes']),
+            'statut' => $bus['statut']
         ];
         
-        // Ne garder que les bus dont le trajet contient exactement la zone recherchée
-        // ET qui ont des places restantes
         if ($zoneFound) {
-            if ($bus['places_restantes'] > 0) {
+            if (intval($bus['places_restantes']) > 0) {
                 $buses[] = $bus;
                 $debugInfo['bus_trouves']++;
             } else {
-                $debugInfo['bus_pleins'] = ($debugInfo['bus_pleins'] ?? 0) + 1;
+                $debugInfo['bus_pleins']++;
             }
         } else {
             $debugInfo['bus_zones_non_match']++;

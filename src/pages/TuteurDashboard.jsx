@@ -4,8 +4,8 @@ import { createPageUrl } from '../utils';
 import { elevesAPI, notificationsAPI, presencesAPI, demandesAPI, inscriptionsAPI, paiementsAPI, zonesAPI, busAPI, trajetsAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { 
-  Users, Bell, UserPlus, Edit, LogOut, GraduationCap, 
+import {
+  Users, Bell, UserPlus, Edit, LogOut, GraduationCap,
   Bus, CreditCard, Clock, CheckCircle, AlertCircle, Eye, XCircle,
   TrendingUp, MapPin, Calendar, FileText, History, Trash2, RotateCcw, Repeat
 } from 'lucide-react';
@@ -27,7 +27,7 @@ function TuteurDashboardContent() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inscriptionFilter, setInscriptionFilter] = useState('all');
-  
+
   // Récupérer l'onglet actif depuis les paramètres d'URL
   const urlParams = new URLSearchParams(location.search);
   const activeTabFromUrl = urlParams.get('tab') || 'eleves';
@@ -76,7 +76,7 @@ function TuteurDashboardContent() {
       navigate(createPageUrl('TuteurLogin'));
       return;
     }
-    
+
     const tuteurData = JSON.parse(session);
     setTuteur(tuteurData);
     // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
@@ -84,7 +84,7 @@ function TuteurDashboardContent() {
     loadData(tuteurId, tuteurData.id); // Passer aussi l'ID utilisateur
     loadZones();
   }, [navigate]);
-  
+
   // Ne plus charger les notifications ici - elles sont gérées par TuteurLayout
   // Mais on garde la logique pour setNotifications si besoin pour les afficher dans le panel
 
@@ -109,7 +109,7 @@ function TuteurDashboardContent() {
         inscriptionsAPI.getAll(),
         paiementsAPI.getByTuteur(tuteurId)
       ]);
-      
+
       const allEleves = elevesRes.status === 'fulfilled'
         ? (Array.isArray(elevesRes.value?.data) ? elevesRes.value.data : (Array.isArray(elevesRes.value) ? elevesRes.value : []))
         : [];
@@ -125,37 +125,37 @@ function TuteurDashboardContent() {
       const paiementsData = paiementsRes.status === 'fulfilled'
         ? (Array.isArray(paiementsRes.value?.data) ? paiementsRes.value.data : (Array.isArray(paiementsRes.value) ? paiementsRes.value : []))
         : [];
-      
+
       // Filtrer les élèves du tuteur
       const elevesData = Array.isArray(allEleves) ? allEleves.filter(e => e.tuteur_id === tuteurId) : [];
-      
+
       // Sauvegarder les paiements
       setPaiements(Array.isArray(paiementsData) ? paiementsData : []);
-      
+
       // Filtrer uniquement les demandes d'inscription
-      const demandesInscription = Array.isArray(allDemandes) 
+      const demandesInscription = Array.isArray(allDemandes)
         ? allDemandes.filter(d => d.type_demande === 'inscription' && d.tuteur_id === tuteurId)
         : [];
-      
+
       // Enrichir les élèves avec les informations de demande et d'inscription
       const elevesEnriched = elevesData.map(eleve => {
         // Trouver la demande d'inscription la plus récente pour cet élève
         const demandeInscription = demandesInscription
           .filter(d => d.eleve_id === eleve.id)
           .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0];
-        
+
         // Trouver l'inscription pour cet élève (active ou désabonnée)
-        const inscription = Array.isArray(allInscriptions) 
+        const inscription = Array.isArray(allInscriptions)
           ? allInscriptions.find(i => i.eleve_id === eleve.id && (i.statut === 'Active' || i.statut === 'Désabonné'))
           : null;
-        
+
         // Calculer le montant total payé pour cet élève
         // Les paiements incluent déjà les paiements initiaux et mensuels avec eleve_id
         const paiementsEleve = Array.isArray(paiementsData)
           ? paiementsData.filter(p => p.eleve_id === eleve.id && p.statut === 'Payé')
           : [];
         const montantTotalPaye = paiementsEleve.reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0);
-        
+
         // Extraire les informations de réduction depuis la demande d'inscription
         let montantAvantReduction = null;
         let tauxReduction = 0;
@@ -179,7 +179,7 @@ function TuteurDashboardContent() {
             // Ignorer les erreurs de parsing
           }
         }
-        
+
         // Déterminer le statut à afficher
         let statutDemande = null;
         if (inscription) {
@@ -207,7 +207,7 @@ function TuteurDashboardContent() {
           // Pas de demande ni d'inscription - par défaut "En cours de traitement"
           statutDemande = 'En cours de traitement';
         }
-        
+
         return {
           ...eleve,
           demande_inscription: demandeInscription,
@@ -221,7 +221,7 @@ function TuteurDashboardContent() {
           rang_eleve_texte: rangEleveTexte
         };
       });
-      
+
       setEleves(elevesEnriched);
       setNotifications(notificationsData.sort((a, b) => new Date(b.date || b.date_creation || 0) - new Date(a.date || a.date_creation || 0)));
     } catch (err) {
@@ -245,7 +245,7 @@ function TuteurDashboardContent() {
 
   const getStatusBadge = (statut) => {
     const baseStyle = 'px-4 py-2 rounded-xl text-sm font-medium border';
-    
+
     if (statut === 'En cours de traitement') {
       return `${baseStyle} bg-[#64B5F6] text-white border-[#64B5F6]`;
     } else if (statut === 'Inscrit') {
@@ -267,7 +267,7 @@ function TuteurDashboardContent() {
   const handleCancelDemande = async () => {
     if (!cancelConfirm.eleve) return;
     const eleve = cancelConfirm.eleve;
-    
+
     try {
       // Si une demande existe, la supprimer d'abord
       if (eleve.demande_inscription?.id) {
@@ -279,7 +279,7 @@ function TuteurDashboardContent() {
           // Continuer quand même pour supprimer l'élève
         }
       }
-      
+
       // Supprimer l'élève
       try {
         await elevesAPI.delete(eleve.id);
@@ -288,7 +288,7 @@ function TuteurDashboardContent() {
         console.error('Erreur lors de la suppression de l\'élève:', eleveErr);
         throw eleveErr;
       }
-      
+
       // Recharger les données
       if (!tuteur) return;
       const tuteurId = tuteur.type_id || tuteur.id;
@@ -311,7 +311,7 @@ function TuteurDashboardContent() {
   const handleDeleteEleve = async () => {
     if (!deleteConfirm.eleve || !tuteur) return;
     const eleve = deleteConfirm.eleve;
-    
+
     try {
       await elevesAPI.delete(eleve.id);
       const tuteurId = tuteur.type_id || tuteur.id;
@@ -362,15 +362,15 @@ function TuteurDashboardContent() {
       try {
         const endDate = new Date().toISOString().split('T')[0];
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        
+
         const presencesResponse = await presencesAPI.getByEleve(eleve.id, startDate, endDate);
         const presencesData = presencesResponse?.data || presencesResponse || [];
-        
+
         // Filtrer les absences (présences avec statut "Absent")
         const absences = presencesData
           .filter(p => p.statut === 'Absent' || p.statut === 'absent')
           .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-        
+
         setEleveAbsences(absences);
       } catch (err) {
         console.warn('Erreur lors du chargement des absences:', err);
@@ -392,7 +392,7 @@ function TuteurDashboardContent() {
     try {
       setErrorMessage('');
       const tuteurId = tuteur.type_id || tuteur.id;
-      
+
       // Créer la demande de désinscription avec statut "Validée" pour trace
       await demandesAPI.create({
         eleve_id: selectedEleveForDesabonnement.id,
@@ -433,7 +433,7 @@ function TuteurDashboardContent() {
 
     try {
       const tuteurId = tuteur.type_id || tuteur.id;
-      
+
       // Récupérer les données actuelles de l'élève
       const demandeActuelle = selectedEleveForChangement.demande_inscription;
       let descriptionData = {};
@@ -480,7 +480,7 @@ function TuteurDashboardContent() {
   // Filtrer les élèves : exclure les refusées de la liste principale
   const elevesActifs = eleves.filter(e => e.statut_demande !== 'Refusée');
   const elevesRefuses = eleves.filter(e => e.statut_demande === 'Refusée');
-  
+
   const filteredEleves = elevesActifs.filter(e => {
     if (inscriptionFilter === 'all') return true;
     if (inscriptionFilter === 'inscrit') return e.statut_demande === 'Inscrit';
@@ -501,94 +501,94 @@ function TuteurDashboardContent() {
 
   return (
     <>
-        {/* Messages de succès et d'erreur */}
-        {successMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center justify-between gap-2 text-green-700 shadow-lg"
-          >
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5" />
-              <span>{successMessage}</span>
-            </div>
-            <button
-              onClick={() => setSuccessMessage('')}
-              className="text-green-600 hover:text-green-800 transition-colors"
-            >
-              <XCircle className="w-5 h-5" />
-            </button>
-          </motion.div>
-        )}
-
-        {errorMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-2 text-red-600 shadow-lg"
-          >
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
-              <span>{errorMessage}</span>
-            </div>
-            <button
-              onClick={() => setErrorMessage('')}
-              className="text-red-600 hover:text-red-800 transition-colors"
-            >
-              <XCircle className="w-5 h-5" />
-            </button>
-          </motion.div>
-        )}
-
-        {/* Header */}
-        <motion.div 
+      {/* Messages de succès et d'erreur */}
+      {successMessage && (
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl p-6 mb-8"
+          exit={{ opacity: 0, y: -20 }}
+          className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center justify-between gap-2 text-green-700 shadow-lg"
         >
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-lime-400 to-lime-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <Users className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">
-                  Bienvenue, {tuteur?.prenom} {tuteur?.nom}
-                </h1>
-                <p className="text-gray-500">{tuteur?.email}</p>
-              </div>
-            </div>
-            
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5" />
+            <span>{successMessage}</span>
           </div>
+          <button
+            onClick={() => setSuccessMessage('')}
+            className="text-green-600 hover:text-green-800 transition-colors"
+          >
+            <XCircle className="w-5 h-5" />
+          </button>
         </motion.div>
+      )}
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <StatCard 
-            title="Mes Enfants" 
-            value={eleves.length} 
-            icon={GraduationCap} 
-            color="lime"
-          />
-          <StatCard 
-            title="En attente" 
-            value={eleves.filter(e => e.statut_demande === 'En cours de traitement' || e.statut_demande === 'En attente').length} 
-            icon={Clock} 
-            color="orange"
-          />
-          <StatCard 
-            title="Inscrits" 
-            value={eleves.filter(e => e.statut_demande === 'Inscrit' || e.statut_demande === 'En attente de paiement').length} 
-            icon={CheckCircle} 
-            color="green"
-          />
+      {errorMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-2 text-red-600 shadow-lg"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            onClick={() => setErrorMessage('')}
+            className="text-red-600 hover:text-red-800 transition-colors"
+          >
+            <XCircle className="w-5 h-5" />
+          </button>
+        </motion.div>
+      )}
+
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-3xl shadow-xl p-6 mb-8"
+      >
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-lime-400 to-lime-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <Users className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">
+                Bienvenue, {tuteur?.prenom} {tuteur?.nom}
+              </h1>
+              <p className="text-gray-500">{tuteur?.email}</p>
+            </div>
+          </div>
+
         </div>
+      </motion.div>
 
-        {/* Content */}
-        {activeTab === 'eleves' && (
-        <motion.div 
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <StatCard
+          title="Mes Enfants"
+          value={eleves.length}
+          icon={GraduationCap}
+          color="lime"
+        />
+        <StatCard
+          title="En attente"
+          value={eleves.filter(e => e.statut_demande === 'En cours de traitement' || e.statut_demande === 'En attente').length}
+          icon={Clock}
+          color="orange"
+        />
+        <StatCard
+          title="Inscrits"
+          value={eleves.filter(e => e.statut_demande === 'Inscrit' || e.statut_demande === 'En attente de paiement').length}
+          icon={CheckCircle}
+          color="green"
+        />
+      </div>
+
+      {/* Content */}
+      {activeTab === 'eleves' && (
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
@@ -613,7 +613,7 @@ function TuteurDashboardContent() {
               </Select>
             </div>
           </div>
-          
+
           {filteredEleves.length === 0 ? (
             <div className="p-12 text-center">
               <GraduationCap className="w-16 h-16 mx-auto text-gray-300 mb-4" />
@@ -640,9 +640,14 @@ function TuteurDashboardContent() {
                         <GraduationCap className="w-7 h-7 text-blue-500" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-800 text-lg">
-                          {eleve.nom} {eleve.prenom}
-                        </h3>
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-semibold text-gray-800 text-lg">
+                            {eleve.nom} {eleve.prenom}
+                          </h3>
+                          <span className={getStatusBadge(eleve.statut_demande)}>
+                            {eleve.statut_demande}
+                          </span>
+                        </div>
                         <div className="flex flex-wrap gap-2 mt-1 text-sm text-gray-500">
                           <span>{eleve.classe}</span>
                           {eleve.adresse && (
@@ -680,12 +685,9 @@ function TuteurDashboardContent() {
                         )}
                       </div>
                     </div>
-                  
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className={getStatusBadge(eleve.statut_demande)}>
-                        {eleve.statut_demande}
-                      </span>
-                      
+
+                    <div className="flex flex-wrap items-center gap-3 mt-4 md:mt-0">
+
                       {/* Bouton Détails - toujours visible */}
                       <Button
                         onClick={(e) => {
@@ -693,16 +695,16 @@ function TuteurDashboardContent() {
                           e.stopPropagation();
                           navigate(`/TuteurEleveDetails?eleveId=${eleve.id}`);
                         }}
-                        className="rounded-xl bg-blue-500 hover:bg-blue-600 text-white border-2 border-blue-600"
+                        className="rounded-xl bg-blue-500 hover:bg-blue-600 text-white border-2 border-blue-600 transition-all active:scale-95 shadow-sm"
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         Détails
                       </Button>
-                      
+
                       {/* Boutons selon le statut */}
                       {(eleve.statut_demande === 'En cours de traitement' || eleve.statut_demande === 'En attente') && (
                         <>
-                          <Link 
+                          <Link
                             to={createPageUrl(`TuteurDemandes${eleve.demande_inscription?.id ? `?demandeId=${eleve.demande_inscription.id}` : ''}`)}
                             onClick={(e) => {
                               // Si pas de demande_id, on peut quand même aller à la page des demandes
@@ -711,7 +713,7 @@ function TuteurDashboardContent() {
                               }
                             }}
                           >
-                            <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
+                            <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600 transition-all active:scale-95 shadow-sm">
                               <Edit className="w-4 h-4 mr-2" />
                               Modifier
                             </Button>
@@ -722,16 +724,16 @@ function TuteurDashboardContent() {
                               e.stopPropagation();
                               handleCancelDemandeClick(eleve);
                             }}
-                            className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
+                            className="rounded-xl bg-red-500 hover:bg-red-600 text-white border-2 border-red-600 transition-all active:scale-95 shadow-sm"
                           >
                             <XCircle className="w-4 h-4 mr-2" />
                             Annuler
                           </Button>
                         </>
                       )}
-                      
+
                       {eleve.statut_demande === 'En attente de paiement' && eleve.demande_inscription?.id && (
-                        <Button 
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedEleveForPayment(eleve);
@@ -745,11 +747,9 @@ function TuteurDashboardContent() {
                           Payer
                         </Button>
                       )}
-                    </div>
-                    
-                    {/* Bouton Désabonnement - Séparé des autres actions */}
-                    {eleve.statut_demande === 'Inscrit' && (
-                      <div className="border-t border-gray-200 pt-3 mt-2 w-full">
+
+                      {/* Bouton Désabonnement - Maintenant intégré au groupe d'actions */}
+                      {eleve.statut_demande === 'Inscrit' && (
                         <Button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -757,27 +757,26 @@ function TuteurDashboardContent() {
                             setShowDesabonnementModal(true);
                             setDesabonnementRaison('');
                           }}
-                          className="w-full rounded-xl text-white border-2 font-semibold"
-                          style={{ backgroundColor: '#E57373', borderColor: '#E57373' }}
-                          onMouseEnter={(e) => e.target.style.backgroundColor = '#EF5350'}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = '#E57373'}
+                          className="rounded-xl text-white border-2 font-semibold bg-red-400 border-red-400 hover:bg-red-500 hover:border-red-500 transition-colors"
                         >
                           <LogOut className="w-4 h-4 mr-2" />
                           Désabonnement
                         </Button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               ))}
             </div>
           )}
-        </motion.div>
-        )}
+        </motion.div >
+      )
+      }
 
-        {/* Content - Historique */}
-        {activeTab === 'historique' && (
-          <motion.div 
+      {/* Content - Historique */}
+      {
+        activeTab === 'historique' && (
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
@@ -790,7 +789,7 @@ function TuteurDashboardContent() {
               </h2>
               <p className="text-gray-500 mt-1">{elevesRefuses.length} demande(s) refusée(s)</p>
             </div>
-            
+
             {elevesRefuses.length === 0 ? (
               <div className="p-12 text-center">
                 <XCircle className="w-16 h-16 mx-auto text-gray-300 mb-4" />
@@ -837,7 +836,7 @@ function TuteurDashboardContent() {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-wrap items-center gap-3">
                         <Button
                           onClick={(e) => {
@@ -856,15 +855,19 @@ function TuteurDashboardContent() {
               </div>
             )}
           </motion.div>
-        )}
+        )
+      }
 
-        {activeTab === 'demandes' && (
+      {
+        activeTab === 'demandes' && (
           <DemandeFormTuteur tuteur={tuteur} eleves={eleves} />
-        )}
+        )
+      }
 
-        {/* Content - Paiements */}
-        {activeTab === 'paiements' && (
-          <motion.div 
+      {/* Content - Paiements */}
+      {
+        activeTab === 'paiements' && (
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
@@ -879,7 +882,7 @@ function TuteurDashboardContent() {
                 Total: {paiements.filter(p => p.statut === 'Payé').reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0).toFixed(2)} DH
               </p>
             </div>
-            
+
             {paiements.length === 0 ? (
               <div className="p-12 text-center">
                 <CreditCard className="w-16 h-16 mx-auto text-gray-300 mb-4" />
@@ -897,12 +900,10 @@ function TuteurDashboardContent() {
                   >
                     <div className="flex flex-col md:flex-row justify-between gap-4">
                       <div className="flex items-start gap-4">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
-                          paiement.type_paiement === 'initial' ? 'bg-blue-100' : 'bg-green-100'
-                        }`}>
-                          <CreditCard className={`w-7 h-7 ${
-                            paiement.type_paiement === 'initial' ? 'text-blue-500' : 'text-green-500'
-                          }`} />
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${paiement.type_paiement === 'initial' ? 'bg-blue-100' : 'bg-green-100'
+                          }`}>
+                          <CreditCard className={`w-7 h-7 ${paiement.type_paiement === 'initial' ? 'text-blue-500' : 'text-green-500'
+                            }`} />
                         </div>
                         <div>
                           <h3 className="font-semibold text-gray-800 text-lg">
@@ -924,24 +925,22 @@ function TuteurDashboardContent() {
                             )}
                           </div>
                           <div className="mt-2 flex gap-2">
-                            <span className={`px-3 py-1 rounded-xl text-xs font-medium ${
-                              paiement.type_paiement === 'initial' 
-                                ? 'bg-blue-100 text-blue-700' 
-                                : 'bg-green-100 text-green-700'
-                            }`}>
+                            <span className={`px-3 py-1 rounded-xl text-xs font-medium ${paiement.type_paiement === 'initial'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-green-100 text-green-700'
+                              }`}>
                               {paiement.type_paiement === 'initial' ? 'Paiement initial' : `Mois ${paiement.mois}/${paiement.annee}`}
                             </span>
-                            <span className={`px-3 py-1 rounded-xl text-xs font-medium border ${
-                              paiement.statut === 'Payé' 
-                                ? 'bg-green-100 text-green-700 border-green-200' 
-                                : 'bg-yellow-100 text-yellow-700 border-yellow-200'
-                            }`}>
+                            <span className={`px-3 py-1 rounded-xl text-xs font-medium border ${paiement.statut === 'Payé'
+                              ? 'bg-green-100 text-green-700 border-green-200'
+                              : 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                              }`}>
                               {paiement.statut}
                             </span>
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center">
                         <span className="text-2xl font-bold text-lime-600">
                           {parseFloat(paiement.montant || 0).toFixed(2)} DH
@@ -953,547 +952,556 @@ function TuteurDashboardContent() {
               </div>
             )}
           </motion.div>
-        )}
+        )
+      }
 
       {/* NotificationPanel retiré - les notifications sont gérées par le sidebar */}
 
       {/* Modal de détails de l'élève */}
-      {showDetailsModal && selectedEleveForDetails && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                  <Eye className="w-6 h-6" />
-                  Détails de {selectedEleveForDetails.prenom} {selectedEleveForDetails.nom}
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowDetailsModal(false);
-                    setSelectedEleveForDetails(null);
-                    setEleveBusInfo(null);
-                    setEleveTrajetInfo(null);
-                    setEleveAbsences([]);
-                  }}
-                  className="text-white hover:text-lime-100 transition-colors"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {loadingDetails ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />
+      {
+        showDetailsModal && selectedEleveForDetails && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                    <Eye className="w-6 h-6" />
+                    Détails de {selectedEleveForDetails.prenom} {selectedEleveForDetails.nom}
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      setSelectedEleveForDetails(null);
+                      setEleveBusInfo(null);
+                      setEleveTrajetInfo(null);
+                      setEleveAbsences([]);
+                    }}
+                    className="text-white hover:text-lime-100 transition-colors"
+                  >
+                    <XCircle className="w-6 h-6" />
+                  </button>
                 </div>
-              ) : (
-                <>
-                  {/* Informations générales */}
-                  <div className="bg-gray-50 rounded-2xl p-4">
-                    <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                      <GraduationCap className="w-5 h-5 text-lime-500" />
-                      Informations générales
-                    </h3>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <span className="text-gray-500">Classe:</span>
-                        <span className="ml-2 font-medium">{selectedEleveForDetails.classe || 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Statut:</span>
-                        <span className={`ml-2 px-2 py-1 rounded-lg text-xs font-medium ${getStatusBadge(selectedEleveForDetails.statut_demande)}`}>
-                          {selectedEleveForDetails.statut_demande}
-                        </span>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {loadingDetails ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Informations générales */}
+                    <div className="bg-gray-50 rounded-2xl p-4">
+                      <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <GraduationCap className="w-5 h-5 text-lime-500" />
+                        Informations générales
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-gray-500">Classe:</span>
+                          <span className="ml-2 font-medium">{selectedEleveForDetails.classe || 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Statut:</span>
+                          <span className={`ml-2 px-2 py-1 rounded-lg text-xs font-medium ${getStatusBadge(selectedEleveForDetails.statut_demande)}`}>
+                            {selectedEleveForDetails.statut_demande}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Informations du bus (si inscrit) */}
-                  {selectedEleveForDetails.inscription && selectedEleveForDetails.inscription.bus_id ? (
-                    <div className="bg-lime-50 rounded-2xl p-4 border border-lime-200">
-                      <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                        <Bus className="w-5 h-5 text-lime-500" />
-                        Informations du bus
-                      </h3>
-                      {eleveBusInfo ? (
-                        <div className="space-y-3">
-                          <div className="bg-white rounded-xl p-4 border border-lime-200">
-                            <p className="text-sm text-lime-600 font-medium mb-1">Bus assigné</p>
-                            <p className="text-2xl font-bold text-gray-800">{eleveBusInfo.numero}</p>
-                            {eleveBusInfo.immatriculation && (
-                              <p className="text-sm text-gray-500">{eleveBusInfo.immatriculation}</p>
-                            )}
-                          </div>
-                          
-                          {eleveBusInfo.marque && (
-                            <div className="flex justify-between py-2 border-b border-gray-200">
-                              <span className="text-gray-600">Marque/Modèle</span>
-                              <span className="font-medium">{eleveBusInfo.marque} {eleveBusInfo.modele || ''}</span>
+                    {/* Informations du bus (si inscrit) */}
+                    {selectedEleveForDetails.inscription && selectedEleveForDetails.inscription.bus_id ? (
+                      <div className="bg-lime-50 rounded-2xl p-4 border border-lime-200">
+                        <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                          <Bus className="w-5 h-5 text-lime-500" />
+                          Informations du bus
+                        </h3>
+                        {eleveBusInfo ? (
+                          <div className="space-y-3">
+                            <div className="bg-white rounded-xl p-4 border border-lime-200">
+                              <p className="text-sm text-lime-600 font-medium mb-1">Bus assigné</p>
+                              <p className="text-2xl font-bold text-gray-800">{eleveBusInfo.numero}</p>
+                              {eleveBusInfo.immatriculation && (
+                                <p className="text-sm text-gray-500">{eleveBusInfo.immatriculation}</p>
+                              )}
                             </div>
-                          )}
-                          
-                          <div className="flex justify-between py-2 border-b border-gray-200">
-                            <span className="text-gray-600">Capacité</span>
-                            <span className="font-medium">{eleveBusInfo.capacite} places</span>
-                          </div>
 
-                          {eleveTrajetInfo && (
-                            <>
+                            {eleveBusInfo.marque && (
                               <div className="flex justify-between py-2 border-b border-gray-200">
-                                <span className="text-gray-600">Trajet</span>
-                                <span className="font-medium">{eleveTrajetInfo.nom}</span>
+                                <span className="text-gray-600">Marque/Modèle</span>
+                                <span className="font-medium">{eleveBusInfo.marque} {eleveBusInfo.modele || ''}</span>
                               </div>
-                              
-                              {eleveTrajetInfo.heure_depart_matin_a && (
-                                <div className="mt-3">
-                                  <p className="text-sm text-gray-600 mb-2">Horaires:</p>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
-                                      <p className="text-xs text-blue-600 font-medium">Matin</p>
-                                      <p className="font-semibold text-gray-800 text-sm">
-                                        {eleveTrajetInfo.heure_depart_matin_a}
-                                      </p>
-                                    </div>
-                                    <div className="bg-orange-50 rounded-xl p-3 border border-orange-200">
-                                      <p className="text-xs text-orange-600 font-medium">Soir</p>
-                                      <p className="font-semibold text-gray-800 text-sm">
-                                        {eleveTrajetInfo.heure_depart_soir_a}
-                                      </p>
+                            )}
+
+                            <div className="flex justify-between py-2 border-b border-gray-200">
+                              <span className="text-gray-600">Capacité</span>
+                              <span className="font-medium">{eleveBusInfo.capacite} places</span>
+                            </div>
+
+                            {eleveTrajetInfo && (
+                              <>
+                                <div className="flex justify-between py-2 border-b border-gray-200">
+                                  <span className="text-gray-600">Trajet</span>
+                                  <span className="font-medium">{eleveTrajetInfo.nom}</span>
+                                </div>
+
+                                {eleveTrajetInfo.heure_depart_matin_a && (
+                                  <div className="mt-3">
+                                    <p className="text-sm text-gray-600 mb-2">Horaires:</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
+                                        <p className="text-xs text-blue-600 font-medium">Matin</p>
+                                        <p className="font-semibold text-gray-800 text-sm">
+                                          {eleveTrajetInfo.heure_depart_matin_a}
+                                        </p>
+                                      </div>
+                                      <div className="bg-orange-50 rounded-xl p-3 border border-orange-200">
+                                        <p className="text-xs text-orange-600 font-medium">Soir</p>
+                                        <p className="font-semibold text-gray-800 text-sm">
+                                          {eleveTrajetInfo.heure_depart_soir_a}
+                                        </p>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 text-sm">Chargement des informations du bus...</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-                      <p className="text-gray-500 text-sm flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4" />
-                        L'élève n'est pas encore assigné à un bus
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Absences */}
-                  <div className="bg-red-50 rounded-2xl p-4 border border-red-200">
-                    <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 text-red-500" />
-                      Absences (30 derniers jours)
-                    </h3>
-                    {eleveAbsences.length > 0 ? (
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {eleveAbsences.map((absence, index) => (
-                          <div key={index} className="bg-white rounded-xl p-3 border border-red-200 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <Calendar className="w-4 h-4 text-red-500" />
-                              <span className="font-medium text-gray-800">
-                                {absence.date ? new Date(absence.date).toLocaleDateString('fr-FR', { 
-                                  weekday: 'long', 
-                                  year: 'numeric', 
-                                  month: 'long', 
-                                  day: 'numeric' 
-                                }) : 'Date inconnue'}
-                              </span>
-                            </div>
-                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium">
-                              Absent
-                            </span>
+                                )}
+                              </>
+                            )}
                           </div>
-                        ))}
+                        ) : (
+                          <p className="text-gray-500 text-sm">Chargement des informations du bus...</p>
+                        )}
                       </div>
                     ) : (
-                      <div className="bg-white rounded-xl p-4 border border-green-200">
-                        <p className="text-green-700 text-sm flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Aucune absence enregistrée sur les 30 derniers jours
+                      <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                        <p className="text-gray-500 text-sm flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          L'élève n'est pas encore assigné à un bus
                         </p>
                       </div>
                     )}
-                  </div>
-                </>
-              )}
-            </div>
-          </motion.div>
-        </div>
-      )}
+
+                    {/* Absences */}
+                    <div className="bg-red-50 rounded-2xl p-4 border border-red-200">
+                      <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-red-500" />
+                        Absences (30 derniers jours)
+                      </h3>
+                      {eleveAbsences.length > 0 ? (
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {eleveAbsences.map((absence, index) => (
+                            <div key={index} className="bg-white rounded-xl p-3 border border-red-200 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <Calendar className="w-4 h-4 text-red-500" />
+                                <span className="font-medium text-gray-800">
+                                  {absence.date ? new Date(absence.date).toLocaleDateString('fr-FR', {
+                                    weekday: 'long',
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  }) : 'Date inconnue'}
+                                </span>
+                              </div>
+                              <span className="px-3 py-1 bg-red-100 text-red-700 rounded-lg text-xs font-medium">
+                                Absent
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-white rounded-xl p-4 border border-green-200">
+                          <p className="text-green-700 text-sm flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Aucune absence enregistrée sur les 30 derniers jours
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )
+      }
 
       {/* Modal de paiement */}
-      {showPaymentModal && selectedEleveForPayment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
-          >
-            <div className="p-6 bg-gradient-to-r from-lime-600 to-lime-600">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                  <CreditCard className="w-6 h-6" />
-                  Paiement
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowPaymentModal(false);
-                    setSelectedEleveForPayment(null);
-                    setPaymentCode('');
-                    setPaymentError('');
-                  }}
-                  className="text-white/80 hover:text-white transition-colors"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6">
-              {/* Informations de la demande */}
-              <div className="bg-lime-50 rounded-xl p-4 mb-6 border border-lime-200">
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Élève:</span>
-                    <span className="font-semibold">{selectedEleveForPayment.prenom} {selectedEleveForPayment.nom}</span>
-                  </div>
-                  {selectedEleveForPayment.demande_inscription?.montant_facture && (
-                    <div className="flex justify-between pt-2 border-t border-lime-200">
-                      <span className="text-gray-700 font-medium">Montant:</span>
-                      <span className="text-lg font-bold text-lime-700">
-                        {parseFloat(selectedEleveForPayment.demande_inscription.montant_facture).toFixed(2)} DH
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Instructions */}
-              <div className="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-200">
-                <p className="text-sm text-blue-800">
-                  <strong>Instructions:</strong> Veuillez consulter l'école pour effectuer le paiement et récupérer le code de vérification à saisir ci-dessous.
-                </p>
-              </div>
-
-              {paymentError && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-600">
-                  <AlertCircle className="w-5 h-5" />
-                  {paymentError}
-                </div>
-              )}
-
-              {/* Formulaire de code */}
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-gray-700 font-semibold mb-2 block">
-                    Code de vérification (fourni par l'école)
-                  </Label>
-                  <Input
-                    value={paymentCode}
-                    onChange={(e) => setPaymentCode(e.target.value.toUpperCase())}
-                    placeholder="Entrez le code de vérification"
-                    className="h-12 rounded-xl text-center text-xl tracking-widest font-mono uppercase"
-                    maxLength={10}
-                    disabled={paymentLoading}
-                    autoFocus
-                  />
-                </div>
-
-                <div className="flex gap-3">
-                  <Button
-                    type="button"
+      {
+        showPaymentModal && selectedEleveForPayment && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              <div className="p-6 bg-gradient-to-r from-lime-600 to-lime-600">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                    <CreditCard className="w-6 h-6" />
+                    Paiement
+                  </h2>
+                  <button
                     onClick={() => {
                       setShowPaymentModal(false);
                       setSelectedEleveForPayment(null);
                       setPaymentCode('');
                       setPaymentError('');
                     }}
-                    className="flex-1 rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
-                    disabled={paymentLoading}
+                    className="text-white/80 hover:text-white transition-colors"
+                  >
+                    <XCircle className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6">
+                {/* Informations de la demande */}
+                <div className="bg-lime-50 rounded-xl p-4 mb-6 border border-lime-200">
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Élève:</span>
+                      <span className="font-semibold">{selectedEleveForPayment.prenom} {selectedEleveForPayment.nom}</span>
+                    </div>
+                    {selectedEleveForPayment.demande_inscription?.montant_facture && (
+                      <div className="flex justify-between pt-2 border-t border-lime-200">
+                        <span className="text-gray-700 font-medium">Montant:</span>
+                        <span className="text-lg font-bold text-lime-700">
+                          {parseFloat(selectedEleveForPayment.demande_inscription.montant_facture).toFixed(2)} DH
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Instructions */}
+                <div className="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    <strong>Instructions:</strong> Veuillez consulter l'école pour effectuer le paiement et récupérer le code de vérification à saisir ci-dessous.
+                  </p>
+                </div>
+
+                {paymentError && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-red-600">
+                    <AlertCircle className="w-5 h-5" />
+                    {paymentError}
+                  </div>
+                )}
+
+                {/* Formulaire de code */}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-gray-700 font-semibold mb-2 block">
+                      Code de vérification (fourni par l'école)
+                    </Label>
+                    <Input
+                      value={paymentCode}
+                      onChange={(e) => setPaymentCode(e.target.value.toUpperCase())}
+                      placeholder="Entrez le code de vérification"
+                      className="h-12 rounded-xl text-center text-xl tracking-widest font-mono uppercase"
+                      maxLength={10}
+                      disabled={paymentLoading}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setShowPaymentModal(false);
+                        setSelectedEleveForPayment(null);
+                        setPaymentCode('');
+                        setPaymentError('');
+                      }}
+                      className="flex-1 rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
+                      disabled={paymentLoading}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      onClick={async (e) => {
+                        // Faire perdre le focus immédiatement après le clic
+                        setTimeout(() => e.currentTarget.blur(), 0);
+
+                        if (!paymentCode || paymentCode.length < 4) {
+                          setPaymentError('Veuillez saisir le code de vérification');
+                          return;
+                        }
+
+                        setPaymentLoading(true);
+                        setPaymentError('');
+
+                        try {
+                          const response = await demandesAPI.verifierCode(
+                            selectedEleveForPayment.demande_inscription.id,
+                            paymentCode
+                          );
+
+                          if (!response.success) {
+                            setPaymentError(response.message || 'Code de vérification incorrect');
+                            setPaymentLoading(false);
+                            return;
+                          }
+
+                          // Succès - fermer la modal et recharger les données
+                          setShowPaymentModal(false);
+                          setSelectedEleveForPayment(null);
+                          setPaymentCode('');
+
+                          // Recharger les données
+                          const tuteurId = tuteur.type_id || tuteur.id;
+                          await loadData(tuteurId, tuteur.id);
+                        } catch (err) {
+                          console.error('Erreur lors de la vérification:', err);
+                          setPaymentError(err.message || 'Erreur lors de la vérification du code. Veuillez réessayer.');
+                        }
+                        setPaymentLoading(false);
+                      }}
+                      disabled={paymentLoading}
+                      className="flex-1 bg-gradient-to-r from-lime-600 to-lime-600 hover:from-lime-700 hover:to-lime-700 text-white rounded-xl font-semibold"
+                    >
+                      {paymentLoading ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle className="w-5 h-5 mr-2" />
+                          Confirmer
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )
+      }
+
+      {/* Modal de désabonnement */}
+      {
+        showDesabonnementModal && selectedEleveForDesabonnement && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden"
+            >
+              <div className="p-6 bg-gradient-to-r from-red-500 to-red-600">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <LogOut className="w-6 h-6" />
+                    Désabonnement
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowDesabonnementModal(false);
+                      setSelectedEleveForDesabonnement(null);
+                      setDesabonnementRaison('');
+                    }}
+                    className="text-white hover:text-red-100 transition-colors"
+                  >
+                    <XCircle className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                // Faire perdre le focus au bouton après la soumission
+                const submitButton = e.target.querySelector('button[type="submit"]');
+                if (submitButton) {
+                  submitButton.blur();
+                }
+                handleDesabonnement();
+              }} className="p-6 space-y-5">
+                {/* Message de confirmation en rouge */}
+                <div className="bg-red-100 rounded-xl p-5 border-2 border-red-400">
+                  <div className="flex items-center gap-3 mb-3">
+                    <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+                    <p className="text-lg font-bold text-red-700">
+                      Êtes-vous sûr de cette opération ?
+                    </p>
+                  </div>
+                  <p className="text-sm text-red-800 ml-9">
+                    Vous êtes sur le point de désabonner <strong>{selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}</strong>.
+                    Cette action est <strong className="underline">irréversible</strong> et supprimera définitivement toutes les données de l'élève.
+                  </p>
+                </div>
+
+                {/* Informations de l'élève */}
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <div className="flex items-center gap-3">
+                    <GraduationCap className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <p className="font-semibold text-gray-800">
+                        {selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {selectedEleveForDesabonnement.classe || 'Classe non spécifiée'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Raison du désabonnement */}
+                <div>
+                  <Label className="block text-sm font-medium text-gray-700 mb-2">
+                    Raison du désabonnement <span className="text-red-500">*</span>
+                  </Label>
+                  <Textarea
+                    value={desabonnementRaison}
+                    onChange={(e) => setDesabonnementRaison(e.target.value)}
+                    className="rounded-xl border-2 border-gray-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 min-h-[120px]"
+                    placeholder="Veuillez indiquer la raison du désabonnement..."
+                    required
+                  />
+                </div>
+
+                {/* Boutons d'action */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setShowDesabonnementModal(false);
+                      setSelectedEleveForDesabonnement(null);
+                      setDesabonnementRaison('');
+                    }}
+                    className="rounded-xl bg-gray-500 hover:bg-gray-600 text-white border-2 border-gray-600 px-6 py-2 font-semibold"
                   >
                     Annuler
                   </Button>
                   <Button
-                    onClick={async (e) => {
-                      // Faire perdre le focus immédiatement après le clic
-                      setTimeout(() => e.currentTarget.blur(), 0);
-                      
-                      if (!paymentCode || paymentCode.length < 4) {
-                        setPaymentError('Veuillez saisir le code de vérification');
-                        return;
-                      }
-
-                      setPaymentLoading(true);
-                      setPaymentError('');
-
-                      try {
-                        const response = await demandesAPI.verifierCode(
-                          selectedEleveForPayment.demande_inscription.id,
-                          paymentCode
-                        );
-
-                        if (!response.success) {
-                          setPaymentError(response.message || 'Code de vérification incorrect');
-                          setPaymentLoading(false);
-                          return;
-                        }
-
-                        // Succès - fermer la modal et recharger les données
-                        setShowPaymentModal(false);
-                        setSelectedEleveForPayment(null);
-                        setPaymentCode('');
-                        
-                        // Recharger les données
-                        const tuteurId = tuteur.type_id || tuteur.id;
-                        await loadData(tuteurId, tuteur.id);
-                      } catch (err) {
-                        console.error('Erreur lors de la vérification:', err);
-                        setPaymentError(err.message || 'Erreur lors de la vérification du code. Veuillez réessayer.');
-                      }
-                      setPaymentLoading(false);
-                    }}
-                    disabled={paymentLoading}
-                    className="flex-1 bg-gradient-to-r from-lime-600 to-lime-600 hover:from-lime-700 hover:to-lime-700 text-white rounded-xl font-semibold"
+                    type="submit"
+                    className="rounded-xl bg-red-600 hover:bg-red-700 text-white border-2 border-red-700 px-6 py-2 font-semibold shadow-lg"
                   >
-                    {paymentLoading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <CheckCircle className="w-5 h-5 mr-2" />
-                        Confirmer
-                      </>
-                    )}
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Valider le désabonnement
                   </Button>
                 </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Modal de désabonnement */}
-      {showDesabonnementModal && selectedEleveForDesabonnement && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden"
-          >
-            <div className="p-6 bg-gradient-to-r from-red-500 to-red-600">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <LogOut className="w-6 h-6" />
-                  Désabonnement
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowDesabonnementModal(false);
-                    setSelectedEleveForDesabonnement(null);
-                    setDesabonnementRaison('');
-                  }}
-                  className="text-white hover:text-red-100 transition-colors"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <form onSubmit={(e) => { 
-              e.preventDefault(); 
-              // Faire perdre le focus au bouton après la soumission
-              const submitButton = e.target.querySelector('button[type="submit"]');
-              if (submitButton) {
-                submitButton.blur();
-              }
-              handleDesabonnement(); 
-            }} className="p-6 space-y-5">
-              {/* Message de confirmation en rouge */}
-              <div className="bg-red-100 rounded-xl p-5 border-2 border-red-400">
-                <div className="flex items-center gap-3 mb-3">
-                  <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
-                  <p className="text-lg font-bold text-red-700">
-                    Êtes-vous sûr de cette opération ?
-                  </p>
-                </div>
-                <p className="text-sm text-red-800 ml-9">
-                  Vous êtes sur le point de désabonner <strong>{selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}</strong>. 
-                  Cette action est <strong className="underline">irréversible</strong> et supprimera définitivement toutes les données de l'élève.
-                </p>
-              </div>
-
-              {/* Informations de l'élève */}
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                <div className="flex items-center gap-3">
-                  <GraduationCap className="w-5 h-5 text-gray-600" />
-                  <div>
-                    <p className="font-semibold text-gray-800">
-                      {selectedEleveForDesabonnement.prenom} {selectedEleveForDesabonnement.nom}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {selectedEleveForDesabonnement.classe || 'Classe non spécifiée'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Raison du désabonnement */}
-              <div>
-                <Label className="block text-sm font-medium text-gray-700 mb-2">
-                  Raison du désabonnement <span className="text-red-500">*</span>
-                </Label>
-                <Textarea
-                  value={desabonnementRaison}
-                  onChange={(e) => setDesabonnementRaison(e.target.value)}
-                  className="rounded-xl border-2 border-gray-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 min-h-[120px]"
-                  placeholder="Veuillez indiquer la raison du désabonnement..."
-                  required
-                />
-              </div>
-
-              {/* Boutons d'action */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setShowDesabonnementModal(false);
-                    setSelectedEleveForDesabonnement(null);
-                    setDesabonnementRaison('');
-                  }}
-                  className="rounded-xl bg-gray-500 hover:bg-gray-600 text-white border-2 border-gray-600 px-6 py-2 font-semibold"
-                >
-                  Annuler
-                </Button>
-                <Button 
-                  type="submit" 
-                  className="rounded-xl bg-red-600 hover:bg-red-700 text-white border-2 border-red-700 px-6 py-2 font-semibold shadow-lg"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Valider le désabonnement
-                </Button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+              </form>
+            </motion.div>
+          </div>
+        )
+      }
 
       {/* Modal de changement */}
-      {showChangementModal && selectedEleveForChangement && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <Repeat className="w-6 h-6" />
-                  Demande de changement
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowChangementModal(false);
-                    setSelectedEleveForChangement(null);
-                    setChangementForm({ zone: '', type_transport: '', abonnement: '' });
-                  }}
-                  className="text-white hover:text-lime-100 transition-colors"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
+      {
+        showChangementModal && selectedEleveForChangement && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6 bg-gradient-to-r from-lime-500 to-lime-600">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Repeat className="w-6 h-6" />
+                    Demande de changement
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowChangementModal(false);
+                      setSelectedEleveForChangement(null);
+                      setChangementForm({ zone: '', type_transport: '', abonnement: '' });
+                    }}
+                    className="text-white hover:text-lime-100 transition-colors"
+                  >
+                    <XCircle className="w-6 h-6" />
+                  </button>
+                </div>
               </div>
-            </div>
-            <form onSubmit={(e) => { 
-              e.preventDefault(); 
-              // Faire perdre le focus au bouton après la soumission
-              const submitButton = e.target.querySelector('button[type="submit"]');
-              if (submitButton) {
-                submitButton.blur();
-              }
-              handleChangementDemande(); 
-            }} className="p-6 space-y-4">
-              <div className="bg-lime-50 rounded-xl p-4 border border-lime-200">
-                <p className="text-sm text-lime-800">
-                  Demande de changement pour <strong>{selectedEleveForChangement.prenom} {selectedEleveForChangement.nom}</strong>.
-                </p>
-                <p className="text-xs text-lime-700 mt-2">Sélectionnez uniquement les éléments que vous souhaitez modifier.</p>
-              </div>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                // Faire perdre le focus au bouton après la soumission
+                const submitButton = e.target.querySelector('button[type="submit"]');
+                if (submitButton) {
+                  submitButton.blur();
+                }
+                handleChangementDemande();
+              }} className="p-6 space-y-4">
+                <div className="bg-lime-50 rounded-xl p-4 border border-lime-200">
+                  <p className="text-sm text-lime-800">
+                    Demande de changement pour <strong>{selectedEleveForChangement.prenom} {selectedEleveForChangement.nom}</strong>.
+                  </p>
+                  <p className="text-xs text-lime-700 mt-2">Sélectionnez uniquement les éléments que vous souhaitez modifier.</p>
+                </div>
 
-              <div>
-                <Label className="block text-sm font-medium text-gray-600 mb-1">Zone géographique</Label>
-                <Select
-                  value={changementForm.zone}
-                  onValueChange={(value) => setChangementForm({ ...changementForm, zone: value })}
-                >
-                  <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-lime-500">
-                    <SelectValue placeholder="Sélectionnez une nouvelle zone (optionnel)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {zones.filter(z => z.actif !== false).map((zone) => (
-                      <SelectItem key={zone.id} value={zone.nom}>{zone.nom}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div>
+                  <Label className="block text-sm font-medium text-gray-600 mb-1">Zone géographique</Label>
+                  <Select
+                    value={changementForm.zone}
+                    onValueChange={(value) => setChangementForm({ ...changementForm, zone: value })}
+                  >
+                    <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-lime-500">
+                      <SelectValue placeholder="Sélectionnez une nouvelle zone (optionnel)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {zones.filter(z => z.actif !== false).map((zone) => (
+                        <SelectItem key={zone.id} value={zone.nom}>{zone.nom}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <Label className="block text-sm font-medium text-gray-600 mb-1">Type de transport</Label>
-                <Select
-                  value={changementForm.type_transport}
-                  onValueChange={(value) => setChangementForm({ ...changementForm, type_transport: value })}
-                >
-                  <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-lime-500">
-                    <SelectValue placeholder="Sélectionnez un nouveau type (optionnel)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Aller-Retour">Aller-Retour</SelectItem>
-                    <SelectItem value="Aller">Aller uniquement</SelectItem>
-                    <SelectItem value="Retour">Retour uniquement</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div>
+                  <Label className="block text-sm font-medium text-gray-600 mb-1">Type de transport</Label>
+                  <Select
+                    value={changementForm.type_transport}
+                    onValueChange={(value) => setChangementForm({ ...changementForm, type_transport: value })}
+                  >
+                    <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-lime-500">
+                      <SelectValue placeholder="Sélectionnez un nouveau type (optionnel)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Aller-Retour">Aller-Retour</SelectItem>
+                      <SelectItem value="Aller">Aller uniquement</SelectItem>
+                      <SelectItem value="Retour">Retour uniquement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <Label className="block text-sm font-medium text-gray-600 mb-1">Type d'abonnement</Label>
-                <Select
-                  value={changementForm.abonnement}
-                  onValueChange={(value) => setChangementForm({ ...changementForm, abonnement: value })}
-                >
-                  <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-lime-500">
-                    <SelectValue placeholder="Sélectionnez un nouveau type d'abonnement (optionnel)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Mensuel">Mensuel</SelectItem>
-                    <SelectItem value="Annuel">Annuel</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div>
+                  <Label className="block text-sm font-medium text-gray-600 mb-1">Type d'abonnement</Label>
+                  <Select
+                    value={changementForm.abonnement}
+                    onValueChange={(value) => setChangementForm({ ...changementForm, abonnement: value })}
+                  >
+                    <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-lime-500">
+                      <SelectValue placeholder="Sélectionnez un nouveau type d'abonnement (optionnel)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Mensuel">Mensuel</SelectItem>
+                      <SelectItem value="Annuel">Annuel</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="flex justify-end gap-3 mt-6">
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setShowChangementModal(false);
-                    setSelectedEleveForChangement(null);
-                    setChangementForm({ zone: '', type_transport: '', abonnement: '' });
-                  }}
-                  className="rounded-xl bg-gray-500 hover:bg-gray-600 text-white border-2 border-gray-600"
-                >
-                  Annuler
-                </Button>
-                <Button type="submit" className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
-                  <Repeat className="w-4 h-4 mr-2" />
-                  Envoyer la demande
-                </Button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+                <div className="flex justify-end gap-3 mt-6">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setShowChangementModal(false);
+                      setSelectedEleveForChangement(null);
+                      setChangementForm({ zone: '', type_transport: '', abonnement: '' });
+                    }}
+                    className="rounded-xl bg-gray-500 hover:bg-gray-600 text-white border-2 border-gray-600"
+                  >
+                    Annuler
+                  </Button>
+                  <Button type="submit" className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
+                    <Repeat className="w-4 h-4 mr-2" />
+                    Envoyer la demande
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )
+      }
 
       {/* Dialog de confirmation de suppression */}
       <ConfirmDialog
@@ -1545,15 +1553,15 @@ function DemandeFormTuteur({ tuteur, eleves }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Faire perdre le focus au bouton après la soumission
     const submitButton = e.target.querySelector('button[type="submit"]');
     if (submitButton) {
       submitButton.blur();
     }
-    
+
     setLoading(true);
-    
+
     try {
       await demandesAPI.create({
         eleve_id: parseInt(formData.eleve_id),
@@ -1565,7 +1573,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
         raisons: formData.raisons,
         statut: 'En attente'
       });
-      
+
       // Notifier l'admin
       await notificationsAPI.create({
         destinataire_id: 1, // ID admin par défaut
@@ -1574,7 +1582,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
         message: `${tuteur.prenom} ${tuteur.nom} a fait une demande de changement d'adresse/zone pour un élève.`,
         type: 'info'
       });
-      
+
       setSuccess(true);
       setFormData({
         eleve_id: '',
@@ -1583,7 +1591,7 @@ function DemandeFormTuteur({ tuteur, eleves }) {
         date_demenagement: '',
         raisons: ''
       });
-      
+
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error('Erreur lors de l\'envoi de la demande:', err);

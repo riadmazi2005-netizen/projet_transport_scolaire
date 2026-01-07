@@ -21,7 +21,7 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  
+
   // Notifier le parent du changement d'état collapsed
   useEffect(() => {
     if (onCollapseChange) {
@@ -39,6 +39,11 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Fermer le menu mobile lors du changement de page
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [location.pathname]);
 
   const menuItems = [
     {
@@ -95,7 +100,7 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
       }
       return;
     }
-    
+
     // Sinon, utiliser le système d'onglets existant
     if (setActiveTab) {
       setActiveTab(item.id);
@@ -125,7 +130,7 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
         }}
         className="fixed top-4 left-4 z-50 p-2.5 bg-green-500 text-white rounded-xl shadow-lg hover:bg-green-600 transition-colors"
       >
-        {(!isMobileOpen && isCollapsed) ? <Menu className="w-5 h-5" /> : <X className="w-5 h-5" />}
+        {(isMobileOpen || (typeof window !== 'undefined' && window.innerWidth >= 1024 && !isCollapsed)) ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
       {/* Overlay pour mobile */}
@@ -178,7 +183,7 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
             </div>
           </motion.div>
         )}
-        
+
         {isCollapsed && chauffeur && (
           <div className="mt-16 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md mx-auto">
             {chauffeur.prenom?.[0] || chauffeur.nom?.[0] || 'C'}
@@ -194,7 +199,7 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
               const isAccidents = item.id === 'accidents';
               const isNotifications = item.id === 'notifications';
               const isActiveLink = isNotifications && location.pathname === '/ChauffeurNotifications';
-              
+
               return (
                 <motion.button
                   key={item.id || 'dashboard'}

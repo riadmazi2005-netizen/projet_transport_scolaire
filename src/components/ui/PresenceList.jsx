@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-export default function PresenceList({ 
-  eleves, 
-  presences, 
-  onTogglePresence, 
+export default function PresenceList({
+  eleves,
+  presences,
+  onTogglePresence,
   selectedDate,
   onDateChange,
   readOnly = false,
@@ -26,15 +26,22 @@ export default function PresenceList({
 
   const [groupFilter, setGroupFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  // La période est toujours la période actuelle détectée automatiquement
-  const periodeFilter = getCurrentPeriod();
+  const [periodeType, setPeriodeType] = useState('auto'); // 'auto', 'matin', 'soir'
+
+  // Déterminer la période effective
+  const getEffectivePeriod = () => {
+    if (periodeType !== 'auto') return periodeType;
+    return getCurrentPeriod();
+  };
+
+  const periodeFilter = getEffectivePeriod();
   const [markingPresence, setMarkingPresence] = useState(new Set()); // Pour suivre les élèves en cours de marquage
   const [markingAbsence, setMarkingAbsence] = useState(new Set()); // Pour suivre les élèves en cours de marquage d'absence
   const [sentMessages, setSentMessages] = useState(new Set()); // Pour suivre les élèves pour qui un message a été envoyé
 
   const getPresenceStatus = (eleveId) => {
-    const presence = presences.find(p => 
-      p.eleve_id === eleveId && 
+    const presence = presences.find(p =>
+      p.eleve_id === eleveId &&
       p.date === selectedDate
     );
     if (!presence) return { matin: null, soir: null, hasRecord: false };
@@ -48,48 +55,30 @@ export default function PresenceList({
   // Filtrer les élèves : exclure ceux qui sont marqués comme présents (pour qu'ils disparaissent de la liste)
   // ET exclure ceux pour qui un message d'absence a été envoyé
   const filteredEleves = eleves.filter(eleve => {
-    // Exclure si un message a été envoyé pour cet élève
-    if (sentMessages.has(eleve.id)) {
-      return false;
-    }
-    
     const matchGroup = groupFilter === 'all' || eleve.groupe === groupFilter;
     const matchSearch = eleve.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                       eleve.prenom.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (!matchGroup || !matchSearch) {
-      return false;
-    }
-    
-    // Vérifier le statut de présence
+      eleve.prenom.toLowerCase().includes(searchTerm.toLowerCase());
+
     const status = getPresenceStatus(eleve.id);
-    
-    // Afficher l'élève si :
-    // - Il n'a pas de présence enregistrée pour cette date (pas encore marqué)
-    // - Il est marqué comme absent (isPresent === false)
-    // Ne pas afficher si : isPresent === true (explicitement marqué présent)
-    if (!status.hasRecord) {
-      // Pas de présence enregistrée, afficher l'élève
-      return true;
-    } else {
-      // Présence enregistrée, vérifier le statut pour la période sélectionnée
-      const isPresent = periodeFilter === 'matin' ? status.matin : status.soir;
-      // Afficher seulement si absent (pas présent)
-      return !isPresent;
-    }
+    const isPresent = periodeFilter === 'matin' ? status.matin : status.soir;
+
+    // Un élève est "fait" si isPresent n'est ni null ni undefined
+    const isProcessed = isPresent !== null && isPresent !== undefined;
+
+    return matchGroup && matchSearch && !isProcessed;
   });
 
   const handlePresence = async (eleveId) => {
     if (readOnly) return;
-    
+
     // Ajouter l'élève à la liste des élèves en cours de marquage pour l'effet visuel
     setMarkingPresence(prev => new Set(prev).add(eleveId));
-    
+
     // Attendre un peu pour montrer l'effet vert avant de marquer la présence
     setTimeout(async () => {
       const newValue = true; // Marquer comme présent
       await onTogglePresence(eleveId, periodeFilter, newValue);
-      
+
       // Retirer l'élève de la liste après un court délai pour l'animation de sortie
       setTimeout(() => {
         setMarkingPresence(prev => {
@@ -103,22 +92,22 @@ export default function PresenceList({
 
   const handleAbsence = async (eleveId) => {
     if (readOnly) return;
-    
+
     // Trouver l'élève
     const eleve = eleves.find(e => e.id === eleveId);
     if (!eleve) return;
-    
+
     // Ajouter l'élève à la liste des élèves en cours de marquage d'absence pour l'effet visuel
     setMarkingAbsence(prev => new Set(prev).add(eleveId));
-    
+
     // Attendre un peu pour montrer l'effet rouge avant de marquer l'absence
     setTimeout(async () => {
       const newValue = false; // Marquer comme absent
       await onTogglePresence(eleveId, periodeFilter, newValue);
-      
+
       // Marquer que l'élève doit disparaître de la liste
       setSentMessages(prev => new Set(prev).add(eleveId));
-      
+
       // Retirer l'élève de la liste après un court délai et rediriger vers communication
       setTimeout(() => {
         setMarkingAbsence(prev => {
@@ -126,7 +115,7 @@ export default function PresenceList({
           newSet.delete(eleveId);
           return newSet;
         });
-        
+
         // Rediriger vers le formulaire de communication
         if (onNotifyAbsence) {
           onNotifyAbsence(eleve, periodeFilter);
@@ -145,8 +134,8 @@ export default function PresenceList({
             Gestion des Présences
           </h3>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Input
             placeholder="Rechercher un élève..."
             value={searchTerm}
@@ -162,6 +151,17 @@ export default function PresenceList({
               <SelectItem value="all">Tous les groupes</SelectItem>
               <SelectItem value="A">Groupe A</SelectItem>
               <SelectItem value="B">Groupe B</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={periodeType} onValueChange={setPeriodeType}>
+            <SelectTrigger className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500">
+              <SelectValue placeholder="Période" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Période actuelle (Auto)</SelectItem>
+              <SelectItem value="matin">Matin</SelectItem>
+              <SelectItem value="soir">Soir</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -184,13 +184,13 @@ export default function PresenceList({
               const isMarking = markingPresence.has(eleve.id);
               const isMarkingAbsent = markingAbsence.has(eleve.id);
               const hasSentMessage = sentMessages.has(eleve.id);
-              
+
               // Déterminer la couleur de fond et bordure selon l'état
               let bgColor = 'white';
               let borderColor = 'rgb(243 244 246)'; // border-gray-100
               let avatarBg = eleve.sexe === 'Masculin' ? 'bg-purple-100' : 'bg-pink-100';
               let avatarIcon = <User className={`w-6 h-6 ${eleve.sexe === 'Masculin' ? 'text-purple-500' : 'text-pink-500'}`} />;
-              
+
               if (isMarking) {
                 bgColor = 'rgb(220 252 231)'; // bg-green-100
                 borderColor = 'rgb(34 197 94)'; // border-green-500
@@ -218,37 +218,36 @@ export default function PresenceList({
                   </motion.div>
                 );
               }
-              
+
               return (
                 <motion.div
                   key={eleve.id}
                   initial={{ opacity: 0, x: -20 }}
-                  animate={{ 
-                    opacity: (isMarking || isMarkingAbsent) ? 0.7 : 1, 
+                  animate={{
+                    opacity: (isMarking || isMarkingAbsent) ? 0.7 : 1,
                     x: 0,
                     backgroundColor: bgColor,
                     borderColor: borderColor
                   }}
-                  exit={{ 
-                    opacity: 0, 
-                    x: 20, 
+                  exit={{
+                    opacity: 0,
+                    x: 20,
                     scale: 0.9,
                     backgroundColor: isMarking ? 'rgb(220 252 231)' : 'rgb(254 242 242)' // Sortie en vert ou rouge
                   }}
                   transition={{ duration: 0.3 }}
-                  className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
-                    isMarking 
-                      ? 'bg-green-100 border-green-500' 
-                      : isMarkingAbsent
+                  className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isMarking
+                    ? 'bg-green-100 border-green-500'
+                    : isMarkingAbsent
                       ? 'bg-red-100 border-red-500'
                       : 'bg-white border-gray-100 hover:border-gray-200'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${avatarBg}`}>
                       {avatarIcon}
                     </div>
-                    
+
                     <div>
                       <h4 className="font-semibold text-gray-800">
                         {eleve.nom} {eleve.prenom}
@@ -262,34 +261,42 @@ export default function PresenceList({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* Bouton Présence (✓ vert) */}
-                    <motion.button
-                      onClick={() => handlePresence(eleve.id)}
-                      disabled={readOnly || isMarking}
-                      whileHover={!readOnly && !isMarking ? { scale: 1.1 } : {}}
-                      whileTap={!readOnly && !isMarking ? { scale: 0.95 } : {}}
-                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
-                        readOnly || isMarking ? 'cursor-default opacity-50' : 'cursor-pointer'
-                      } bg-green-500 text-white shadow-lg shadow-green-200 hover:bg-green-600`}
-                      title="Marquer comme présent"
-                    >
-                      <Check className="w-6 h-6" strokeWidth={3} />
-                    </motion.button>
+                  <div className="flex items-center gap-3">
+                    {(() => {
+                      const status = getPresenceStatus(eleve.id);
+                      const isPresent = periodeFilter === 'matin' ? status.matin : status.soir;
 
-                    {/* Bouton Absence (✗ rouge) */}
-                    <motion.button
-                      onClick={() => handleAbsence(eleve.id)}
-                      disabled={readOnly || isMarking || isMarkingAbsent}
-                      whileHover={!readOnly && !isMarking && !isMarkingAbsent ? { scale: 1.1 } : {}}
-                      whileTap={!readOnly && !isMarking && !isMarkingAbsent ? { scale: 0.95 } : {}}
-                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
-                        readOnly || isMarking || isMarkingAbsent ? 'cursor-default opacity-50' : 'cursor-pointer'
-                      } bg-red-500 text-white shadow-lg shadow-red-200 hover:bg-red-600`}
-                      title="Marquer comme absent et envoyer un message"
-                    >
-                      <X className="w-6 h-6" strokeWidth={3} />
-                    </motion.button>
+                      const isTrulyPresent = isPresent === true || isPresent === 1 || isPresent === '1';
+                      const isTrulyAbsent = isPresent === false || isPresent === 0 || isPresent === '0';
+
+                      return (
+                        <>
+                          <motion.button
+                            onClick={() => handlePresence(eleve.id)}
+                            disabled={readOnly || isMarking}
+                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border-2 ${isTrulyPresent
+                              ? 'bg-green-500 border-green-600 text-white'
+                              : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-green-300 hover:text-green-500'
+                              } ${readOnly || isMarking ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-90'}`}
+                            title="Marquer comme présent"
+                          >
+                            <Check className="w-6 h-6" strokeWidth={3} />
+                          </motion.button>
+
+                          <motion.button
+                            onClick={() => handleAbsence(eleve.id)}
+                            disabled={readOnly || isMarking || isMarkingAbsent}
+                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm border-2 ${isTrulyAbsent
+                              ? 'bg-red-500 border-red-600 text-white'
+                              : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-red-300 hover:text-red-500'
+                              } ${readOnly || isMarking || isMarkingAbsent ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-90'}`}
+                            title="Marquer comme absent"
+                          >
+                            <X className="w-6 h-6" strokeWidth={3} />
+                          </motion.button>
+                        </>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               );
@@ -300,13 +307,10 @@ export default function PresenceList({
         {filteredEleves.length === 0 && eleves.length > 0 && (
           <div className="text-center py-12 text-gray-400">
             <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p className="mb-2">Tous les élèves sont marqués comme présents pour cette période</p>
-            <p className="text-sm text-gray-400">
-              ({eleves.length} élève{eleves.length > 1 ? 's' : ''} présent{eleves.length > 1 ? 's' : ''})
-            </p>
+            <p className="mb-2">Aucun élève ne correspond à votre recherche</p>
           </div>
         )}
-        
+
         {eleves.length === 0 && (
           <div className="text-center py-12 text-gray-400">
             <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -322,7 +326,8 @@ export default function PresenceList({
             <p className="text-2xl font-bold text-green-600">
               {eleves.filter(e => {
                 const s = getPresenceStatus(e.id);
-                return s.hasRecord && (periodeFilter === 'matin' ? s.matin : s.soir);
+                const val = periodeFilter === 'matin' ? s.matin : s.soir;
+                return val === true || val === 1 || val === '1';
               }).length}
             </p>
             <p className="text-sm text-gray-500">Présents</p>
@@ -332,15 +337,22 @@ export default function PresenceList({
             <p className="text-2xl font-bold text-red-500">
               {eleves.filter(e => {
                 const s = getPresenceStatus(e.id);
-                return s.hasRecord && (periodeFilter === 'matin' ? !s.matin : !s.soir);
+                const val = periodeFilter === 'matin' ? s.matin : s.soir;
+                return val === false || val === 0 || val === '0';
               }).length}
             </p>
             <p className="text-sm text-gray-500">Absents</p>
           </div>
           <div className="w-px bg-gray-200" />
           <div>
-            <p className="text-2xl font-bold text-gray-700">{eleves.length}</p>
-            <p className="text-sm text-gray-500">Total</p>
+            <p className="text-2xl font-bold text-blue-500">
+              {eleves.filter(e => {
+                const s = getPresenceStatus(e.id);
+                const val = periodeFilter === 'matin' ? s.matin : s.soir;
+                return val === null || val === undefined;
+              }).length}
+            </p>
+            <p className="text-sm text-gray-500">À faire</p>
           </div>
         </div>
       </div>

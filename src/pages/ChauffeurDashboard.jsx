@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { 
-  chauffeursAPI, 
-  busAPI, 
-  trajetsAPI, 
-  responsablesAPI, 
-  elevesAPI, 
-  presencesAPI, 
-  accidentsAPI, 
+import {
+  chauffeursAPI,
+  busAPI,
+  trajetsAPI,
+  responsablesAPI,
+  elevesAPI,
+  presencesAPI,
+  accidentsAPI,
   notificationsAPI,
   demandesAPI,
   essenceAPI,
@@ -27,7 +27,6 @@ import {
   Navigation, User, CheckCircle, Calendar, MapPin, Plus, X, Search,
   Fuel, FileText, ClipboardCheck, Wrench, Clock, TrendingUp, Building2, AlertTriangle, Image as ImageIcon, Trash2, ZoomIn, UserCircle, Save, Edit, ArrowLeft, Home
 } from 'lucide-react';
-import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
 import { format, startOfMonth, subMonths, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -63,7 +62,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
     nombre_blesses: '0'
   });
   const [accidentPhotos, setAccidentPhotos] = useState([]);
-  
+
   // États pour les nouvelles fonctionnalités
   const [showEssenceForm, setShowEssenceForm] = useState(false);
   const [showRapportForm, setShowRapportForm] = useState(false);
@@ -81,7 +80,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
   const [essenceTicketPhoto, setEssenceTicketPhoto] = useState(null);
   const [selectedEssenceTicketPhoto, setSelectedEssenceTicketPhoto] = useState(null);
   const [signalementToDelete, setSignalementToDelete] = useState(null);
-  
+
   // État pour le formulaire de profil
   const [profileForm, setProfileForm] = useState({
     nom: '',
@@ -89,7 +88,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
     email: '',
     telephone: ''
   });
-  
+
   // Initialiser le formulaire de profil quand chauffeur est chargé
   useEffect(() => {
     if (chauffeur) {
@@ -101,11 +100,11 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       });
     }
   }, [chauffeur]);
-  
+
   // États pour les notifications toast
   const [toastMessage, setToastMessage] = useState(null);
   const [toastType, setToastType] = useState('success'); // 'success', 'error', 'info'
-  
+
   // Fonction pour afficher un toast
   const showToast = (message, type = 'success') => {
     setToastMessage(message);
@@ -114,7 +113,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       setToastMessage(null);
     }, 4000); // Disparaît après 4 secondes
   };
-  
+
   // Formulaires
   const [essenceForm, setEssenceForm] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -123,7 +122,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
     prix_total: '',
     station_service: ''
   });
-  
+
   const [rapportForm, setRapportForm] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     periode: 'matin',
@@ -134,7 +133,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
     problemes: '',
     observations: ''
   });
-  
+
   const [checklistForm, setChecklistForm] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     periode: 'matin',
@@ -146,7 +145,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
     trousse_secours: false,
     autres_verifications: ''
   });
-  
+
   const [signalementForm, setSignalementForm] = useState({
     type_probleme: 'mecanique',
     description: '',
@@ -203,12 +202,12 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       navigate(createPageUrl('ChauffeurLogin'));
       return;
     }
-    
+
     const chauffeurData = JSON.parse(session);
     setChauffeur(chauffeurData);
     loadData(chauffeurData);
   }, [navigate]);
-  
+
   // Vérifier si le chauffeur est licencié (3 accidents ou plus)
   const isLicencie = chauffeur?.nombre_accidents >= 3 || accidents.length >= 3;
 
@@ -227,17 +226,17 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
           console.warn('Erreur chargement données chauffeur:', err);
         }
       }
-      
+
       // Récupérer tous les bus
       // Utiliser type_id (ID dans la table chauffeurs) au lieu de id (ID utilisateur)
       const allBusesResponse = await busAPI.getAll();
       const allBuses = allBusesResponse?.data || allBusesResponse || [];
       const chauffeurId = chauffeurData.type_id || chauffeurData.id;
       const chauffeurBus = allBuses.find(b => b.chauffeur_id === chauffeurId);
-      
+
       if (chauffeurBus) {
         setBus(chauffeurBus);
-        
+
         // Charger le trajet
         if (chauffeurBus.trajet_id) {
           try {
@@ -248,7 +247,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
             console.error('Erreur chargement trajet:', err);
           }
         }
-        
+
         // Charger le responsable
         if (chauffeurBus.responsable_id) {
           try {
@@ -259,7 +258,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
             console.error('Erreur chargement responsable:', err);
           }
         }
-        
+
         // Charger les élèves du bus
         try {
           const elevesResponse = await elevesAPI.getByBus(chauffeurBus.id);
@@ -269,13 +268,13 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
           console.error('Erreur chargement élèves:', err);
         }
       }
-      
+
       // Charger les accidents du chauffeur
       try {
         const accidentsData = await accidentsAPI.getByChauffeur(chauffeurId);
         const accidentsList = accidentsData?.data || accidentsData || [];
         setAccidents(accidentsList);
-        
+
         // Vérifier si le chauffeur a 3 accidents ou plus et bloquer l'accès
         if (accidentsList.length >= 3) {
           // Le chauffeur est licencié, on ne fait rien de plus ici car l'alerte sera affichée
@@ -283,7 +282,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       } catch (err) {
         console.error('Erreur chargement accidents:', err);
       }
-      
+
       // Charger les présences (pour la date sélectionnée)
       try {
         const presencesData = await presencesAPI.getByDate(selectedDate);
@@ -291,7 +290,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       } catch (err) {
         console.error('Erreur chargement présences:', err);
       }
-      
+
       // Charger les notifications
       try {
         const notificationsResponse = await notificationsAPI.getByUser(chauffeurId, 'chauffeur');
@@ -300,7 +299,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       } catch (err) {
         console.error('Erreur chargement notifications:', err);
       }
-      
+
       // Charger les prises d'essence
       try {
         const essenceResponse = await essenceAPI.getByChauffeur(chauffeurId);
@@ -318,7 +317,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       } catch (err) {
         console.error('Erreur chargement essence:', err);
       }
-      
+
       // Charger les rapports de trajet
       try {
         const rapportsResponse = await rapportsAPI.getByChauffeur(chauffeurId);
@@ -327,7 +326,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       } catch (err) {
         console.error('Erreur chargement rapports:', err);
       }
-      
+
       // Charger les signalements
       try {
         const signalementsResponse = await signalementsAPI.getByChauffeur(chauffeurId);
@@ -386,12 +385,12 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
           color: rgb(22 101 52) !important;
         }
       `}</style>
-    <div className="chauffeur-dashboard">
+      <div className="chauffeur-dashboard">
         {/* Content - Dashboard par défaut (stats seulement) */}
         {activeTab === null && (
           <>
             {/* Header - Bienvenue */}
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded-3xl shadow-xl p-6 mb-8"
@@ -432,10 +431,10 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <StatCard 
-                title="Mon Bus" 
-                value={bus?.numero || '-'} 
-                icon={Bus} 
+              <StatCard
+                title="Mon Bus"
+                value={bus?.numero || '-'}
+                icon={Bus}
                 color="green"
               />
               {(() => {
@@ -447,81 +446,81 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 const totalLitres = essenceCeMois.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0);
                 const totalCout = essenceCeMois.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0);
                 const nbPrises = essenceCeMois.length;
-                
+
                 return (
-                  <StatCard 
-                    title="Essence (ce mois)" 
+                  <StatCard
+                    title="Essence (ce mois)"
                     value={`${totalLitres.toFixed(1)} L`}
                     subtitle={nbPrises > 0 ? `${nbPrises} prise${nbPrises > 1 ? 's' : ''} • ${totalCout.toFixed(2)} DH` : 'Aucune prise'}
-                    icon={Fuel} 
+                    icon={Fuel}
                     color="green"
                   />
                 );
               })()}
-              <StatCard 
-                title="Mes Accidents" 
-                value={`${chauffeur?.nombre_accidents || 0} / 3`} 
-                icon={AlertCircle} 
+              <StatCard
+                title="Mes Accidents"
+                value={`${chauffeur?.nombre_accidents || 0} / 3`}
+                icon={AlertCircle}
                 color={chauffeur?.nombre_accidents >= 2 ? 'red' : 'green'}
               />
-              <StatCard 
-                title="Mon Salaire" 
-                value={`${chauffeur?.salaire || 0} DH`} 
-                icon={DollarSign} 
+              <StatCard
+                title="Mon Salaire"
+                value={`${chauffeur?.salaire || 0} DH`}
+                icon={DollarSign}
                 color="green"
               />
             </div>
-            
+
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded-3xl shadow-xl p-8"
             >
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-              <Bus className="w-6 h-6 text-green-500" />
-              Vue d'ensemble
-            </h2>
-            {bus && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6">
-                  <h3 className="text-lg font-semibold text-green-800 mb-4">Informations du Bus</h3>
-                  <div className="space-y-4">
-                    <div className="flex flex-col">
-                      <span className="text-sm text-gray-600 mb-1">Numéro</span>
-                      <span className="text-2xl font-bold text-green-700">{bus.numero}</span>
-                    </div>
-                    {trajet && (
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <Bus className="w-6 h-6 text-green-500" />
+                Vue d'ensemble
+              </h2>
+              {bus && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6">
+                    <h3 className="text-lg font-semibold text-green-800 mb-4">Informations du Bus</h3>
+                    <div className="space-y-4">
                       <div className="flex flex-col">
-                        <span className="text-sm text-gray-600 mb-1">Trajet</span>
-                        <span className="text-lg font-semibold text-gray-800">{trajet.nom || 'N/A'}</span>
+                        <span className="text-sm text-gray-600 mb-1">Numéro</span>
+                        <span className="text-2xl font-bold text-green-700">{bus.numero}</span>
                       </div>
-                    )}
-                  </div>
-                </div>
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6 md:col-span-2">
-                  <h3 className="text-lg font-semibold text-green-800 mb-4">Informations Personnelles</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex flex-col">
-                      <span className="text-sm text-gray-600 mb-1">Nom complet</span>
-                      <span className="font-semibold text-gray-800">{chauffeur?.prenom} {chauffeur?.nom}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm text-gray-600 mb-1">Email</span>
-                      <span className="font-semibold text-gray-800">{chauffeur?.email}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm text-gray-600 mb-1">Téléphone</span>
-                      <span className="font-semibold text-gray-800">{chauffeur?.telephone}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-sm text-gray-600 mb-1">Salaire</span>
-                      <span className="font-semibold text-green-600 text-lg">{chauffeur?.salaire || 0} DH</span>
+                      {trajet && (
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-600 mb-1">Trajet</span>
+                          <span className="text-lg font-semibold text-gray-800">{trajet.nom || 'N/A'}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-6 md:col-span-2">
+                    <h3 className="text-lg font-semibold text-green-800 mb-4">Informations Personnelles</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-600 mb-1">Nom complet</span>
+                        <span className="font-semibold text-gray-800">{chauffeur?.prenom} {chauffeur?.nom}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-600 mb-1">Email</span>
+                        <span className="font-semibold text-gray-800">{chauffeur?.email}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-600 mb-1">Téléphone</span>
+                        <span className="font-semibold text-gray-800">{chauffeur?.telephone}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-600 mb-1">Salaire</span>
+                        <span className="font-semibold text-green-600 text-lg">{chauffeur?.salaire || 0} DH</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
-          </motion.div>
+              )}
+            </motion.div>
           </>
         )}
 
@@ -560,7 +559,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   showToast('Erreur: ID chauffeur non trouvé', 'error');
                   return;
                 }
-                
+
                 const chauffeurId = chauffeur?.id || chauffeur?.type_id;
                 const updateData = {
                   nom: profileForm.nom,
@@ -568,18 +567,18 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   email: profileForm.email,
                   telephone: profileForm.telephone
                 };
-                
+
                 const response = await chauffeursAPI.update(chauffeurId, updateData);
-                
+
                 // Récupérer les données mises à jour depuis l'API
                 const updatedChauffeurResponse = await chauffeursAPI.getById(chauffeurId);
                 const updatedChauffeur = updatedChauffeurResponse?.data || updatedChauffeurResponse || {};
-                
+
                 // Mettre à jour l'état local
                 const session = localStorage.getItem('chauffeur_session');
                 if (session) {
                   const chauffeurData = JSON.parse(session);
-                  
+
                   // Mettre à jour le localStorage avec les nouvelles données
                   const updatedSession = {
                     ...chauffeurData,
@@ -589,17 +588,17 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                     id: chauffeurData.id || updatedChauffeur.id
                   };
                   localStorage.setItem('chauffeur_session', JSON.stringify(updatedSession));
-                  
+
                   // Mettre à jour l'état local
                   setChauffeur(updatedSession);
-                  
+
                   // Recharger toutes les données
                   await loadData(updatedSession);
-                  
+
                   // Déclencher un événement pour notifier ChauffeurLayout
                   window.dispatchEvent(new CustomEvent('chauffeur_session_updated'));
                 }
-                
+
                 showToast('Profil mis à jour avec succès', 'success');
               } catch (err) {
                 console.error('Erreur mise à jour profil:', err);
@@ -611,46 +610,46 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 <Input
                   id="nom"
                   value={profileForm.nom}
-                  onChange={(e) => setProfileForm({...profileForm, nom: e.target.value})}
+                  onChange={(e) => setProfileForm({ ...profileForm, nom: e.target.value })}
                   className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                   required
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="prenom">Prénom</Label>
                 <Input
                   id="prenom"
                   value={profileForm.prenom}
-                  onChange={(e) => setProfileForm({...profileForm, prenom: e.target.value})}
+                  onChange={(e) => setProfileForm({ ...profileForm, prenom: e.target.value })}
                   className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                   required
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
                   value={profileForm.email}
-                  onChange={(e) => setProfileForm({...profileForm, email: e.target.value})}
+                  onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                   className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                   required
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="telephone">Téléphone</Label>
                 <Input
                   id="telephone"
                   value={profileForm.telephone}
-                  onChange={(e) => setProfileForm({...profileForm, telephone: e.target.value})}
+                  onChange={(e) => setProfileForm({ ...profileForm, telephone: e.target.value })}
                   className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                   required
                 />
               </div>
-              
+
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl py-6 text-lg font-semibold shadow-lg flex items-center justify-center gap-3"
@@ -678,117 +677,116 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-3xl shadow-xl p-6">
-              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Bus className="w-5 h-5 text-green-500" />
-                Mon Bus
-              </h2>
-              {bus ? (
-                <div className="space-y-4">
-                  <div className="bg-green-50 rounded-2xl p-6 text-center">
-                    <p className="text-5xl font-bold text-green-600">{bus.numero}</p>
-                    <p className="text-gray-500 mt-2">{bus.marque} {bus.modele}</p>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Capacité</span>
-                      <span className="font-medium">{bus.capacite} places</span>
+              <div className="bg-white rounded-3xl shadow-xl p-6">
+                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Bus className="w-5 h-5 text-green-500" />
+                  Mon Bus
+                </h2>
+                {bus ? (
+                  <div className="space-y-4">
+                    <div className="bg-green-50 rounded-2xl p-6 text-center">
+                      <p className="text-5xl font-bold text-green-600">{bus.numero}</p>
+                      <p className="text-gray-500 mt-2">{bus.marque} {bus.modele}</p>
                     </div>
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-gray-500">Places occupées</span>
-                      <span className="font-medium">{eleves.length}</span>
-                    </div>
-                    <div className="flex justify-between py-2">
-                      <span className="text-gray-500">Statut</span>
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        bus.statut === 'Actif' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
-                        {bus.statut}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-center text-gray-400 py-8">Aucun bus assigné</p>
-              )}
-            </div>
-
-            <div className="bg-white rounded-3xl shadow-xl p-6">
-              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Navigation className="w-5 h-5 text-green-500" />
-                Mon Trajet
-              </h2>
-              {trajet ? (
-                <div className="space-y-4">
-                  <div className="bg-blue-50 rounded-2xl p-4">
-                    <p className="text-sm text-blue-600 font-medium">Trajet</p>
-                    <p className="text-xl font-bold text-gray-800">{trajet.nom}</p>
-                  </div>
-                  
-                  {trajet.zones && (
-                    <div>
-                      <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
-                        <MapPin className="w-4 h-4" />
-                        Zones desservies
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {(Array.isArray(trajet.zones) ? trajet.zones : JSON.parse(trajet.zones || '[]')).map((zone, i) => (
-                          <span key={i} className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                            {zone}
-                          </span>
-                        ))}
+                    <div className="space-y-3">
+                      <div className="flex justify-between py-2 border-b">
+                        <span className="text-gray-500">Capacité</span>
+                        <span className="font-medium">{bus.capacite} places</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b">
+                        <span className="text-gray-500">Places occupées</span>
+                        <span className="font-medium">{eleves.length}</span>
+                      </div>
+                      <div className="flex justify-between py-2">
+                        <span className="text-gray-500">Statut</span>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${bus.statut === 'Actif' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                          {bus.statut}
+                        </span>
                       </div>
                     </div>
-                  )}
-                  
-                  <div className="grid grid-cols-2 gap-3 mt-4">
-                    <div className="bg-green-50 rounded-xl p-3">
-                      <p className="text-xs text-green-600 font-medium">Groupe A - Matin</p>
-                      <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_a} - {trajet.heure_arrivee_matin_a}</p>
-                    </div>
-                    <div className="bg-green-50 rounded-xl p-3">
-                      <p className="text-xs text-green-600 font-medium">Groupe A - Soir</p>
-                      <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_a} - {trajet.heure_arrivee_soir_a}</p>
-                    </div>
-                    <div className="bg-blue-50 rounded-xl p-3">
-                      <p className="text-xs text-blue-600 font-medium">Groupe B - Matin</p>
-                      <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_b} - {trajet.heure_arrivee_matin_b}</p>
-                    </div>
-                    <div className="bg-green-50 rounded-xl p-3">
-                      <p className="text-xs text-green-600 font-medium">Groupe B - Soir</p>
-                      <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_b} - {trajet.heure_arrivee_soir_b}</p>
-                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="text-center text-gray-400 py-8">Aucun trajet assigné</p>
-              )}
-            </div>
+                ) : (
+                  <p className="text-center text-gray-400 py-8">Aucun bus assigné</p>
+                )}
+              </div>
 
-            {/* Responsable */}
-            <div className="bg-white rounded-3xl shadow-xl p-6 md:col-span-2">
-              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-green-500" />
-                Responsable Bus
-              </h2>
-              {responsable ? (
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
-                    <User className="w-8 h-8 text-gray-400" />
+              <div className="bg-white rounded-3xl shadow-xl p-6">
+                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Navigation className="w-5 h-5 text-green-500" />
+                  Mon Trajet
+                </h2>
+                {trajet ? (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 rounded-2xl p-4">
+                      <p className="text-sm text-blue-600 font-medium">Trajet</p>
+                      <p className="text-xl font-bold text-gray-800">{trajet.nom}</p>
+                    </div>
+
+                    {trajet.zones && (
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                          <MapPin className="w-4 h-4" />
+                          Zones desservies
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {(Array.isArray(trajet.zones) ? trajet.zones : JSON.parse(trajet.zones || '[]')).map((zone, i) => (
+                            <span key={i} className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                              {zone}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                      <div className="bg-green-50 rounded-xl p-3">
+                        <p className="text-xs text-green-600 font-medium">Groupe A - Matin</p>
+                        <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_a} - {trajet.heure_arrivee_matin_a}</p>
+                      </div>
+                      <div className="bg-green-50 rounded-xl p-3">
+                        <p className="text-xs text-green-600 font-medium">Groupe A - Soir</p>
+                        <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_a} - {trajet.heure_arrivee_soir_a}</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-xl p-3">
+                        <p className="text-xs text-blue-600 font-medium">Groupe B - Matin</p>
+                        <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_b} - {trajet.heure_arrivee_matin_b}</p>
+                      </div>
+                      <div className="bg-green-50 rounded-xl p-3">
+                        <p className="text-xs text-green-600 font-medium">Groupe B - Soir</p>
+                        <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_b} - {trajet.heure_arrivee_soir_b}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-800">
-                      {responsable.prenom} {responsable.nom}
-                    </h3>
-                    <p className="text-gray-500">{responsable.telephone}</p>
-                    <p className="text-gray-400 text-sm">{responsable.email}</p>
+                ) : (
+                  <p className="text-center text-gray-400 py-8">Aucun trajet assigné</p>
+                )}
+              </div>
+
+              {/* Responsable */}
+              <div className="bg-white rounded-3xl shadow-xl p-6 md:col-span-2">
+                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <User className="w-5 h-5 text-green-500" />
+                  Responsable Bus
+                </h2>
+                {responsable ? (
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
+                      <User className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {responsable.prenom} {responsable.nom}
+                      </h3>
+                      <p className="text-gray-500">{responsable.telephone}</p>
+                      <p className="text-gray-400 text-sm">{responsable.email}</p>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="text-center text-gray-400 py-4">Aucun responsable assigné</p>
-              )}
+                ) : (
+                  <p className="text-center text-gray-400 py-4">Aucun responsable assigné</p>
+                )}
+              </div>
             </div>
-          </div>
           </>
         )}
 
@@ -807,238 +805,236 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   </Button>
                 </div>
                 <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <AlertCircle className="w-6 h-6 text-red-500" />
-                Historique des Accidents
-              </h2>
-              {!isLicencie && (
-                <Button
-                  onClick={() => setShowAccidentForm(true)}
-                  className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Déclarer un accident
-                </Button>
-              )}
-            </div>
-            </div>
-            
-            {/* Alerte de licenciement dans la section accidents */}
-            {isLicencie && (
-              <div className="p-6 bg-red-50 border-b-2 border-red-500">
-                <div className="flex items-start gap-4">
-                  <AlertCircle className="w-8 h-8 flex-shrink-0 text-red-600" />
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold mb-2 text-red-800">Tu es licencié</h3>
-                    <p className="text-base mb-2 text-red-700">
-                      Tu as atteint 3 accidents. Selon le règlement, tu es licencié et tu dois payer une amende de 1000 DH à l'école.
-                    </p>
-                    <p className="text-base font-semibold text-red-900">
-                      Sinon l'école va te poursuivre.
-                    </p>
-                  </div>
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <AlertCircle className="w-6 h-6 text-red-500" />
+                    Historique des Accidents
+                  </h2>
+                  {!isLicencie && (
+                    <Button
+                      onClick={() => setShowAccidentForm(true)}
+                      className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Déclarer un accident
+                    </Button>
+                  )}
                 </div>
               </div>
-            )}
-            {accidents.length === 0 ? (
-              <div className="p-12 text-center">
-                <CheckCircle className="w-16 h-16 mx-auto text-green-300 mb-4" />
-                <p className="text-gray-500">Aucun accident enregistré</p>
-                <p className="text-sm text-gray-400 mt-1">Continuez à conduire prudemment !</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {accidents.map((accident) => {
-                  // Parser les photos si présentes
-                  let photos = [];
-                  try {
-                    if (accident.photos) {
-                      if (Array.isArray(accident.photos)) {
-                        photos = accident.photos;
-                      } else if (typeof accident.photos === 'string' && accident.photos.trim() !== '') {
-                        // Si c'est une chaîne JSON
-                        if (accident.photos.trim().startsWith('[') || accident.photos.trim().startsWith('{')) {
-                          const parsed = JSON.parse(accident.photos);
-                          if (Array.isArray(parsed)) {
-                            photos = parsed;
-                          } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
-                            photos = parsed.photos;
+
+              {/* Alerte de licenciement dans la section accidents */}
+              {isLicencie && (
+                <div className="p-6 bg-red-50 border-b-2 border-red-500">
+                  <div className="flex items-start gap-4">
+                    <AlertCircle className="w-8 h-8 flex-shrink-0 text-red-600" />
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold mb-2 text-red-800">Tu es licencié</h3>
+                      <p className="text-base mb-2 text-red-700">
+                        Tu as atteint 3 accidents. Selon le règlement, tu es licencié et tu dois payer une amende de 1000 DH à l'école.
+                      </p>
+                      <p className="text-base font-semibold text-red-900">
+                        Sinon l'école va te poursuivre.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {accidents.length === 0 ? (
+                <div className="p-12 text-center">
+                  <CheckCircle className="w-16 h-16 mx-auto text-green-300 mb-4" />
+                  <p className="text-gray-500">Aucun accident enregistré</p>
+                  <p className="text-sm text-gray-400 mt-1">Continuez à conduire prudemment !</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {accidents.map((accident) => {
+                    // Parser les photos si présentes
+                    let photos = [];
+                    try {
+                      if (accident.photos) {
+                        if (Array.isArray(accident.photos)) {
+                          photos = accident.photos;
+                        } else if (typeof accident.photos === 'string' && accident.photos.trim() !== '') {
+                          // Si c'est une chaîne JSON
+                          if (accident.photos.trim().startsWith('[') || accident.photos.trim().startsWith('{')) {
+                            const parsed = JSON.parse(accident.photos);
+                            if (Array.isArray(parsed)) {
+                              photos = parsed;
+                            } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
+                              photos = parsed.photos;
+                            }
+                          } else if (accident.photos.startsWith('data:image')) {
+                            // Si c'est une seule photo en base64 directe
+                            photos = [accident.photos];
                           }
-                        } else if (accident.photos.startsWith('data:image')) {
-                          // Si c'est une seule photo en base64 directe
-                          photos = [accident.photos];
                         }
                       }
+                      // Filtrer et normaliser les photos valides
+                      const validPhotos = photos
+                        .map(photo => {
+                          if (typeof photo === 'string') {
+                            return photo.startsWith('data:image') || photo.startsWith('http') ? photo : null;
+                          } else if (photo && typeof photo === 'object') {
+                            return photo.data || photo.src || photo.url || photo.base64 || null;
+                          }
+                          return null;
+                        })
+                        .filter(photo => photo && photo.trim() !== '');
+
+                      // Utiliser validPhotos au lieu de photos
+                      var validPhotosForDisplay = validPhotos;
+                    } catch (e) {
+                      console.error('Erreur parsing photos accident:', e);
+                      var validPhotosForDisplay = [];
                     }
-                    // Filtrer et normaliser les photos valides
-                    const validPhotos = photos
-                      .map(photo => {
-                        if (typeof photo === 'string') {
-                          return photo.startsWith('data:image') || photo.startsWith('http') ? photo : null;
-                        } else if (photo && typeof photo === 'object') {
-                          return photo.data || photo.src || photo.url || photo.base64 || null;
-                        }
-                        return null;
-                      })
-                      .filter(photo => photo && photo.trim() !== '');
-                    
-                    // Utiliser validPhotos au lieu de photos
-                    var validPhotosForDisplay = validPhotos;
-                  } catch (e) {
-                    console.error('Erreur parsing photos accident:', e);
-                    var validPhotosForDisplay = [];
-                  }
-                  
-                  return (
-                    <div key={accident.id} className="p-6 hover:bg-gray-50 transition-colors">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            accident.gravite === 'Grave' ? 'bg-red-100 text-red-700 border border-red-300' :
-                            accident.gravite === 'Moyenne' ? 'bg-orange-100 text-orange-700 border border-orange-300' :
-                            'bg-green-100 text-green-700 border border-green-300'
-                          }`}>
-                            {accident.gravite}
-                          </span>
-                          {accident.statut && (
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              accident.statut === 'Validé' ? 'bg-green-100 text-green-700' :
-                              accident.statut === 'En attente' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {accident.statut}
+
+                    return (
+                      <div key={accident.id} className="p-6 hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${accident.gravite === 'Grave' ? 'bg-red-100 text-red-700 border border-red-300' :
+                              accident.gravite === 'Moyenne' ? 'bg-orange-100 text-orange-700 border border-orange-300' :
+                                'bg-green-100 text-green-700 border border-green-300'
+                              }`}>
+                              {accident.gravite}
                             </span>
+                            {accident.statut && (
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${accident.statut === 'Validé' ? 'bg-green-100 text-green-700' :
+                                accident.statut === 'En attente' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                {accident.statut}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500 flex items-center gap-1">
+                            <Calendar className="w-4 h-4" />
+                            {format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr })}
+                            {accident.heure && ` à ${accident.heure}`}
+                          </p>
+                        </div>
+                        <h3 className="font-semibold text-gray-800 mb-3">{accident.description}</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-3">
+                          {accident.lieu && (
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-gray-400" />
+                              <span className="text-gray-500">Lieu:</span>
+                              <span className="ml-1 font-medium text-gray-800">{accident.lieu}</span>
+                            </div>
+                          )}
+                          {accident.degats && (
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-gray-400" />
+                              <span className="text-gray-500">Dégâts:</span>
+                              <span className="ml-1 font-medium text-gray-800">{accident.degats}</span>
+                            </div>
+                          )}
+                          {accident.nombre_eleves !== null && (
+                            <div className="flex items-center gap-2">
+                              <Users className="w-4 h-4 text-gray-400" />
+                              <span className="text-gray-500">Élèves dans le bus:</span>
+                              <span className="ml-1 font-medium text-gray-800">{accident.nombre_eleves}</span>
+                            </div>
+                          )}
+                          {accident.nombre_blesses > 0 && (
+                            <div className="flex items-center gap-2 text-red-600">
+                              <AlertCircle className="w-4 h-4" />
+                              <span className="font-medium">Blessés: {accident.nombre_blesses}</span>
+                            </div>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          {format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr })}
-                          {accident.heure && ` à ${accident.heure}`}
-                        </p>
-                      </div>
-                      <h3 className="font-semibold text-gray-800 mb-3">{accident.description}</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-3">
-                        {accident.lieu && (
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-gray-400" />
-                            <span className="text-gray-500">Lieu:</span>
-                            <span className="ml-1 font-medium text-gray-800">{accident.lieu}</span>
-                          </div>
-                        )}
-                        {accident.degats && (
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4 text-gray-400" />
-                            <span className="text-gray-500">Dégâts:</span>
-                            <span className="ml-1 font-medium text-gray-800">{accident.degats}</span>
-                          </div>
-                        )}
-                        {accident.nombre_eleves !== null && (
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-gray-400" />
-                            <span className="text-gray-500">Élèves dans le bus:</span>
-                            <span className="ml-1 font-medium text-gray-800">{accident.nombre_eleves}</span>
-                          </div>
-                        )}
-                        {accident.nombre_blesses > 0 && (
-                          <div className="flex items-center gap-2 text-red-600">
-                            <AlertCircle className="w-4 h-4" />
-                            <span className="font-medium">Blessés: {accident.nombre_blesses}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Photos si disponibles */}
-                      {validPhotosForDisplay.length > 0 && (
-                        <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
-                          <div className="flex items-center gap-2 mb-3">
-                            <ImageIcon className="w-4 h-4 text-red-600" />
-                            <span className="text-sm font-semibold text-gray-700">Photos ({validPhotosForDisplay.length})</span>
-                          </div>
-                          <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
-                            {validPhotosForDisplay.map((photoSrc, photoIndex) => (
-                              <motion.div
-                                key={photoIndex}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="relative group cursor-pointer"
-                                onClick={() => setSelectedSignalementPhoto(photoSrc)}
-                              >
-                                <div className="relative overflow-hidden rounded-lg border-2 border-red-300 group-hover:border-red-500 transition-colors bg-white">
-                                  <img
-                                    src={photoSrc}
-                                    alt={`Photo accident ${photoIndex + 1}`}
-                                    className="w-full h-20 object-cover"
-                                  />
-                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                    <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                        {/* Photos si disponibles */}
+                        {validPhotosForDisplay.length > 0 && (
+                          <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                            <div className="flex items-center gap-2 mb-3">
+                              <ImageIcon className="w-4 h-4 text-red-600" />
+                              <span className="text-sm font-semibold text-gray-700">Photos ({validPhotosForDisplay.length})</span>
+                            </div>
+                            <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                              {validPhotosForDisplay.map((photoSrc, photoIndex) => (
+                                <motion.div
+                                  key={photoIndex}
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  className="relative group cursor-pointer"
+                                  onClick={() => setSelectedSignalementPhoto(photoSrc)}
+                                >
+                                  <div className="relative overflow-hidden rounded-lg border-2 border-red-300 group-hover:border-red-500 transition-colors bg-white">
+                                    <img
+                                      src={photoSrc}
+                                      alt={`Photo accident ${photoIndex + 1}`}
+                                      className="w-full h-20 object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                      <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
                                   </div>
-                                </div>
-                              </motion.div>
-                            ))}
+                                </motion.div>
+                              ))}
+                            </div>
                           </div>
+                        )}
+
+                        {accident.blesses && (
+                          <div className="mt-3 p-3 bg-red-50 rounded-xl text-red-700 text-sm border border-red-200">
+                            <AlertCircle className="w-4 h-4 inline mr-2" />
+                            Des blessés ont été signalés
+                          </div>
+                        )}
+
+                        {/* Boutons Modifier et Supprimer */}
+                        <div className="mt-4 flex gap-2 justify-end">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              // Charger les données de l'accident dans le formulaire
+                              setEditingAccident(accident);
+                              setAccidentForm({
+                                date: accident.date ? format(new Date(accident.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+                                heure: accident.heure || format(new Date(), 'HH:mm'),
+                                lieu: accident.lieu || '',
+                                description: accident.description || '',
+                                degats: accident.degats || '',
+                                gravite: accident.gravite || 'Légère',
+                                nombre_eleves: accident.nombre_eleves?.toString() || '',
+                                nombre_blesses: accident.nombre_blesses?.toString() || '0'
+                              });
+
+                              // Charger les photos existantes
+                              if (validPhotosForDisplay.length > 0) {
+                                setAccidentPhotos(validPhotosForDisplay.map((photoSrc, index) => ({
+                                  preview: photoSrc,
+                                  file: null,
+                                  id: `existing-${index}`
+                                })));
+                              } else {
+                                setAccidentPhotos([]);
+                              }
+
+                              setShowAccidentForm(true);
+                            }}
+                            className="rounded-xl text-green-600 hover:text-green-700 hover:bg-green-50"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Modifier
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDeleteAccidentConfirm({ show: true, id: accident.id })}
+                            className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Supprimer
+                          </Button>
                         </div>
-                      )}
-                      
-                      {accident.blesses && (
-                        <div className="mt-3 p-3 bg-red-50 rounded-xl text-red-700 text-sm border border-red-200">
-                          <AlertCircle className="w-4 h-4 inline mr-2" />
-                          Des blessés ont été signalés
-                        </div>
-                      )}
-                      
-                      {/* Boutons Modifier et Supprimer */}
-                      <div className="mt-4 flex gap-2 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Charger les données de l'accident dans le formulaire
-                            setEditingAccident(accident);
-                            setAccidentForm({
-                              date: accident.date ? format(new Date(accident.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-                              heure: accident.heure || format(new Date(), 'HH:mm'),
-                              lieu: accident.lieu || '',
-                              description: accident.description || '',
-                              degats: accident.degats || '',
-                              gravite: accident.gravite || 'Légère',
-                              nombre_eleves: accident.nombre_eleves?.toString() || '',
-                              nombre_blesses: accident.nombre_blesses?.toString() || '0'
-                            });
-                            
-                            // Charger les photos existantes
-                            if (validPhotosForDisplay.length > 0) {
-                              setAccidentPhotos(validPhotosForDisplay.map((photoSrc, index) => ({
-                                preview: photoSrc,
-                                file: null,
-                                id: `existing-${index}`
-                              })));
-                            } else {
-                              setAccidentPhotos([]);
-                            }
-                            
-                            setShowAccidentForm(true);
-                          }}
-                          className="rounded-xl text-green-600 hover:text-green-700 hover:bg-green-50"
-                        >
-                          <Edit className="w-4 h-4 mr-2" />
-                          Modifier
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setDeleteAccidentConfirm({ show: true, id: accident.id })}
-                          className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Supprimer
-                        </Button>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -1072,425 +1068,425 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   </Button>
                 </div>
               </div>
-            
-            {/* Statistiques améliorées */}
-            <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4 bg-gradient-to-br from-green-50 via-emerald-50 to-green-50">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-green-500"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-gray-500 font-medium">Prises ce mois</p>
-                  <Calendar className="w-5 h-5 text-green-500" />
-                </div>
-                <p className="text-3xl font-bold text-gray-800">
-                  {priseEssence.filter(e => {
-                    const date = new Date(e.date);
-                    const now = new Date();
-                    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-                  }).length}
-                </p>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-emerald-500"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-gray-500 font-medium">Total litres</p>
-                  <Fuel className="w-5 h-5 text-emerald-500" />
-                </div>
-                <p className="text-3xl font-bold text-gray-800">
-                  {priseEssence.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0).toFixed(1)} <span className="text-lg text-gray-500">L</span>
-                </p>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-green-600"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-gray-500 font-medium">Coût total</p>
-                  <DollarSign className="w-5 h-5 text-green-600" />
-                </div>
-                <p className="text-3xl font-bold text-gray-800">
-                  {priseEssence.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0).toFixed(2)} <span className="text-lg text-gray-500">DH</span>
-                </p>
-              </motion.div>
-              
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-emerald-600"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm text-gray-500 font-medium">Prix moyen/L</p>
-                  <TrendingUp className="w-5 h-5 text-emerald-600" />
-                </div>
-                <p className="text-3xl font-bold text-gray-800">
-                  {priseEssence.length > 0 
-                    ? (priseEssence.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0) / 
-                       priseEssence.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0)).toFixed(2)
-                    : '0.00'} <span className="text-lg text-gray-500">DH</span>
-                </p>
-              </motion.div>
-            </div>
 
-            {/* Historique amélioré avec filtres */}
-            <div className="p-6">
-              {/* Filtres */}
-              {priseEssence.length > 0 && (
-                <div className="mb-6 flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-green-100">
-                  <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                    <Input
-                      type="text"
-                      placeholder="Rechercher par station..."
-                      value={essenceSearchTerm}
-                      onChange={(e) => setEssenceSearchTerm(e.target.value)}
-                      className="rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500"
-                    />
-                    <Select value={essenceDateFilter} onValueChange={setEssenceDateFilter}>
-                      <SelectTrigger className="w-full md:w-[200px] rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500">
-                        <SelectValue placeholder="Filtrer par date" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Toutes les prises</SelectItem>
-                        <SelectItem value="thisMonth">Ce mois</SelectItem>
-                        <SelectItem value="lastMonth">Mois dernier</SelectItem>
-                        <SelectItem value="last3Months">3 derniers mois</SelectItem>
-                      </SelectContent>
-                    </Select>
+              {/* Statistiques améliorées */}
+              <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4 bg-gradient-to-br from-green-50 via-emerald-50 to-green-50">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-green-500"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-500 font-medium">Prises ce mois</p>
+                    <Calendar className="w-5 h-5 text-green-500" />
                   </div>
-                  {essenceSearchTerm || essenceDateFilter !== 'all' ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setEssenceSearchTerm('');
-                        setEssenceDateFilter('all');
-                      }}
-                      className="rounded-xl border-green-200 text-green-600 hover:bg-green-50"
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      Réinitialiser
-                    </Button>
-                  ) : null}
-                </div>
-              )}
-
-              {/* Liste filtrée */}
-              {(() => {
-                // Filtrer les prises d'essence
-                let filteredEssence = [...priseEssence];
-
-                // Filtre par date
-                if (essenceDateFilter !== 'all') {
-                  const now = new Date();
-                  const filterDate = (() => {
-                    switch (essenceDateFilter) {
-                      case 'thisMonth':
-                        return { start: startOfMonth(now), end: now };
-                      case 'lastMonth':
-                        const lastMonth = subMonths(now, 1);
-                        return { start: startOfMonth(lastMonth), end: endOfDay(subMonths(startOfMonth(now), 1)) };
-                      case 'last3Months':
-                        return { start: subMonths(now, 3), end: now };
-                      default:
-                        return null;
-                    }
-                  })();
-
-                  if (filterDate) {
-                    filteredEssence = filteredEssence.filter(e => {
+                  <p className="text-3xl font-bold text-gray-800">
+                    {priseEssence.filter(e => {
                       const date = new Date(e.date);
-                      return isWithinInterval(date, filterDate);
-                    });
-                  }
-                }
+                      const now = new Date();
+                      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                    }).length}
+                  </p>
+                </motion.div>
 
-                // Filtre par recherche (station)
-                if (essenceSearchTerm) {
-                  filteredEssence = filteredEssence.filter(e =>
-                    e.station_service?.toLowerCase().includes(essenceSearchTerm.toLowerCase())
-                  );
-                }
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-emerald-500"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-500 font-medium">Total litres</p>
+                    <Fuel className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <p className="text-3xl font-bold text-gray-800">
+                    {priseEssence.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0).toFixed(1)} <span className="text-lg text-gray-500">L</span>
+                  </p>
+                </motion.div>
 
-                // Trier par date
-                filteredEssence.sort((a, b) => new Date(b.date + ' ' + b.heure) - new Date(a.date + ' ' + a.heure));
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-green-600"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-500 font-medium">Coût total</p>
+                    <DollarSign className="w-5 h-5 text-green-600" />
+                  </div>
+                  <p className="text-3xl font-bold text-gray-800">
+                    {priseEssence.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0).toFixed(2)} <span className="text-lg text-gray-500">DH</span>
+                  </p>
+                </motion.div>
 
-                if (filteredEssence.length === 0) {
-                  return (
-                    <motion.div 
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="p-12 text-center"
-                    >
-                      <Fuel className="w-16 h-16 mx-auto text-green-300 mb-4" />
-                      <p className="text-gray-500 font-medium">Aucune prise d'essence trouvée</p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {essenceSearchTerm || essenceDateFilter !== 'all' 
-                          ? 'Essayez de modifier vos filtres' 
-                          : 'Commencez par enregistrer votre première prise d\'essence'}
-                      </p>
-                    </motion.div>
-                  );
-                }
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-shadow border-l-4 border-emerald-600"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-500 font-medium">Prix moyen/L</p>
+                    <TrendingUp className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <p className="text-3xl font-bold text-gray-800">
+                    {priseEssence.length > 0
+                      ? (priseEssence.reduce((sum, e) => sum + parseFloat(e.prix_total || 0), 0) /
+                        priseEssence.reduce((sum, e) => sum + parseFloat(e.quantite_litres || 0), 0)).toFixed(2)
+                      : '0.00'} <span className="text-lg text-gray-500">DH</span>
+                  </p>
+                </motion.div>
+              </div>
 
-                return (
-                  <div className="space-y-4">
-                    <div className="text-sm text-gray-500 mb-2">
-                      {filteredEssence.length} prise{filteredEssence.length > 1 ? 's' : ''} trouvée{filteredEssence.length > 1 ? 's' : ''}
+              {/* Historique amélioré avec filtres */}
+              <div className="p-6">
+                {/* Filtres */}
+                {priseEssence.length > 0 && (
+                  <div className="mb-6 flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-green-100">
+                    <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                      <Input
+                        type="text"
+                        placeholder="Rechercher par station..."
+                        value={essenceSearchTerm}
+                        onChange={(e) => setEssenceSearchTerm(e.target.value)}
+                        className="rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500"
+                      />
+                      <Select value={essenceDateFilter} onValueChange={setEssenceDateFilter}>
+                        <SelectTrigger className="w-full md:w-[200px] rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500">
+                          <SelectValue placeholder="Filtrer par date" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Toutes les prises</SelectItem>
+                          <SelectItem value="thisMonth">Ce mois</SelectItem>
+                          <SelectItem value="lastMonth">Mois dernier</SelectItem>
+                          <SelectItem value="last3Months">3 derniers mois</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <AnimatePresence>
-                      {filteredEssence.map((essence, index) => {
-                      const prixParLitre = parseFloat(essence.prix_total) / parseFloat(essence.quantite_litres);
-                      const isThisMonth = (() => {
-                        const date = new Date(essence.date);
-                        const now = new Date();
-                        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-                      })();
-                      
-                      return (
-                        <motion.div
-                          key={essence.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -20 }}
-                          transition={{ duration: 0.3, delay: index * 0.05 }}
-                          className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl shadow-md hover:shadow-lg transition-all overflow-hidden"
-                        >
-                          <div className="p-5">
-                            <div className="flex justify-between items-start mb-4">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-green-100 text-green-600">
-                                  <Fuel className="w-5 h-5" />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="font-semibold text-gray-800 text-lg">
-                                      {format(new Date(essence.date), 'dd MMMM yyyy', { locale: fr })}
-                                    </h3>
-                                    {isThisMonth && (
-                                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                                        Ce mois
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                                    <Clock className="w-4 h-4" />
-                                    <span>{essence.heure}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                    {essenceSearchTerm || essenceDateFilter !== 'all' ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEssenceSearchTerm('');
+                          setEssenceDateFilter('all');
+                        }}
+                        className="rounded-xl border-green-200 text-green-600 hover:bg-green-50"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Réinitialiser
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
 
-                            {/* Informations principales */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                              <div className="bg-white rounded-lg p-3 border border-green-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Fuel className="w-4 h-4 text-green-500" />
-                                  <span className="text-xs text-gray-500 font-medium">Quantité</span>
-                                </div>
-                                <p className="text-xl font-bold text-gray-800">
-                                  {parseFloat(essence.quantite_litres).toFixed(1)} <span className="text-sm text-gray-500">L</span>
-                                </p>
-                              </div>
-                              
-                              <div className="bg-white rounded-lg p-3 border border-green-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <DollarSign className="w-4 h-4 text-green-600" />
-                                  <span className="text-xs text-gray-500 font-medium">Prix total</span>
-                                </div>
-                                <p className="text-xl font-bold text-gray-800">
-                                  {parseFloat(essence.prix_total).toFixed(2)} <span className="text-sm text-gray-500">DH</span>
-                                </p>
-                              </div>
-                              
-                              <div className="bg-white rounded-lg p-3 border border-green-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <TrendingUp className="w-4 h-4 text-emerald-500" />
-                                  <span className="text-xs text-gray-500 font-medium">Prix/L</span>
-                                </div>
-                                <p className="text-xl font-bold text-gray-800">
-                                  {prixParLitre.toFixed(2)} <span className="text-sm text-gray-500">DH</span>
-                                </p>
-                              </div>
-                              
-                              {essence.station_service && (
-                                <div className="bg-white rounded-lg p-3 border border-green-100">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Building2 className="w-4 h-4 text-emerald-600" />
-                                    <span className="text-xs text-gray-500 font-medium">Station</span>
+                {/* Liste filtrée */}
+                {(() => {
+                  // Filtrer les prises d'essence
+                  let filteredEssence = [...priseEssence];
+
+                  // Filtre par date
+                  if (essenceDateFilter !== 'all') {
+                    const now = new Date();
+                    const filterDate = (() => {
+                      switch (essenceDateFilter) {
+                        case 'thisMonth':
+                          return { start: startOfMonth(now), end: now };
+                        case 'lastMonth':
+                          const lastMonth = subMonths(now, 1);
+                          return { start: startOfMonth(lastMonth), end: endOfDay(subMonths(startOfMonth(now), 1)) };
+                        case 'last3Months':
+                          return { start: subMonths(now, 3), end: now };
+                        default:
+                          return null;
+                      }
+                    })();
+
+                    if (filterDate) {
+                      filteredEssence = filteredEssence.filter(e => {
+                        const date = new Date(e.date);
+                        return isWithinInterval(date, filterDate);
+                      });
+                    }
+                  }
+
+                  // Filtre par recherche (station)
+                  if (essenceSearchTerm) {
+                    filteredEssence = filteredEssence.filter(e =>
+                      e.station_service?.toLowerCase().includes(essenceSearchTerm.toLowerCase())
+                    );
+                  }
+
+                  // Trier par date
+                  filteredEssence.sort((a, b) => new Date(b.date + ' ' + b.heure) - new Date(a.date + ' ' + a.heure));
+
+                  if (filteredEssence.length === 0) {
+                    return (
+                      <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="p-12 text-center"
+                      >
+                        <Fuel className="w-16 h-16 mx-auto text-green-300 mb-4" />
+                        <p className="text-gray-500 font-medium">Aucune prise d'essence trouvée</p>
+                        <p className="text-sm text-gray-400 mt-1">
+                          {essenceSearchTerm || essenceDateFilter !== 'all'
+                            ? 'Essayez de modifier vos filtres'
+                            : 'Commencez par enregistrer votre première prise d\'essence'}
+                        </p>
+                      </motion.div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      <div className="text-sm text-gray-500 mb-2">
+                        {filteredEssence.length} prise{filteredEssence.length > 1 ? 's' : ''} trouvée{filteredEssence.length > 1 ? 's' : ''}
+                      </div>
+                      <AnimatePresence>
+                        {filteredEssence.map((essence, index) => {
+                          const prixParLitre = parseFloat(essence.prix_total) / parseFloat(essence.quantite_litres);
+                          const isThisMonth = (() => {
+                            const date = new Date(essence.date);
+                            const now = new Date();
+                            return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+                          })();
+
+                          return (
+                            <motion.div
+                              key={essence.id}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -20 }}
+                              transition={{ duration: 0.3, delay: index * 0.05 }}
+                              className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl shadow-md hover:shadow-lg transition-all overflow-hidden"
+                            >
+                              <div className="p-5">
+                                <div className="flex justify-between items-start mb-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-green-100 text-green-600">
+                                      <Fuel className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="font-semibold text-gray-800 text-lg">
+                                          {format(new Date(essence.date), 'dd MMMM yyyy', { locale: fr })}
+                                        </h3>
+                                        {isThisMonth && (
+                                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                            Ce mois
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                                        <Clock className="w-4 h-4" />
+                                        <span>{essence.heure}</span>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <p className="text-sm font-semibold text-gray-800 truncate">
-                                    {essence.station_service}
-                                  </p>
                                 </div>
-                              )}
-                            </div>
-                            
-                            {/* Photo du ticket */}
-                            {(() => {
-                              // Vérifier si la photo existe
-                              if (!essence.photo_ticket || essence.photo_ticket === 'null' || essence.photo_ticket === '' || essence.photo_ticket === null) {
-                                return null;
-                              }
-                              
-                              // Fonction pour traiter et normaliser la photo
-                              const processPhoto = (rawPhoto) => {
-                                if (!rawPhoto) return null;
-                                
-                                let photoSrc = String(rawPhoto);
-                                
-                                // Nettoyer et parser la photo
-                                if (photoSrc.trim()) {
-                                  try {
-                                    // Essayer de parser si c'est du JSON
-                                    if (photoSrc.trim().startsWith('[') || photoSrc.trim().startsWith('{')) {
-                                      const parsed = JSON.parse(photoSrc);
-                                      if (Array.isArray(parsed) && parsed.length > 0) {
-                                        photoSrc = String(parsed[0]);
-                                      } else if (parsed && typeof parsed === 'object' && parsed.data) {
-                                        photoSrc = String(parsed.data);
+
+                                {/* Informations principales */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                                  <div className="bg-white rounded-lg p-3 border border-green-100">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <Fuel className="w-4 h-4 text-green-500" />
+                                      <span className="text-xs text-gray-500 font-medium">Quantité</span>
+                                    </div>
+                                    <p className="text-xl font-bold text-gray-800">
+                                      {parseFloat(essence.quantite_litres).toFixed(1)} <span className="text-sm text-gray-500">L</span>
+                                    </p>
+                                  </div>
+
+                                  <div className="bg-white rounded-lg p-3 border border-green-100">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <DollarSign className="w-4 h-4 text-green-600" />
+                                      <span className="text-xs text-gray-500 font-medium">Prix total</span>
+                                    </div>
+                                    <p className="text-xl font-bold text-gray-800">
+                                      {parseFloat(essence.prix_total).toFixed(2)} <span className="text-sm text-gray-500">DH</span>
+                                    </p>
+                                  </div>
+
+                                  <div className="bg-white rounded-lg p-3 border border-green-100">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <TrendingUp className="w-4 h-4 text-emerald-500" />
+                                      <span className="text-xs text-gray-500 font-medium">Prix/L</span>
+                                    </div>
+                                    <p className="text-xl font-bold text-gray-800">
+                                      {prixParLitre.toFixed(2)} <span className="text-sm text-gray-500">DH</span>
+                                    </p>
+                                  </div>
+
+                                  {essence.station_service && (
+                                    <div className="bg-white rounded-lg p-3 border border-green-100">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Building2 className="w-4 h-4 text-emerald-600" />
+                                        <span className="text-xs text-gray-500 font-medium">Station</span>
+                                      </div>
+                                      <p className="text-sm font-semibold text-gray-800 truncate">
+                                        {essence.station_service}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Photo du ticket */}
+                                {(() => {
+                                  // Vérifier si la photo existe
+                                  if (!essence.photo_ticket || essence.photo_ticket === 'null' || essence.photo_ticket === '' || essence.photo_ticket === null) {
+                                    return null;
+                                  }
+
+                                  // Fonction pour traiter et normaliser la photo
+                                  const processPhoto = (rawPhoto) => {
+                                    if (!rawPhoto) return null;
+
+                                    let photoSrc = String(rawPhoto);
+
+                                    // Nettoyer et parser la photo
+                                    if (photoSrc.trim()) {
+                                      try {
+                                        // Essayer de parser si c'est du JSON
+                                        if (photoSrc.trim().startsWith('[') || photoSrc.trim().startsWith('{')) {
+                                          const parsed = JSON.parse(photoSrc);
+                                          if (Array.isArray(parsed) && parsed.length > 0) {
+                                            photoSrc = String(parsed[0]);
+                                          } else if (parsed && typeof parsed === 'object' && parsed.data) {
+                                            photoSrc = String(parsed.data);
+                                          }
+                                        }
+                                      } catch (e) {
+                                        // Si le parsing échoue, utiliser tel quel
                                       }
+
+                                      // Nettoyer les espaces, guillemets et caractères spéciaux
+                                      photoSrc = photoSrc.trim();
+                                      photoSrc = photoSrc.replace(/^["']+|["']+$/g, ''); // Enlever guillemets
+                                      photoSrc = photoSrc.replace(/^\\["']+|\\["']+$/g, ''); // Enlever guillemets échappés
+
+                                      // Si la photo commence déjà par data:image, la retourner telle quelle
+                                      if (photoSrc.startsWith('data:image')) {
+                                        return photoSrc;
+                                      }
+
+                                      // Si c'est une URL, la retourner telle quelle
+                                      if (photoSrc.startsWith('http://') || photoSrc.startsWith('https://')) {
+                                        return photoSrc;
+                                      }
+
+                                      // Si c'est du base64 pur (longueur > 50 caractères), ajouter le préfixe
+                                      const cleanBase64 = photoSrc.replace(/\s/g, ''); // Enlever tous les espaces
+
+                                      if (cleanBase64.length > 50) {
+                                        // Vérifier que c'est bien du base64 valide (plus permissif)
+                                        const base64Pattern = /^[A-Za-z0-9+/=\s]+$/;
+
+                                        if (base64Pattern.test(cleanBase64) || cleanBase64.length > 100) {
+                                          return `data:image/jpeg;base64,${cleanBase64}`;
+                                        }
+                                      }
+
+                                      return null;
                                     }
-                                  } catch (e) {
-                                    // Si le parsing échoue, utiliser tel quel
-                                  }
-                                  
-                                  // Nettoyer les espaces, guillemets et caractères spéciaux
-                                  photoSrc = photoSrc.trim();
-                                  photoSrc = photoSrc.replace(/^["']+|["']+$/g, ''); // Enlever guillemets
-                                  photoSrc = photoSrc.replace(/^\\["']+|\\["']+$/g, ''); // Enlever guillemets échappés
-                                  
-                                  // Si la photo commence déjà par data:image, la retourner telle quelle
-                                  if (photoSrc.startsWith('data:image')) {
-                                    return photoSrc;
-                                  }
-                                  
-                                  // Si c'est une URL, la retourner telle quelle
-                                  if (photoSrc.startsWith('http://') || photoSrc.startsWith('https://')) {
-                                    return photoSrc;
-                                  }
-                                  
-                                  // Si c'est du base64 pur (longueur > 50 caractères), ajouter le préfixe
-                                  const cleanBase64 = photoSrc.replace(/\s/g, ''); // Enlever tous les espaces
-                                  
-                                  if (cleanBase64.length > 50) {
-                                    // Vérifier que c'est bien du base64 valide (plus permissif)
-                                    const base64Pattern = /^[A-Za-z0-9+/=\s]+$/;
-                                    
-                                    if (base64Pattern.test(cleanBase64) || cleanBase64.length > 100) {
-                                      return `data:image/jpeg;base64,${cleanBase64}`;
+                                    return null;
+                                  };
+
+                                  const processedPhoto = processPhoto(essence.photo_ticket);
+
+                                  if (!processedPhoto) {
+                                    // Vérifier si la photo est tronquée (255 caractères = probablement tronquée)
+                                    const photoLength = essence.photo_ticket ? String(essence.photo_ticket).length : 0;
+                                    const isTruncated = photoLength === 255;
+
+                                    if (isTruncated) {
+                                      return (
+                                        <div className="mt-4 pt-4 border-t border-gray-200">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <ImageIcon className="w-5 h-5 text-green-600" />
+                                            <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
+                                          </div>
+                                          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                            <p className="text-sm text-red-700 font-medium mb-1">
+                                              ⚠️ Photo tronquée (BDD)
+                                            </p>
+                                            <p className="text-xs text-red-600">
+                                              La colonne BDD est limitée à 255 caractères. Elle doit être changée en LONGTEXT.
+                                            </p>
+                                          </div>
+                                        </div>
+                                      );
                                     }
+                                    return null;
                                   }
-                                  
-                                  return null;
-                                }
-                                return null;
-                              };
-                              
-                              const processedPhoto = processPhoto(essence.photo_ticket);
-                              
-                              if (!processedPhoto) {
-                                // Vérifier si la photo est tronquée (255 caractères = probablement tronquée)
-                                const photoLength = essence.photo_ticket ? String(essence.photo_ticket).length : 0;
-                                const isTruncated = photoLength === 255;
-                                
-                                if (isTruncated) {
+
                                   return (
                                     <div className="mt-4 pt-4 border-t border-gray-200">
-                                      <div className="flex items-center gap-2 mb-2">
+                                      <div className="flex items-center gap-2 mb-3">
                                         <ImageIcon className="w-5 h-5 text-green-600" />
                                         <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
                                       </div>
-                                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                                        <p className="text-sm text-red-700 font-medium mb-1">
-                                          ⚠️ Photo tronquée
-                                        </p>
-                                        <p className="text-xs text-red-600">
-                                          La photo a été tronquée lors de l'enregistrement. Contactez l'administrateur.
-                                        </p>
+                                      <div
+                                        className="relative group cursor-pointer inline-block"
+                                        onClick={() => {
+                                          const finalPhoto = processPhoto(essence.photo_ticket);
+                                          if (finalPhoto) {
+                                            setSelectedEssenceTicketPhoto(finalPhoto);
+                                          }
+                                        }}
+                                      >
+                                        <img
+                                          src={processedPhoto}
+                                          alt="Ticket essence"
+                                          className="max-w-xs h-40 object-contain rounded-lg border-2 border-green-200 bg-gray-50 hover:border-green-400 transition-colors shadow-md"
+                                          onError={(e) => {
+                                            console.error('Erreur chargement image ticket');
+                                            // Essayer avec différents formats
+                                            const base64Data = processedPhoto.replace(/^data:image\/[^;]+;base64,/, '');
+                                            if (base64Data && base64Data.length > 50) {
+                                              // Essayer PNG
+                                              if (!e.target.dataset.triedPng) {
+                                                e.target.dataset.triedPng = 'true';
+                                                e.target.src = `data:image/png;base64,${base64Data}`;
+                                              } else if (!e.target.dataset.triedWebp) {
+                                                // Essayer WebP
+                                                e.target.dataset.triedWebp = 'true';
+                                                e.target.src = `data:image/webp;base64,${base64Data}`;
+                                              } else {
+                                                // Cacher l'image si tous les formats ont échoué
+                                                e.target.style.display = 'none';
+                                                const parent = e.target.parentElement;
+                                                if (parent && !parent.querySelector('.error-message')) {
+                                                  const errorDiv = document.createElement('div');
+                                                  errorDiv.className = 'error-message text-red-500 text-sm mt-2';
+                                                  errorDiv.textContent = 'Impossible de charger l\'image';
+                                                  parent.appendChild(errorDiv);
+                                                }
+                                              }
+                                            } else {
+                                              e.target.style.display = 'none';
+                                            }
+                                          }}
+                                          onLoad={() => {
+                                            console.log('✅ Image chargée avec succès');
+                                          }}
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg pointer-events-none">
+                                          <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </div>
                                       </div>
                                     </div>
                                   );
-                                }
-                                return null;
-                              }
-                              
-                              return (
-                                <div className="mt-4 pt-4 border-t border-gray-200">
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <ImageIcon className="w-5 h-5 text-green-600" />
-                                    <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
-                                  </div>
-                                  <div 
-                                    className="relative group cursor-pointer inline-block" 
-                                    onClick={() => {
-                                      const finalPhoto = processPhoto(essence.photo_ticket);
-                                      if (finalPhoto) {
-                                        setSelectedEssenceTicketPhoto(finalPhoto);
-                                      }
-                                    }}
-                                  >
-                                    <img
-                                      src={processedPhoto}
-                                      alt="Ticket essence"
-                                      className="max-w-xs h-40 object-contain rounded-lg border-2 border-green-200 bg-gray-50 hover:border-green-400 transition-colors shadow-md"
-                                      onError={(e) => {
-                                        console.error('Erreur chargement image ticket');
-                                        // Essayer avec différents formats
-                                        const base64Data = processedPhoto.replace(/^data:image\/[^;]+;base64,/, '');
-                                        if (base64Data && base64Data.length > 50) {
-                                          // Essayer PNG
-                                          if (!e.target.dataset.triedPng) {
-                                            e.target.dataset.triedPng = 'true';
-                                            e.target.src = `data:image/png;base64,${base64Data}`;
-                                          } else if (!e.target.dataset.triedWebp) {
-                                            // Essayer WebP
-                                            e.target.dataset.triedWebp = 'true';
-                                            e.target.src = `data:image/webp;base64,${base64Data}`;
-                                          } else {
-                                            // Cacher l'image si tous les formats ont échoué
-                                            e.target.style.display = 'none';
-                                            const parent = e.target.parentElement;
-                                            if (parent && !parent.querySelector('.error-message')) {
-                                              const errorDiv = document.createElement('div');
-                                              errorDiv.className = 'error-message text-red-500 text-sm mt-2';
-                                              errorDiv.textContent = 'Impossible de charger l\'image';
-                                              parent.appendChild(errorDiv);
-                                            }
-                                          }
-                                        } else {
-                                          e.target.style.display = 'none';
-                                        }
-                                      }}
-                                      onLoad={() => {
-                                        console.log('✅ Image chargée avec succès');
-                                      }}
-                                    />
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg pointer-events-none">
-                                      <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
-                </div>
-                );
-              })()}
-            </div>
+                                })()}
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           </>
         )}
@@ -1511,363 +1507,363 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   </Button>
                 </div>
                 <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                  <Wrench className="w-6 h-6 text-green-500" />
-                  Signalements de Problèmes
-                </h2>
-              <Button
-                onClick={() => setShowSignalementForm(true)}
-                className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Signaler un problème
-              </Button>
-                </div>
-              </div>
-
-            {/* Filtres */}
-            {signalements.length > 0 && (
-              <div className="p-6 bg-white border-b border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                  <Select value={signalementFilter} onValueChange={setSignalementFilter}>
-                    <SelectTrigger className="w-full md:w-[200px] rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500">
-                      <SelectValue placeholder="Filtrer par statut" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tous les statuts</SelectItem>
-                      <SelectItem value="en_attente">En attente</SelectItem>
-                      <SelectItem value="en_cours">En cours</SelectItem>
-                      <SelectItem value="resolu">Résolu</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={signalementUrgenceFilter} onValueChange={setSignalementUrgenceFilter}>
-                    <SelectTrigger className="w-full md:w-[200px] rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500">
-                      <SelectValue placeholder="Filtrer par urgence" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Toutes les urgences</SelectItem>
-                      <SelectItem value="haute">Haute</SelectItem>
-                      <SelectItem value="moyenne">Moyenne</SelectItem>
-                      <SelectItem value="faible">Faible</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {(signalementFilter !== 'all' || signalementUrgenceFilter !== 'all') && (
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <Wrench className="w-6 h-6 text-green-500" />
+                    Signalements de Problèmes
+                  </h2>
                   <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSignalementFilter('all');
-                      setSignalementUrgenceFilter('all');
-                    }}
-                    className="rounded-xl border-green-200 text-green-600 hover:bg-green-50"
+                    onClick={() => setShowSignalementForm(true)}
+                    className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
                   >
-                    <X className="w-4 h-4 mr-2" />
-                    Réinitialiser
+                    <Plus className="w-4 h-4 mr-2" />
+                    Signaler un problème
                   </Button>
-                )}
+                </div>
               </div>
-            )}
-            
-            {/* Liste des signalements */}
-            <div className="p-6">
-              {(() => {
-                let filteredSignalements = [...signalements];
 
-                // Filtre par statut
-                if (signalementFilter !== 'all') {
-                  filteredSignalements = filteredSignalements.filter(s => s.statut === signalementFilter);
-                }
-
-                // Filtre par urgence
-                if (signalementUrgenceFilter !== 'all') {
-                  filteredSignalements = filteredSignalements.filter(s => s.urgence === signalementUrgenceFilter);
-                }
-
-                // Trier par date
-                filteredSignalements.sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0));
-
-                if (filteredSignalements.length === 0) {
-                  return (
-                    <motion.div 
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      className="p-12 text-center"
+              {/* Filtres */}
+              {signalements.length > 0 && (
+                <div className="p-6 bg-white border-b border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
+                  <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                    <Select value={signalementFilter} onValueChange={setSignalementFilter}>
+                      <SelectTrigger className="w-full md:w-[200px] rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500">
+                        <SelectValue placeholder="Filtrer par statut" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous les statuts</SelectItem>
+                        <SelectItem value="en_attente">En attente</SelectItem>
+                        <SelectItem value="en_cours">En cours</SelectItem>
+                        <SelectItem value="resolu">Résolu</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={signalementUrgenceFilter} onValueChange={setSignalementUrgenceFilter}>
+                      <SelectTrigger className="w-full md:w-[200px] rounded-xl border-green-200 focus:ring-green-500 focus:border-green-500">
+                        <SelectValue placeholder="Filtrer par urgence" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Toutes les urgences</SelectItem>
+                        <SelectItem value="haute">Haute</SelectItem>
+                        <SelectItem value="moyenne">Moyenne</SelectItem>
+                        <SelectItem value="faible">Faible</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(signalementFilter !== 'all' || signalementUrgenceFilter !== 'all') && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSignalementFilter('all');
+                        setSignalementUrgenceFilter('all');
+                      }}
+                      className="rounded-xl border-green-200 text-green-600 hover:bg-green-50"
                     >
-                      <Wrench className="w-16 h-16 mx-auto text-green-300 mb-4" />
-                      <p className="text-gray-500 font-medium">Aucun signalement trouvé</p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {signalementFilter !== 'all' || signalementUrgenceFilter !== 'all'
-                          ? 'Essayez de modifier vos filtres'
-                          : 'Commencez par signaler votre premier problème'}
-                      </p>
-                    </motion.div>
-                  );
-                }
+                      <X className="w-4 h-4 mr-2" />
+                      Réinitialiser
+                    </Button>
+                  )}
+                </div>
+              )}
 
-                const getTypeColor = (type) => {
-                  switch (type) {
-                    case 'mecanique': return { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: 'text-red-500', badge: 'bg-red-100 text-red-700' };
-                    case 'eclairage': return { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', icon: 'text-yellow-500', badge: 'bg-yellow-100 text-yellow-700' };
-                    case 'portes': return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', icon: 'text-blue-500', badge: 'bg-blue-100 text-blue-700' };
-                    case 'climatisation': return { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', icon: 'text-cyan-500', badge: 'bg-cyan-100 text-cyan-700' };
-                    case 'pneus': return { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', icon: 'text-orange-500', badge: 'bg-orange-100 text-orange-700' };
-                    default: return { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', icon: 'text-gray-500', badge: 'bg-gray-100 text-gray-700' };
+              {/* Liste des signalements */}
+              <div className="p-6">
+                {(() => {
+                  let filteredSignalements = [...signalements];
+
+                  // Filtre par statut
+                  if (signalementFilter !== 'all') {
+                    filteredSignalements = filteredSignalements.filter(s => s.statut === signalementFilter);
                   }
-                };
 
-                const getUrgenceColor = (urgence) => {
-                  switch (urgence) {
-                    case 'haute': return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300', icon: 'text-red-500' };
-                    case 'moyenne': return { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300', icon: 'text-yellow-500' };
-                    default: return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300', icon: 'text-green-500' };
+                  // Filtre par urgence
+                  if (signalementUrgenceFilter !== 'all') {
+                    filteredSignalements = filteredSignalements.filter(s => s.urgence === signalementUrgenceFilter);
                   }
-                };
 
-                const getStatutColor = (statut) => {
-                  switch (statut) {
-                    case 'resolu': return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' };
-                    case 'en_cours': return { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' };
-                    default: return { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
+                  // Trier par date
+                  filteredSignalements.sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0));
+
+                  if (filteredSignalements.length === 0) {
+                    return (
+                      <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="p-12 text-center"
+                      >
+                        <Wrench className="w-16 h-16 mx-auto text-green-300 mb-4" />
+                        <p className="text-gray-500 font-medium">Aucun signalement trouvé</p>
+                        <p className="text-sm text-gray-400 mt-1">
+                          {signalementFilter !== 'all' || signalementUrgenceFilter !== 'all'
+                            ? 'Essayez de modifier vos filtres'
+                            : 'Commencez par signaler votre premier problème'}
+                        </p>
+                      </motion.div>
+                    );
                   }
-                };
 
-                const getTypeLabel = (type) => {
-                  const labels = {
-                    'mecanique': 'Mécanique',
-                    'eclairage': 'Éclairage',
-                    'portes': 'Portes',
-                    'climatisation': 'Climatisation',
-                    'pneus': 'Pneus',
-                    'autre': 'Autre'
+                  const getTypeColor = (type) => {
+                    switch (type) {
+                      case 'mecanique': return { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: 'text-red-500', badge: 'bg-red-100 text-red-700' };
+                      case 'eclairage': return { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', icon: 'text-yellow-500', badge: 'bg-yellow-100 text-yellow-700' };
+                      case 'portes': return { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', icon: 'text-blue-500', badge: 'bg-blue-100 text-blue-700' };
+                      case 'climatisation': return { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', icon: 'text-cyan-500', badge: 'bg-cyan-100 text-cyan-700' };
+                      case 'pneus': return { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', icon: 'text-orange-500', badge: 'bg-orange-100 text-orange-700' };
+                      default: return { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700', icon: 'text-gray-500', badge: 'bg-gray-100 text-gray-700' };
+                    }
                   };
-                  return labels[type] || type;
-                };
 
-                return (
-                  <div className="space-y-4">
-                    <AnimatePresence>
-                      {filteredSignalements.map((signalement, index) => {
-                        const typeColors = getTypeColor(signalement.type_probleme);
-                        const urgenceColors = getUrgenceColor(signalement.urgence);
-                        const statutColors = getStatutColor(signalement.statut);
+                  const getUrgenceColor = (urgence) => {
+                    switch (urgence) {
+                      case 'haute': return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300', icon: 'text-red-500' };
+                      case 'moyenne': return { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300', icon: 'text-yellow-500' };
+                      default: return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300', icon: 'text-green-500' };
+                    }
+                  };
 
-                        return (
-                          <motion.div
-                            key={signalement.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ duration: 0.3, delay: index * 0.05 }}
-                            className={`${typeColors.bg} ${typeColors.border} border-2 rounded-2xl shadow-md hover:shadow-lg transition-all overflow-hidden`}
-                          >
-                            <div className="p-5">
-                              <div className="flex justify-between items-start mb-4">
-                                <div className="flex items-center gap-3 flex-1">
-                                  <div className={`p-2 rounded-lg ${typeColors.bg} ${typeColors.icon}`}>
-                                    <Wrench className="w-5 h-5" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                      <h3 className="font-semibold text-gray-800 text-lg">
-                                        {getTypeLabel(signalement.type_probleme)}
-                                      </h3>
-                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeColors.badge} border ${typeColors.border}`}>
-                                        {getTypeLabel(signalement.type_probleme)}
-                                      </span>
-                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${urgenceColors.bg} ${urgenceColors.text} border ${urgenceColors.border} flex items-center gap-1`}>
-                                        {signalement.urgence === 'haute' && <AlertTriangle className="w-3 h-3" />}
-                                        {signalement.urgence === 'haute' ? 'URGENT' : signalement.urgence === 'moyenne' ? 'Moyenne' : 'Faible'}
-                                      </span>
-                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statutColors.bg} ${statutColors.text} border ${statutColors.border}`}>
-                                        {signalement.statut === 'resolu' ? 'Résolu' : signalement.statut === 'en_cours' ? 'En cours' : 'En attente'}
-                                      </span>
+                  const getStatutColor = (statut) => {
+                    switch (statut) {
+                      case 'resolu': return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' };
+                      case 'en_cours': return { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' };
+                      default: return { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
+                    }
+                  };
+
+                  const getTypeLabel = (type) => {
+                    const labels = {
+                      'mecanique': 'Mécanique',
+                      'eclairage': 'Éclairage',
+                      'portes': 'Portes',
+                      'climatisation': 'Climatisation',
+                      'pneus': 'Pneus',
+                      'autre': 'Autre'
+                    };
+                    return labels[type] || type;
+                  };
+
+                  return (
+                    <div className="space-y-4">
+                      <AnimatePresence>
+                        {filteredSignalements.map((signalement, index) => {
+                          const typeColors = getTypeColor(signalement.type_probleme);
+                          const urgenceColors = getUrgenceColor(signalement.urgence);
+                          const statutColors = getStatutColor(signalement.statut);
+
+                          return (
+                            <motion.div
+                              key={signalement.id}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -20 }}
+                              transition={{ duration: 0.3, delay: index * 0.05 }}
+                              className={`${typeColors.bg} ${typeColors.border} border-2 rounded-2xl shadow-md hover:shadow-lg transition-all overflow-hidden`}
+                            >
+                              <div className="p-5">
+                                <div className="flex justify-between items-start mb-4">
+                                  <div className="flex items-center gap-3 flex-1">
+                                    <div className={`p-2 rounded-lg ${typeColors.bg} ${typeColors.icon}`}>
+                                      <Wrench className="w-5 h-5" />
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                                      <Clock className="w-4 h-4" />
-                                      <span>
-                                        {signalement.date_creation ? format(new Date(signalement.date_creation), 'dd MMMM yyyy à HH:mm', { locale: fr }) : 'Date inconnue'}
-                                      </span>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <h3 className="font-semibold text-gray-800 text-lg">
+                                          {getTypeLabel(signalement.type_probleme)}
+                                        </h3>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeColors.badge} border ${typeColors.border}`}>
+                                          {getTypeLabel(signalement.type_probleme)}
+                                        </span>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${urgenceColors.bg} ${urgenceColors.text} border ${urgenceColors.border} flex items-center gap-1`}>
+                                          {signalement.urgence === 'haute' && <AlertTriangle className="w-3 h-3" />}
+                                          {signalement.urgence === 'haute' ? 'URGENT' : signalement.urgence === 'moyenne' ? 'Moyenne' : 'Faible'}
+                                        </span>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statutColors.bg} ${statutColors.text} border ${statutColors.border}`}>
+                                          {signalement.statut === 'resolu' ? 'Résolu' : signalement.statut === 'en_cours' ? 'En cours' : 'En attente'}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                                        <Clock className="w-4 h-4" />
+                                        <span>
+                                          {signalement.date_creation ? format(new Date(signalement.date_creation), 'dd MMMM yyyy à HH:mm', { locale: fr }) : 'Date inconnue'}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSignalementToDelete(signalement)}
+                                    className="ml-4 text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400 rounded-xl"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
                                 </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setSignalementToDelete(signalement)}
-                                  className="ml-4 text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400 rounded-xl"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
 
-                              {/* Description */}
-                              <div className="bg-white rounded-lg p-4 border border-gray-200 mb-4">
-                                <p className="text-gray-800 leading-relaxed">{signalement.description}</p>
-                              </div>
+                                {/* Description */}
+                                <div className="bg-white rounded-lg p-4 border border-gray-200 mb-4">
+                                  <p className="text-gray-800 leading-relaxed">{signalement.description}</p>
+                                </div>
 
-                              {/* Photos si disponibles */}
-                              {(() => {
-                                try {
-                                  // Vérifier si signalement.photos existe et n'est pas null/undefined
-                                  if (!signalement.photos || signalement.photos === null || signalement.photos === 'null' || signalement.photos === '') {
-                                    return null;
-                                  }
-                                  
-                                  let photos = [];
-                                  
-                                  // Si c'est déjà un tableau
-                                  if (Array.isArray(signalement.photos)) {
-                                    photos = signalement.photos;
-                                  } 
-                                  // Si c'est une chaîne JSON
-                                  else if (typeof signalement.photos === 'string' && signalement.photos.trim() !== '') {
-                                    try {
-                                      // Essayer de parser la chaîne JSON
-                                      let parsed = signalement.photos;
-                                      
-                                      // Si la chaîne commence par "[" ou "{", c'est du JSON
-                                      if (parsed.trim().startsWith('[') || parsed.trim().startsWith('{')) {
-                                        parsed = JSON.parse(parsed);
-                                      }
-                                      
-                                      // Si le résultat est un tableau, on l'utilise
-                                      if (Array.isArray(parsed)) {
-                                        photos = parsed;
-                                      } 
-                                      // Si c'est un objet avec une propriété qui est un tableau
-                                      else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
-                                        photos = parsed.photos;
-                                      }
-                                      // Si c'est une chaîne simple (une seule photo)
-                                      else if (typeof parsed === 'string' && parsed.startsWith('data:image')) {
-                                        photos = [parsed];
-                                      }
-                                    } catch (parseError) {
-                                      // Si le parsing échoue, essayer de traiter comme une chaîne simple
-                                      if (signalement.photos.startsWith('data:image')) {
-                                        photos = [signalement.photos];
-                                      } else {
-                                        console.error('Erreur parsing photos:', parseError);
-                                        return null;
-                                      }
-                                    }
-                                  } else {
-                                    return null;
-                                  }
-                                  
-                                  // Vérifier que photos est un tableau non vide
-                                  if (!Array.isArray(photos) || photos.length === 0) {
-                                    return null;
-                                  }
-                                  
-                                  // Filtrer et normaliser les photos valides
-                                  const validPhotos = photos
-                                    .map(photo => {
-                                      // Extraire la source de la photo
-                                      if (typeof photo === 'string') {
-                                        return photo;
-                                      } else if (photo && typeof photo === 'object') {
-                                        return photo.data || photo.src || photo.url || null;
-                                      }
+                                {/* Photos si disponibles */}
+                                {(() => {
+                                  try {
+                                    // Vérifier si signalement.photos existe et n'est pas null/undefined
+                                    if (!signalement.photos || signalement.photos === null || signalement.photos === 'null' || signalement.photos === '') {
                                       return null;
-                                    })
-                                    .filter(photoSrc => {
-                                      // Vérifier que c'est une chaîne valide qui commence par data:image
-                                      return photoSrc && 
-                                             typeof photoSrc === 'string' && 
-                                             photoSrc.trim() !== '' && 
-                                             photoSrc.startsWith('data:image');
-                                    });
-                                  
-                                  if (validPhotos.length === 0) {
+                                    }
+
+                                    let photos = [];
+
+                                    // Si c'est déjà un tableau
+                                    if (Array.isArray(signalement.photos)) {
+                                      photos = signalement.photos;
+                                    }
+                                    // Si c'est une chaîne JSON
+                                    else if (typeof signalement.photos === 'string' && signalement.photos.trim() !== '') {
+                                      try {
+                                        // Essayer de parser la chaîne JSON
+                                        let parsed = signalement.photos;
+
+                                        // Si la chaîne commence par "[" ou "{", c'est du JSON
+                                        if (parsed.trim().startsWith('[') || parsed.trim().startsWith('{')) {
+                                          parsed = JSON.parse(parsed);
+                                        }
+
+                                        // Si le résultat est un tableau, on l'utilise
+                                        if (Array.isArray(parsed)) {
+                                          photos = parsed;
+                                        }
+                                        // Si c'est un objet avec une propriété qui est un tableau
+                                        else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
+                                          photos = parsed.photos;
+                                        }
+                                        // Si c'est une chaîne simple (une seule photo)
+                                        else if (typeof parsed === 'string' && parsed.startsWith('data:image')) {
+                                          photos = [parsed];
+                                        }
+                                      } catch (parseError) {
+                                        // Si le parsing échoue, essayer de traiter comme une chaîne simple
+                                        if (signalement.photos.startsWith('data:image')) {
+                                          photos = [signalement.photos];
+                                        } else {
+                                          console.error('Erreur parsing photos:', parseError);
+                                          return null;
+                                        }
+                                      }
+                                    } else {
+                                      return null;
+                                    }
+
+                                    // Vérifier que photos est un tableau non vide
+                                    if (!Array.isArray(photos) || photos.length === 0) {
+                                      return null;
+                                    }
+
+                                    // Filtrer et normaliser les photos valides
+                                    const validPhotos = photos
+                                      .map(photo => {
+                                        // Extraire la source de la photo
+                                        if (typeof photo === 'string') {
+                                          return photo;
+                                        } else if (photo && typeof photo === 'object') {
+                                          return photo.data || photo.src || photo.url || null;
+                                        }
+                                        return null;
+                                      })
+                                      .filter(photoSrc => {
+                                        // Vérifier que c'est une chaîne valide qui commence par data:image
+                                        return photoSrc &&
+                                          typeof photoSrc === 'string' &&
+                                          photoSrc.trim() !== '' &&
+                                          photoSrc.startsWith('data:image');
+                                      });
+
+                                    if (validPhotos.length === 0) {
+                                      return null;
+                                    }
+
+                                    return (
+                                      <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+                                        <div className="flex items-center gap-2 mb-3">
+                                          <ImageIcon className="w-5 h-5 text-green-600" />
+                                          <span className="text-sm font-semibold text-gray-700">Photos ({validPhotos.length})</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                          {validPhotos.map((photoSrc, photoIndex) => (
+                                            <motion.div
+                                              key={photoIndex}
+                                              whileHover={{ scale: 1.05 }}
+                                              whileTap={{ scale: 0.95 }}
+                                              className="relative group cursor-pointer"
+                                              onClick={() => setSelectedSignalementPhoto(photoSrc)}
+                                            >
+                                              <div className="relative overflow-hidden rounded-lg border-2 border-green-300 group-hover:border-green-500 transition-colors bg-white shadow-md">
+                                                <img
+                                                  src={photoSrc}
+                                                  alt={`Photo problème ${photoIndex + 1}`}
+                                                  className="w-full h-24 object-cover"
+                                                  onError={(e) => {
+                                                    console.error('Erreur chargement image:', photoIndex);
+                                                    e.target.style.display = 'none';
+                                                  }}
+                                                />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                                  <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </div>
+                                              </div>
+                                            </motion.div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  } catch (e) {
+                                    console.error('Erreur parsing photos:', e, signalement);
                                     return null;
                                   }
-                                  
-                                  return (
-                                    <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
-                                      <div className="flex items-center gap-2 mb-3">
-                                        <ImageIcon className="w-5 h-5 text-green-600" />
-                                        <span className="text-sm font-semibold text-gray-700">Photos ({validPhotos.length})</span>
-                                      </div>
-                                      <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
-                                        {validPhotos.map((photoSrc, photoIndex) => (
-                                          <motion.div
-                                            key={photoIndex}
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            className="relative group cursor-pointer"
-                                            onClick={() => setSelectedSignalementPhoto(photoSrc)}
-                                          >
-                                            <div className="relative overflow-hidden rounded-lg border-2 border-green-300 group-hover:border-green-500 transition-colors bg-white shadow-md">
-                                              <img
-                                                src={photoSrc}
-                                                alt={`Photo problème ${photoIndex + 1}`}
-                                                className="w-full h-24 object-cover"
-                                                onError={(e) => {
-                                                  console.error('Erreur chargement image:', photoIndex);
-                                                  e.target.style.display = 'none';
-                                                }}
-                                              />
-                                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                                <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                              </div>
-                                            </div>
-                                          </motion.div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  );
-                                } catch (e) {
-                                  console.error('Erreur parsing photos:', e, signalement);
-                                  return null;
-                                }
-                              })()}
+                                })()}
 
-                              {/* Informations supplémentaires */}
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                {signalement.bus_numero && (
+                                {/* Informations supplémentaires */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  {signalement.bus_numero && (
+                                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <Bus className="w-4 h-4 text-gray-400" />
+                                        <span className="text-xs text-gray-500 font-medium">Bus</span>
+                                      </div>
+                                      <p className="text-sm font-semibold text-gray-800">{signalement.bus_numero}</p>
+                                    </div>
+                                  )}
                                   <div className="bg-white rounded-lg p-3 border border-gray-200">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <Bus className="w-4 h-4 text-gray-400" />
-                                      <span className="text-xs text-gray-500 font-medium">Bus</span>
+                                      <AlertTriangle className={`w-4 h-4 ${urgenceColors.icon}`} />
+                                      <span className="text-xs text-gray-500 font-medium">Urgence</span>
                                     </div>
-                                    <p className="text-sm font-semibold text-gray-800">{signalement.bus_numero}</p>
+                                    <p className={`text-sm font-semibold ${urgenceColors.text}`}>
+                                      {signalement.urgence === 'haute' ? 'Haute' : signalement.urgence === 'moyenne' ? 'Moyenne' : 'Faible'}
+                                    </p>
                                   </div>
-                                )}
-                                <div className="bg-white rounded-lg p-3 border border-gray-200">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <AlertTriangle className={`w-4 h-4 ${urgenceColors.icon}`} />
-                                    <span className="text-xs text-gray-500 font-medium">Urgence</span>
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <CheckCircle className={`w-4 h-4 ${statutColors.text}`} />
+                                      <span className="text-xs text-gray-500 font-medium">Statut</span>
+                                    </div>
+                                    <p className={`text-sm font-semibold ${statutColors.text}`}>
+                                      {signalement.statut === 'resolu' ? 'Résolu' : signalement.statut === 'en_cours' ? 'En cours' : 'En attente'}
+                                    </p>
                                   </div>
-                                  <p className={`text-sm font-semibold ${urgenceColors.text}`}>
-                                    {signalement.urgence === 'haute' ? 'Haute' : signalement.urgence === 'moyenne' ? 'Moyenne' : 'Faible'}
-                                  </p>
-                                </div>
-                                <div className="bg-white rounded-lg p-3 border border-gray-200">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <CheckCircle className={`w-4 h-4 ${statutColors.text}`} />
-                                    <span className="text-xs text-gray-500 font-medium">Statut</span>
-                                  </div>
-                                  <p className={`text-sm font-semibold ${statutColors.text}`}>
-                                    {signalement.statut === 'resolu' ? 'Résolu' : signalement.statut === 'en_cours' ? 'En cours' : 'En attente'}
-                                  </p>
                                 </div>
                               </div>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </AnimatePresence>
-                  </div>
-                );
-              })()}
+                            </motion.div>
+                          );
+                        })}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
-          </div>
           </>
         )}
 
       </div>
-      
+
       {/* Modal Déclaration Accident */}
       {showAccidentForm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1912,11 +1908,11 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   setShowAccidentForm(false);
                   return;
                 }
-                
+
                 // Vérifier la taille totale des fichiers
                 const totalSize = accidentPhotos.reduce((sum, photo) => sum + photo.file.size, 0);
                 const maxSize = 10 * 1024 * 1024; // 10 MB max
-                
+
                 if (totalSize > maxSize) {
                   showToast('La taille totale des photos dépasse 10 MB. Veuillez réduire le nombre ou la taille des images.', 'error');
                   return;
@@ -1925,14 +1921,14 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 // Compresser et convertir les photos en base64 (seulement les nouvelles photos)
                 const newPhotos = accidentPhotos.filter(photo => photo.file);
                 const existingPhotos = accidentPhotos.filter(photo => !photo.file && photo.preview);
-                
+
                 let photosBase64 = [];
                 if (newPhotos.length > 0) {
                   photosBase64 = await Promise.all(
                     newPhotos.map(photo => compressImage(photo.file))
                   );
                 }
-                
+
                 // Combiner les nouvelles photos avec les existantes
                 const allPhotos = [
                   ...existingPhotos.map(photo => photo.preview),
@@ -1969,7 +1965,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                     showToast('Accident déclaré avec succès ! L\'administrateur a été notifié.', 'success');
                   }
                 }
-                
+
                 setShowAccidentForm(false);
                 setEditingAccident(null);
                 setAccidentForm({
@@ -2001,7 +1997,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <Input
                     type="date"
                     value={accidentForm.date}
-                    onChange={(e) => setAccidentForm({...accidentForm, date: e.target.value})}
+                    onChange={(e) => setAccidentForm({ ...accidentForm, date: e.target.value })}
                     className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     required
                   />
@@ -2011,7 +2007,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <Input
                     type="time"
                     value={accidentForm.heure}
-                    onChange={(e) => setAccidentForm({...accidentForm, heure: e.target.value})}
+                    onChange={(e) => setAccidentForm({ ...accidentForm, heure: e.target.value })}
                     className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     required
                   />
@@ -2020,7 +2016,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <Label>Lieu *</Label>
                   <Input
                     value={accidentForm.lieu}
-                    onChange={(e) => setAccidentForm({...accidentForm, lieu: e.target.value})}
+                    onChange={(e) => setAccidentForm({ ...accidentForm, lieu: e.target.value })}
                     className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     placeholder="Adresse de l'accident"
                     required
@@ -2030,7 +2026,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <Label>Gravité *</Label>
                   <Select
                     value={accidentForm.gravite}
-                    onValueChange={(v) => setAccidentForm({...accidentForm, gravite: v})}
+                    onValueChange={(v) => setAccidentForm({ ...accidentForm, gravite: v })}
                   >
                     <SelectTrigger className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500">
                       <SelectValue />
@@ -2047,7 +2043,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <Input
                     type="number"
                     value={accidentForm.nombre_eleves}
-                    onChange={(e) => setAccidentForm({...accidentForm, nombre_eleves: e.target.value})}
+                    onChange={(e) => setAccidentForm({ ...accidentForm, nombre_eleves: e.target.value })}
                     className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     min="0"
                     placeholder="0"
@@ -2058,7 +2054,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <Input
                     type="number"
                     value={accidentForm.nombre_blesses}
-                    onChange={(e) => setAccidentForm({...accidentForm, nombre_blesses: e.target.value})}
+                    onChange={(e) => setAccidentForm({ ...accidentForm, nombre_blesses: e.target.value })}
                     className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                     min="0"
                     placeholder="0"
@@ -2069,7 +2065,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 <Label>Description *</Label>
                 <Textarea
                   value={accidentForm.description}
-                  onChange={(e) => setAccidentForm({...accidentForm, description: e.target.value})}
+                  onChange={(e) => setAccidentForm({ ...accidentForm, description: e.target.value })}
                   className="mt-1 rounded-xl"
                   rows={4}
                   placeholder="Décrivez l'accident en détail..."
@@ -2080,13 +2076,13 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 <Label>Dégâts</Label>
                 <Textarea
                   value={accidentForm.degats}
-                  onChange={(e) => setAccidentForm({...accidentForm, degats: e.target.value})}
+                  onChange={(e) => setAccidentForm({ ...accidentForm, degats: e.target.value })}
                   className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500"
                   rows={2}
                   placeholder="Décrivez les dégâts matériels..."
                 />
               </div>
-              
+
               {/* Upload de photos */}
               <div>
                 <Label>Photos (optionnel) - Max 5 photos, 5 MB par photo, 10 MB total</Label>
@@ -2097,14 +2093,14 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []);
                     const remainingSlots = 5 - accidentPhotos.length;
-                    
+
                     if (files.length > remainingSlots) {
                       showToast(`Vous ne pouvez ajouter que ${remainingSlots} photo(s) supplémentaire(s)`, 'error');
                       return;
                     }
-                    
+
                     const filesToAdd = files.slice(0, remainingSlots);
-                    
+
                     // Vérifier la taille de chaque fichier (max 5 MB par fichier)
                     const maxFileSize = 5 * 1024 * 1024; // 5 MB
                     const validFiles = filesToAdd.filter(file => {
@@ -2114,7 +2110,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                       }
                       return true;
                     });
-                    
+
                     const newPhotos = validFiles.map(file => ({
                       file: file,
                       preview: URL.createObjectURL(file)
@@ -2132,7 +2128,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <ImageIcon className="w-5 h-5 text-gray-400" />
                   <span className="text-sm text-gray-600">Cliquez pour ajouter des photos</span>
                 </label>
-                
+
                 {/* Prévisualisation des photos */}
                 {accidentPhotos.length > 0 && (
                   <div className="mt-4">
@@ -2165,7 +2161,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   </div>
                 )}
               </div>
-              
+
               <div className="flex gap-3 justify-end pt-4 border-t">
                 <Button
                   type="button"
@@ -2232,7 +2228,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                     return;
                   }
                 }
-                
+
                 const essenceData = {
                   chauffeur_id: chauffeur?.id || chauffeur?.type_id,
                   bus_id: bus?.id,
@@ -2243,7 +2239,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   station_service: essenceForm.station_service || null,
                   photo_ticket: photoTicketBase64
                 };
-                
+
                 const response = await essenceAPI.create(essenceData);
                 if (response.success) {
                   // Nettoyer la photo
@@ -2251,12 +2247,12 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                     URL.revokeObjectURL(essenceTicketPhoto.preview);
                     setEssenceTicketPhoto(null);
                   }
-                  
+
                   // Recharger les données
                   const essenceResponse = await essenceAPI.getByChauffeur(chauffeur?.id || chauffeur?.type_id);
                   const essenceData = essenceResponse?.data || essenceResponse || [];
                   setPriseEssence(essenceData);
-                  
+
                   showToast('Prise d\'essence enregistrée avec succès ! L\'administrateur a été notifié.', 'success');
                   setShowEssenceForm(false);
                   setEssenceForm({
@@ -2274,26 +2270,26 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <Label>Date *</Label>
-                  <Input type="date" value={essenceForm.date} onChange={(e) => setEssenceForm({...essenceForm, date: e.target.value})} className="mt-1 rounded-xl" required />
+                  <Input type="date" value={essenceForm.date} onChange={(e) => setEssenceForm({ ...essenceForm, date: e.target.value })} className="mt-1 rounded-xl" required />
                 </div>
                 <div>
                   <Label>Heure *</Label>
-                  <Input type="time" value={essenceForm.heure} onChange={(e) => setEssenceForm({...essenceForm, heure: e.target.value})} className="mt-1 rounded-xl" required />
+                  <Input type="time" value={essenceForm.heure} onChange={(e) => setEssenceForm({ ...essenceForm, heure: e.target.value })} className="mt-1 rounded-xl" required />
                 </div>
                 <div>
                   <Label>Quantité (litres) *</Label>
-                  <Input type="number" step="0.01" value={essenceForm.quantite_litres} onChange={(e) => setEssenceForm({...essenceForm, quantite_litres: e.target.value})} className="mt-1 rounded-xl" required />
+                  <Input type="number" step="0.01" value={essenceForm.quantite_litres} onChange={(e) => setEssenceForm({ ...essenceForm, quantite_litres: e.target.value })} className="mt-1 rounded-xl" required />
                 </div>
                 <div>
                   <Label>Prix total (DH) *</Label>
-                  <Input type="number" step="0.01" value={essenceForm.prix_total} onChange={(e) => setEssenceForm({...essenceForm, prix_total: e.target.value})} className="mt-1 rounded-xl" required />
+                  <Input type="number" step="0.01" value={essenceForm.prix_total} onChange={(e) => setEssenceForm({ ...essenceForm, prix_total: e.target.value })} className="mt-1 rounded-xl" required />
                 </div>
                 <div className="col-span-2">
                   <Label>Station-service</Label>
-                  <Input value={essenceForm.station_service} onChange={(e) => setEssenceForm({...essenceForm, station_service: e.target.value})} className="mt-1 rounded-xl" />
+                  <Input value={essenceForm.station_service} onChange={(e) => setEssenceForm({ ...essenceForm, station_service: e.target.value })} className="mt-1 rounded-xl" />
                 </div>
               </div>
-              
+
               {/* Upload Photo Ticket */}
               <div className="mb-4">
                 <Label>Photo du ticket/reçu</Label>
@@ -2309,7 +2305,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                         showToast('L\'image est trop grande (max 5 MB)', 'error');
                         return;
                       }
-                      
+
                       setEssenceTicketPhoto({
                         file: file,
                         preview: URL.createObjectURL(file)
@@ -2329,7 +2325,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                     {essenceTicketPhoto ? 'Photo sélectionnée - Cliquez pour changer' : 'Cliquez pour ajouter une photo du ticket'}
                   </span>
                 </label>
-                
+
                 {/* Prévisualisation de la photo - compacte */}
                 {essenceTicketPhoto && (
                   <div className="mt-3 flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
@@ -2355,7 +2351,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   </div>
                 )}
               </div>
-              
+
               <div className="flex gap-3 justify-end pt-4 border-t col-span-2">
                 <Button type="button" variant="outline" onClick={() => {
                   if (essenceTicketPhoto) {
@@ -2389,13 +2385,13 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <Wrench className="w-6 h-6" />
                   Signaler un Problème
                 </h2>
-                <button 
+                <button
                   onClick={() => {
                     // Nettoyer les URLs des prévisualisations
                     signalementPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
                     setSignalementPhotos([]);
                     setShowSignalementForm(false);
-                  }} 
+                  }}
                   className="text-white hover:text-green-100"
                 >
                   <X className="w-6 h-6" />
@@ -2408,7 +2404,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 // Vérifier la taille totale des fichiers
                 const totalSize = signalementPhotos.reduce((sum, photo) => sum + photo.file.size, 0);
                 const maxSize = 10 * 1024 * 1024; // 10 MB max
-                
+
                 if (totalSize > maxSize) {
                   showToast('La taille totale des photos dépasse 10 MB. Veuillez réduire le nombre ou la taille des images.', 'error');
                   return;
@@ -2427,14 +2423,14 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   urgence: signalementForm.urgence,
                   photos: photosBase64.length > 0 ? photosBase64.map(p => p.data) : null
                 };
-                
+
                 const response = await signalementsAPI.create(signalementData);
                 if (response.success) {
                   // Recharger les données
                   const signalementsResponse = await signalementsAPI.getByChauffeur(chauffeur?.id || chauffeur?.type_id);
                   const signalementsData = signalementsResponse?.data || signalementsResponse || [];
                   setSignalements(signalementsData);
-                  
+
                   showToast('Problème signalé avec succès ! L\'administrateur a été notifié.', 'success');
                   setShowSignalementForm(false);
                   setSignalementForm({
@@ -2453,7 +2449,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 pb-2">
                 <div>
                   <Label>Type de problème *</Label>
-                  <Select value={signalementForm.type_probleme} onValueChange={(v) => setSignalementForm({...signalementForm, type_probleme: v})}>
+                  <Select value={signalementForm.type_probleme} onValueChange={(v) => setSignalementForm({ ...signalementForm, type_probleme: v })}>
                     <SelectTrigger className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500">
                       <SelectValue />
                     </SelectTrigger>
@@ -2469,7 +2465,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 </div>
                 <div>
                   <Label>Urgence *</Label>
-                  <Select value={signalementForm.urgence} onValueChange={(v) => setSignalementForm({...signalementForm, urgence: v})}>
+                  <Select value={signalementForm.urgence} onValueChange={(v) => setSignalementForm({ ...signalementForm, urgence: v })}>
                     <SelectTrigger className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500">
                       <SelectValue />
                     </SelectTrigger>
@@ -2482,100 +2478,100 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 </div>
                 <div>
                   <Label>Description *</Label>
-                  <Textarea value={signalementForm.description} onChange={(e) => setSignalementForm({...signalementForm, description: e.target.value})} className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500" rows={4} required placeholder="Décrivez le problème en détail..." />
+                  <Textarea value={signalementForm.description} onChange={(e) => setSignalementForm({ ...signalementForm, description: e.target.value })} className="mt-1 rounded-xl focus:ring-green-500 focus:border-green-500" rows={4} required placeholder="Décrivez le problème en détail..." />
                 </div>
-                
+
                 {/* Upload de photos */}
                 <div>
-                <Label>Photos (optionnel) - Max 5 photos, 5 MB par photo, 10 MB total</Label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files || []);
-                    const remainingSlots = 5 - signalementPhotos.length;
-                    
-                    if (files.length > remainingSlots) {
-                      showToast(`Vous ne pouvez ajouter que ${remainingSlots} photo(s) supplémentaire(s)`, 'error');
-                      return;
-                    }
-                    
-                    const filesToAdd = files.slice(0, remainingSlots);
-                    
-                    // Vérifier la taille de chaque fichier (max 5 MB par fichier)
-                    const maxFileSize = 5 * 1024 * 1024; // 5 MB
-                    const validFiles = filesToAdd.filter(file => {
-                      if (file.size > maxFileSize) {
-                        showToast(`L'image ${file.name} est trop grande (max 5 MB)`, 'error');
-                        return false;
+                  <Label>Photos (optionnel) - Max 5 photos, 5 MB par photo, 10 MB total</Label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      const remainingSlots = 5 - signalementPhotos.length;
+
+                      if (files.length > remainingSlots) {
+                        showToast(`Vous ne pouvez ajouter que ${remainingSlots} photo(s) supplémentaire(s)`, 'error');
+                        return;
                       }
-                      return true;
-                    });
-                    
-                    const newPhotos = validFiles.map(file => ({
-                      file: file,
-                      preview: URL.createObjectURL(file)
-                    }));
-                    setSignalementPhotos([...signalementPhotos, ...newPhotos]);
-                    e.target.value = '';
-                  }}
-                  className="hidden"
-                  id="signalement-photos-upload"
-                />
-                <label
-                  htmlFor="signalement-photos-upload"
-                  className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
-                >
-                  <ImageIcon className="w-5 h-5 text-gray-400" />
-                  <span className="text-sm text-gray-600">Cliquez pour ajouter des photos</span>
-                </label>
-                
-                {/* Prévisualisation des photos */}
-                {signalementPhotos.length > 0 && (
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-600">
-                        {signalementPhotos.length} photo{signalementPhotos.length > 1 ? 's' : ''} sélectionnée{signalementPhotos.length > 1 ? 's' : ''}
-                      </span>
+
+                      const filesToAdd = files.slice(0, remainingSlots);
+
+                      // Vérifier la taille de chaque fichier (max 5 MB par fichier)
+                      const maxFileSize = 5 * 1024 * 1024; // 5 MB
+                      const validFiles = filesToAdd.filter(file => {
+                        if (file.size > maxFileSize) {
+                          showToast(`L'image ${file.name} est trop grande (max 5 MB)`, 'error');
+                          return false;
+                        }
+                        return true;
+                      });
+
+                      const newPhotos = validFiles.map(file => ({
+                        file: file,
+                        preview: URL.createObjectURL(file)
+                      }));
+                      setSignalementPhotos([...signalementPhotos, ...newPhotos]);
+                      e.target.value = '';
+                    }}
+                    className="hidden"
+                    id="signalement-photos-upload"
+                  />
+                  <label
+                    htmlFor="signalement-photos-upload"
+                    className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-green-500 hover:bg-green-50 transition-colors"
+                  >
+                    <ImageIcon className="w-5 h-5 text-gray-400" />
+                    <span className="text-sm text-gray-600">Cliquez pour ajouter des photos</span>
+                  </label>
+
+                  {/* Prévisualisation des photos */}
+                  {signalementPhotos.length > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-600">
+                          {signalementPhotos.length} photo{signalementPhotos.length > 1 ? 's' : ''} sélectionnée{signalementPhotos.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
+                        {signalementPhotos.map((photo, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={photo.preview}
+                              alt={`Photo ${index + 1}`}
+                              className="w-full h-16 object-cover rounded-lg border border-gray-300"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                URL.revokeObjectURL(photo.preview);
+                                setSignalementPhotos(signalementPhotos.filter((_, i) => i !== index));
+                              }}
+                              className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-100 shadow-md hover:bg-red-600 transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
-                      {signalementPhotos.map((photo, index) => (
-                        <div key={index} className="relative group">
-                          <img
-                            src={photo.preview}
-                            alt={`Photo ${index + 1}`}
-                            className="w-full h-16 object-cover rounded-lg border border-gray-300"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              URL.revokeObjectURL(photo.preview);
-                              setSignalementPhotos(signalementPhotos.filter((_, i) => i !== index));
-                            }}
-                            className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-100 shadow-md hover:bg-red-600 transition-colors"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  )}
                 </div>
               </div>
-              
+
               {/* Boutons fixes en bas - toujours visibles */}
               <div className="p-4 border-t-2 border-gray-200 bg-gradient-to-r from-gray-50 to-white rounded-b-3xl flex gap-3 justify-end flex-shrink-0 sticky bottom-0 z-10 shadow-lg">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => {
                     // Nettoyer les URLs des prévisualisations
                     signalementPhotos.forEach(photo => URL.revokeObjectURL(photo.preview));
                     setSignalementPhotos([]);
                     setShowSignalementForm(false);
-                  }} 
+                  }}
                   className="rounded-xl border-2 border-gray-300 hover:border-gray-400 px-6 py-2.5 font-semibold shadow-sm hover:shadow-md transition-all"
                 >
                   <X className="w-4 h-4 mr-2" /> Annuler
@@ -2614,7 +2610,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
 
       {/* Modal pour voir les photos en grand */}
       {selectedSignalementPhoto && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={() => setSelectedSignalementPhoto(null)}
         >
@@ -2668,24 +2664,24 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 // Traiter la photo avant de l'afficher
                 let displayPhoto = selectedEssenceTicketPhoto;
                 console.log('Modal - Photo reçue, longueur:', displayPhoto.length, 'début:', displayPhoto.substring(0, 50));
-                
+
                 // Si la photo ne commence pas par data:image, essayer de la corriger
                 if (!displayPhoto.startsWith('data:image') && !displayPhoto.startsWith('http')) {
                   // Nettoyer la photo
                   let cleanPhoto = displayPhoto.replace(/^["']+|["']+$/g, '').trim();
                   cleanPhoto = cleanPhoto.replace(/\s/g, ''); // Enlever tous les espaces
-                  
+
                   // Vérifier si la photo est tronquée (exactement 255 caractères = probablement tronquée par VARCHAR(255))
                   if (cleanPhoto.length === 255) {
                     console.warn('ATTENTION: Photo tronquée à 255 caractères! La colonne doit être en LONGTEXT.');
                   }
-                  
+
                   // Essayer avec jpeg
                   if (cleanPhoto.length > 50) {
                     displayPhoto = `data:image/jpeg;base64,${cleanPhoto}`;
                   }
                 }
-                
+
                 return (
                   <img
                     key={displayPhoto.substring(0, 100)}
@@ -2695,7 +2691,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                     onError={(e) => {
                       console.error('Erreur chargement image dans modal');
                       const currentSrc = e.target.src;
-                      
+
                       // Ne pas réessayer si on a déjà essayé plusieurs fois
                       if (e.target.dataset.retryCount && parseInt(e.target.dataset.retryCount) >= 3) {
                         e.target.style.display = 'none';
@@ -2713,18 +2709,18 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                         }
                         return;
                       }
-                      
+
                       const retryCount = parseInt(e.target.dataset.retryCount || '0') + 1;
                       e.target.dataset.retryCount = retryCount.toString();
-                      
+
                       // Extraire le base64 pur
                       let base64Data = selectedEssenceTicketPhoto;
                       base64Data = base64Data.replace(/^data:image\/[^;]+;base64,/, '');
                       base64Data = base64Data.replace(/^["']+|["']+$/g, '').trim();
                       base64Data = base64Data.replace(/\s/g, '');
-                      
+
                       console.log(`Tentative ${retryCount} de chargement, base64 length:`, base64Data.length);
-                      
+
                       // Essayer différents formats
                       if (retryCount === 1 && base64Data.length > 50) {
                         e.target.src = `data:image/jpeg;base64,${base64Data}`;
@@ -2813,7 +2809,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                         const signalementsResponse = await signalementsAPI.getByChauffeur(chauffeurId);
                         const signalementsData = signalementsResponse?.data || signalementsResponse || [];
                         setSignalements(signalementsData);
-                        
+
                         showToast('Signalement supprimé avec succès', 'success');
                         setSignalementToDelete(null);
                       } else {
@@ -2842,13 +2838,12 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className={`fixed bottom-6 right-6 z-50 max-w-md w-full shadow-2xl rounded-xl overflow-hidden ${
-              toastType === 'success' 
-                ? 'bg-green-500' 
-                : toastType === 'error' 
-                ? 'bg-red-500' 
+            className={`fixed bottom-6 right-6 z-50 max-w-md w-full shadow-2xl rounded-xl overflow-hidden ${toastType === 'success'
+              ? 'bg-green-500'
+              : toastType === 'error'
+                ? 'bg-red-500'
                 : 'bg-blue-500'
-            }`}
+              }`}
           >
             <div className="p-4 flex items-center gap-3">
               {toastType === 'success' && <CheckCircle className="w-5 h-5 text-white flex-shrink-0" />}
@@ -2871,7 +2866,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
 
 export default function ChauffeurDashboard() {
   const [activeTab, setActiveTab] = React.useState(null); // null = dashboard avec stats seulement
-  
+
   return (
     <ChauffeurLayout activeTab={activeTab} setActiveTab={setActiveTab}>
       <ChauffeurDashboardContent activeTab={activeTab} setActiveTab={setActiveTab} />

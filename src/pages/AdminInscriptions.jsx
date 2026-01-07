@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AdminLayout from '../components/AdminLayout';
-import { 
-  ClipboardList, Search, CheckCircle, XCircle, 
+import {
+  ClipboardList, Search, CheckCircle, XCircle, AlertCircle,
   Eye, User, Bus, MapPin, Filter, Calendar, ArrowLeft, FileText, Copy, Check
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -31,12 +31,15 @@ export default function AdminInscriptions() {
   const [availableBuses, setAvailableBuses] = useState([]);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState(null);
+  const [showDebug, setShowDebug] = useState(false);
   const [adminUser, setAdminUser] = useState(null);
   const [inscriptionForm, setInscriptionForm] = useState({
     date_debut: format(new Date(), 'yyyy-MM-dd'),
     date_fin: '2026-02-01' // Par défaut pour mensuel, sera recalculé selon l'abonnement
   });
   const [copiedCode, setCopiedCode] = useState(null);
+  const [showRefuseModal, setShowRefuseModal] = useState(false);
+  const [refusalMotif, setRefusalMotif] = useState('');
 
   useEffect(() => {
     // Charger les données de l'admin depuis la session
@@ -55,7 +58,7 @@ export default function AdminInscriptions() {
   const loadData = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Charger toutes les données en parallèle, mais gérer les erreurs individuellement
       const results = await Promise.allSettled([
@@ -66,9 +69,9 @@ export default function AdminInscriptions() {
         tuteursAPI.getAll(),
         demandesAPI.getAll()
       ]);
-      
+
       // Extraire les données avec gestion de différents formats de réponse
-      const elevesArray = results[0].status === 'fulfilled' 
+      const elevesArray = results[0].status === 'fulfilled'
         ? (Array.isArray(results[0].value?.data) ? results[0].value.data : (Array.isArray(results[0].value) ? results[0].value : []))
         : [];
       const busesArray = results[1].status === 'fulfilled'
@@ -86,10 +89,10 @@ export default function AdminInscriptions() {
       const demandesArray = results[5].status === 'fulfilled'
         ? (Array.isArray(results[5].value?.data) ? results[5].value.data : (Array.isArray(results[5].value) ? results[5].value : []))
         : [];
-      
+
       // Filtrer uniquement les demandes d'inscription
       const demandesInscription = Array.isArray(demandesArray) ? demandesArray.filter(d => d.type_demande === 'inscription') : [];
-      
+
       // Enrichir les élèves avec les infos du tuteur, de l'inscription et de la demande
       // Afficher TOUS les élèves qui ont une demande d'inscription, même s'ils n'ont pas encore d'inscription créée
       const elevesWithDetails = Array.isArray(elevesArray) ? elevesArray
@@ -105,7 +108,7 @@ export default function AdminInscriptions() {
           const demandeInscription = Array.isArray(demandesInscription) ? demandesInscription
             .filter(d => d.eleve_id === e.id)
             .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
-          
+
           return {
             ...e,
             tuteur,
@@ -116,13 +119,13 @@ export default function AdminInscriptions() {
             statut_demande: demandeInscription?.statut || 'En attente'
           };
         }) : [];
-      
+
       setEleves(elevesWithDetails);
       setBuses(busesArray);
       setTrajets(trajetsArray);
       setInscriptions(inscriptionsArray);
       setTuteurs(tuteursArray);
-      
+
       // Afficher un avertissement si certaines données n'ont pas pu être chargées
       const failedCount = results.filter(r => r.status === 'rejected').length;
       if (failedCount > 0) {
@@ -139,7 +142,7 @@ export default function AdminInscriptions() {
   const calculateDates = (abonnement) => {
     const today = new Date();
     const dateDebut = format(today, 'yyyy-MM-dd');
-    
+
     let dateFin;
     if (abonnement === 'Annuel') {
       // Pour abonnement annuel : date de fin fixée au 30/06/2026
@@ -150,14 +153,14 @@ export default function AdminInscriptions() {
       dateFinObj.setMonth(dateFinObj.getMonth() + 1);
       dateFin = format(dateFinObj, 'yyyy-MM-dd');
     }
-    
+
     return { dateDebut, dateFin };
   };
 
   const handleValidate = async (eleve) => {
     setSelectedEleve(eleve);
     setError(null);
-    
+
     // Extraire le type d'abonnement depuis la demande
     let abonnement = 'Mensuel'; // Par défaut
     if (eleve.demande_inscription?.description) {
@@ -170,30 +173,30 @@ export default function AdminInscriptions() {
         console.warn('Erreur parsing description:', err);
       }
     }
-    
+
     // Calculer les dates selon le type d'abonnement
     const { dateDebut, dateFin } = calculateDates(abonnement);
-    
+
     // Initialiser le formulaire avec les dates calculées
     setInscriptionForm({
       date_debut: dateDebut,
       date_fin: dateFin
     });
-    
+
     // Charger les bus disponibles pour la zone de l'élève
     try {
       const zone = eleve.demande_inscription?.zone_geographique || eleve.zone;
-      
+
       if (zone) {
         const busesResponse = await busAPI.getByZone(zone);
         console.log('🔍 Réponse getByZone pour zone "' + zone + '":', busesResponse);
-        
+
         // Toujours stocker les informations de débogage si disponibles
         if (busesResponse.debug) {
           setDebugInfo(busesResponse.debug);
           console.log('📊 Informations de débogage:', busesResponse.debug);
         }
-        
+
         if (busesResponse.success && busesResponse.data && busesResponse.data.length > 0) {
           const busesWithCapacity = busesResponse.data.map(bus => {
             const trajet = trajets.find(t => t.id === bus.trajet_id);
@@ -220,7 +223,7 @@ export default function AdminInscriptions() {
       setAvailableBuses([]);
       setError('Erreur lors du chargement des bus disponibles: ' + (err.message || 'Erreur inconnue'));
     }
-    
+
     setShowInscriptionModal(true);
   };
 
@@ -229,7 +232,7 @@ export default function AdminInscriptions() {
       setError('Élève ou demande d\'inscription manquant.');
       return;
     }
-    
+
     if (!adminUser?.type_id) {
       setError('Session administrateur invalide. Veuillez vous reconnecter.');
       return;
@@ -237,29 +240,29 @@ export default function AdminInscriptions() {
 
     // Les dates sont calculées automatiquement, pas besoin de vérification supplémentaire
     setError(null);
-    
+
     try {
       // Mettre à jour le statut de la demande en "En attente de paiement" via l'API traiter
       // Cela génère automatiquement le code de vérification et le montant de la facture
       const traiterResponse = await demandesAPI.traiter(
-        selectedEleve.demande_inscription.id, 
-        'En attente de paiement', 
+        selectedEleve.demande_inscription.id,
+        'En attente de paiement',
         'Inscription validée par l\'administrateur',
         null,
         adminUser.type_id
       );
-      
+
       if (!traiterResponse || !traiterResponse.success) {
         throw new Error(traiterResponse?.message || 'Erreur lors du traitement de la demande');
       }
-      
+
       // Ne PAS créer l'inscription maintenant
       // L'inscription sera créée par l'administrateur APRÈS le paiement du tuteur et l'affectation du bus
-      
+
       // Tout s'est bien passé, fermer le modal et recharger les données
       setShowInscriptionModal(false);
       setSelectedEleve(null);
-      
+
       // Réinitialiser le formulaire avec des valeurs par défaut
       const today = new Date();
       const defaultDateFin = new Date(today);
@@ -268,7 +271,7 @@ export default function AdminInscriptions() {
         date_debut: format(today, 'yyyy-MM-dd'),
         date_fin: format(defaultDateFin, 'yyyy-MM-dd')
       });
-      
+
       await loadData();
     } catch (err) {
       console.error('Erreur lors de la validation:', err);
@@ -278,14 +281,14 @@ export default function AdminInscriptions() {
 
   const handleRefuse = async (eleve, motif) => {
     if (!motif) return;
-    
+
     if (!adminUser?.type_id) {
       setError('Session administrateur invalide. Veuillez vous reconnecter.');
       return;
     }
-    
+
     setError(null);
-    
+
     try {
       // Mettre à jour le statut de la demande en "Refusée" via l'API traiter
       if (eleve.demande_inscription?.id) {
@@ -297,14 +300,14 @@ export default function AdminInscriptions() {
           adminUser.type_id
         );
       }
-      
+
       // Si une inscription existe, la marquer comme terminée
       if (eleve.inscription) {
         await inscriptionsAPI.update(eleve.inscription.id, {
           statut: 'Terminée'
         });
       }
-      
+
       await loadData();
     } catch (err) {
       console.error('Erreur lors du refus:', err);
@@ -315,18 +318,18 @@ export default function AdminInscriptions() {
   const handleVerifyZone = async (eleve) => {
     setSelectedEleve(eleve);
     setError(null);
-    
+
     try {
       let busesWithCapacity = [];
-      
+
       // Récupérer la zone géographique de l'élève depuis la demande d'inscription
       const zone = eleve.demande_inscription?.zone_geographique || eleve.zone;
-      
+
       if (!zone) {
         setError('Aucune zone géographique définie pour cet élève');
         return;
       }
-      
+
       // Charger uniquement les bus qui concernent la zone de l'élève
       try {
         const busesResponse = await busAPI.getByZone(zone);
@@ -346,12 +349,12 @@ export default function AdminInscriptions() {
         setError('Erreur lors du chargement des bus disponibles pour cette zone');
         return;
       }
-      
+
       if (busesWithCapacity.length === 0) {
         setError(`Aucun bus disponible pour la zone "${zone}"`);
         return;
       }
-      
+
       setAvailableBuses(busesWithCapacity);
       setShowVerifyModal(true);
     } catch (err) {
@@ -362,16 +365,16 @@ export default function AdminInscriptions() {
 
   const handleAffectBus = async (busId) => {
     if (!selectedEleve) return;
-    
+
     setError(null);
-    
+
     try {
       const bus = buses.find(b => b.id === busId);
       if (!bus) {
         setError('Bus non trouvé');
         return;
       }
-      
+
       // Calculer le montant mensuel depuis la demande
       let montantMensuel = 500; // valeur par défaut
       if (selectedEleve.demande_inscription?.description) {
@@ -379,7 +382,7 @@ export default function AdminInscriptions() {
         const montantFacture = calculerMontantFacture(infosTransport.type_transport, infosTransport.abonnement);
         montantMensuel = infosTransport.abonnement === 'Annuel' ? montantFacture / 10 : montantFacture;
       }
-      
+
       // Calculer les dates selon le type d'abonnement
       let abonnement = 'Mensuel';
       if (selectedEleve.demande_inscription?.description) {
@@ -387,13 +390,13 @@ export default function AdminInscriptions() {
         abonnement = infosTransport.abonnement || 'Mensuel';
       }
       const { dateDebut, dateFin } = calculateDates(abonnement);
-      
+
       // Vérifier si une inscription existe déjà pour cet élève (créée lors du paiement)
-      const existingInscription = inscriptions.find(i => 
-        i.eleve_id === selectedEleve.id && 
+      const existingInscription = inscriptions.find(i =>
+        i.eleve_id === selectedEleve.id &&
         (i.statut === 'Active' || i.statut === 'active')
       );
-      
+
       if (existingInscription) {
         // Mettre à jour l'inscription existante avec le bus
         const updateData = {
@@ -403,7 +406,7 @@ export default function AdminInscriptions() {
           montant_mensuel: montantMensuel,
           statut: 'Active'
         };
-        
+
         const updateResponse = await inscriptionsAPI.update(existingInscription.id, updateData);
         if (!updateResponse || !updateResponse.success) {
           throw new Error(updateResponse?.message || 'Erreur lors de la mise à jour de l\'inscription');
@@ -418,13 +421,13 @@ export default function AdminInscriptions() {
           montant_mensuel: montantMensuel,
           statut: 'Active'
         };
-        
+
         const createResponse = await inscriptionsAPI.create(inscriptionData);
         if (!createResponse || !createResponse.success) {
           throw new Error(createResponse?.message || 'Erreur lors de la création de l\'inscription');
         }
       }
-      
+
       // Mettre à jour le statut de la demande en "Inscrit" après l'affectation du bus
       if (selectedEleve.demande_inscription?.id) {
         try {
@@ -440,7 +443,7 @@ export default function AdminInscriptions() {
           // On continue même si la mise à jour du statut échoue
         }
       }
-      
+
       // Activer l'élève (mettre le statut à "Actif")
       try {
         await elevesAPI.update(selectedEleve.id, {
@@ -449,7 +452,7 @@ export default function AdminInscriptions() {
       } catch (err) {
         console.warn('Erreur lors de l\'activation de l\'élève:', err);
       }
-      
+
       // Notifier le tuteur
       if (selectedEleve.tuteur_id) {
         try {
@@ -466,7 +469,7 @@ export default function AdminInscriptions() {
           // On continue même si la notification échoue
         }
       }
-      
+
       setShowVerifyModal(false);
       setSelectedEleve(null);
       await loadData();
@@ -477,15 +480,15 @@ export default function AdminInscriptions() {
   };
 
   const filteredEleves = eleves.filter(e => {
-    const matchSearch = 
+    const matchSearch =
       e.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.adresse?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.classe?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     // Filtrer par statut de la demande d'inscription
     const matchStatus = statusFilter === 'all' || e.statut_demande === statusFilter;
-    
+
     return matchSearch && matchStatus;
   });
 
@@ -551,148 +554,148 @@ export default function AdminInscriptions() {
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-3xl shadow-xl overflow-hidden mb-6"
       >
-          <div className="p-6 bg-gradient-to-r from-blue-500 to-cyan-500">
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-              <ClipboardList className="w-7 h-7" />
-              Gestion des Inscriptions des Élèves
-            </h1>
-            <p className="text-blue-100 mt-1">Inscriptions envoyées par les tuteurs • {eleves.length} élève(s) • {inscriptions.filter(i => i.statut === 'Active').length} inscription(s) active(s)</p>
-          </div>
+        <div className="p-6 bg-gradient-to-r from-blue-500 to-cyan-500">
+          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+            <ClipboardList className="w-7 h-7" />
+            Gestion des Inscriptions des Élèves
+          </h1>
+          <p className="text-blue-100 mt-1">Inscriptions envoyées par les tuteurs • {eleves.length} élève(s) • {inscriptions.filter(i => i.statut === 'Active').length} inscription(s) active(s)</p>
+        </div>
 
-          {/* Filters */}
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
-                  placeholder="Rechercher par nom, prénom, adresse ou classe..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-12 rounded-xl"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full md:w-48 h-12 rounded-xl">
-                  <Filter className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="Statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="En attente">En attente</SelectItem>
-                  <SelectItem value="En cours de traitement">En cours de traitement</SelectItem>
-                  <SelectItem value="En attente de paiement">En attente de paiement</SelectItem>
-                  <SelectItem value="Payée">Payée</SelectItem>
-                  <SelectItem value="Validée">Validée</SelectItem>
-                  <SelectItem value="Inscrit">Inscrit</SelectItem>
-                  <SelectItem value="Refusée">Refusée</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* Filters */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Input
+                placeholder="Rechercher par nom, prénom, adresse ou classe..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-12 rounded-xl"
+              />
             </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full md:w-48 h-12 rounded-xl">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="En attente">En attente</SelectItem>
+                <SelectItem value="En cours de traitement">En cours de traitement</SelectItem>
+                <SelectItem value="En attente de paiement">En attente de paiement</SelectItem>
+                <SelectItem value="Payée">Payée</SelectItem>
+                <SelectItem value="Validée">Validée</SelectItem>
+                <SelectItem value="Inscrit">Inscrit</SelectItem>
+                <SelectItem value="Refusée">Refusée</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+        </div>
 
-          {/* List */}
-          <div className="divide-y divide-gray-100">
-            {filteredEleves.length === 0 ? (
-              <div className="p-12 text-center text-gray-400">
-                <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Aucune inscription trouvée</p>
-              </div>
-            ) : (
-              filteredEleves.map((eleve) => (
-                <div key={eleve.id} className="p-6 hover:bg-amber-50/50 transition-colors">
-                  <div className="flex flex-col lg:flex-row justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        <User className="w-7 h-7 text-blue-500" />
+        {/* List */}
+        <div className="divide-y divide-gray-100">
+          {filteredEleves.length === 0 ? (
+            <div className="p-12 text-center text-gray-400">
+              <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Aucune inscription trouvée</p>
+            </div>
+          ) : (
+            filteredEleves.map((eleve) => (
+              <div key={eleve.id} className="p-6 hover:bg-amber-50/50 transition-colors">
+                <div className="flex flex-col lg:flex-row justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <User className="w-7 h-7 text-blue-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-800 text-lg">
+                        {eleve.nom} {eleve.prenom}
+                      </h3>
+                      <div className="flex flex-wrap gap-2 mt-1 text-sm text-gray-500">
+                        <span>{eleve.classe}</span>
+                        {eleve.date_naissance && (
+                          <>
+                            <span>•</span>
+                            <span>{format(new Date(eleve.date_naissance), 'dd/MM/yyyy')}</span>
+                          </>
+                        )}
+                        {eleve.adresse && (
+                          <>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {eleve.adresse}
+                            </span>
+                          </>
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-800 text-lg">
-                          {eleve.nom} {eleve.prenom}
-                        </h3>
-                        <div className="flex flex-wrap gap-2 mt-1 text-sm text-gray-500">
-                          <span>{eleve.classe}</span>
-                          {eleve.date_naissance && (
-                            <>
-                              <span>•</span>
-                              <span>{format(new Date(eleve.date_naissance), 'dd/MM/yyyy')}</span>
-                            </>
-                          )}
-                          {eleve.adresse && (
-                            <>
-                              <span>•</span>
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3" />
-                                {eleve.adresse}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        {eleve.tuteur && (
-                          <p className="text-sm text-gray-400 mt-1">
-                            Tuteur: {eleve.tuteur.prenom} {eleve.tuteur.nom} • {eleve.tuteur.telephone || eleve.tuteur.email}
-                          </p>
-                        )}
-                        {eleve.bus && (
-                          <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
-                            <Bus className="w-3 h-3" />
-                            Bus: {eleve.bus.numero}
-                          </p>
-                        )}
-                        {eleve.inscription && (
-                          <p className="text-xs text-gray-400 mt-1">
-                            Inscription du {format(new Date(eleve.inscription.date_inscription), 'dd/MM/yyyy')} • 
-                            {eleve.inscription.montant_mensuel} DH/mois
-                          </p>
-                        )}
-                        {/* Afficher les détails de réduction si disponible */}
-                        {eleve.demande_inscription?.montant_facture && (() => {
-                          try {
-                            const desc = typeof eleve.demande_inscription.description === 'string'
-                              ? JSON.parse(eleve.demande_inscription.description)
-                              : eleve.demande_inscription.description || {};
-                            const tauxReduction = desc.taux_reduction || 0;
-                            const montantAvantReduction = desc.montant_avant_reduction;
-                            const montantReduction = desc.montant_reduction || 0;
-                            
-                            const rangEleve = desc.rang_eleve;
-                            const rangTexte = desc.rang_eleve_texte || (rangEleve ? `${rangEleve}ème élève` : '');
-                            
-                            if (tauxReduction > 0 && montantAvantReduction) {
-                              return (
-                                <div className="mt-2 space-y-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded-lg border border-blue-200">
-                                      {rangTexte || 'Réduction familiale'}
-                                    </span>
-                                    <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-lg border border-green-200">
-                                      Réduction {Math.round(tauxReduction * 100)}%
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <span className="text-gray-500 line-through">
-                                      {parseFloat(montantAvantReduction).toFixed(2)} DH
-                                    </span>
-                                    <span className="text-gray-400">→</span>
-                                    <span className="font-bold text-amber-600">
-                                      {parseFloat(eleve.demande_inscription.montant_facture).toFixed(2)} DH
-                                    </span>
-                                    <span className="text-green-600 font-medium">
-                                      (Économie: {parseFloat(desc.montant_reduction || 0).toFixed(2)} DH)
-                                    </span>
-                                  </div>
+                      {eleve.tuteur && (
+                        <p className="text-sm text-gray-400 mt-1">
+                          Tuteur: {eleve.tuteur.prenom} {eleve.tuteur.nom} • {eleve.tuteur.telephone || eleve.tuteur.email}
+                        </p>
+                      )}
+                      {eleve.bus && (
+                        <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
+                          <Bus className="w-3 h-3" />
+                          Bus: {eleve.bus.numero}
+                        </p>
+                      )}
+                      {eleve.inscription && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Inscription du {format(new Date(eleve.inscription.date_inscription), 'dd/MM/yyyy')} •
+                          {eleve.inscription.montant_mensuel} DH/mois
+                        </p>
+                      )}
+                      {/* Afficher les détails de réduction si disponible */}
+                      {eleve.demande_inscription?.montant_facture && (() => {
+                        try {
+                          const desc = typeof eleve.demande_inscription.description === 'string'
+                            ? JSON.parse(eleve.demande_inscription.description)
+                            : eleve.demande_inscription.description || {};
+                          const tauxReduction = desc.taux_reduction || 0;
+                          const montantAvantReduction = desc.montant_avant_reduction;
+                          const montantReduction = desc.montant_reduction || 0;
+
+                          const rangEleve = desc.rang_eleve;
+                          const rangTexte = desc.rang_eleve_texte || (rangEleve ? `${rangEleve}ème élève` : '');
+
+                          if (tauxReduction > 0 && montantAvantReduction) {
+                            return (
+                              <div className="mt-2 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded-lg border border-blue-200">
+                                    {rangTexte || 'Réduction familiale'}
+                                  </span>
+                                  <span className="text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-lg border border-green-200">
+                                    Réduction {Math.round(tauxReduction * 100)}%
+                                  </span>
                                 </div>
-                              );
-                            }
-                            return null;
-                          } catch (err) {
-                            return null;
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span className="text-gray-500 line-through">
+                                    {parseFloat(montantAvantReduction).toFixed(2)} DH
+                                  </span>
+                                  <span className="text-gray-400">→</span>
+                                  <span className="font-bold text-amber-600">
+                                    {parseFloat(eleve.demande_inscription.montant_facture).toFixed(2)} DH
+                                  </span>
+                                  <span className="text-green-600 font-medium">
+                                    (Économie: {parseFloat(desc.montant_reduction || 0).toFixed(2)} DH)
+                                  </span>
+                                </div>
+                              </div>
+                            );
                           }
-                        })()}
-                        {/* Afficher le code de vérification pour les élèves validés */}
-                        {eleve.demande_inscription?.code_verification && 
-                         (eleve.statut_demande === 'En attente de paiement' || 
+                          return null;
+                        } catch (err) {
+                          return null;
+                        }
+                      })()}
+                      {/* Afficher le code de vérification pour les élèves validés */}
+                      {eleve.demande_inscription?.code_verification &&
+                        (eleve.statut_demande === 'En attente de paiement' ||
                           eleve.statut_demande === 'Payée' ||
-                          eleve.statut_demande === 'Validée' || 
+                          eleve.statut_demande === 'Validée' ||
                           eleve.statut_demande === 'Inscrit') && (
                           <div className="mt-2 flex items-center gap-2">
                             <span className="text-xs font-medium text-gray-600">Code de vérification:</span>
@@ -712,84 +715,85 @@ export default function AdminInscriptions() {
                             </div>
                           </div>
                         )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className={`px-4 py-2 rounded-xl text-sm font-medium ${getStatusBadge(eleve.statut_demande || 'En attente')}`}>
-                        {eleve.statut_demande || 'En attente'}
-                      </span>
-
-                      {/* Bouton Détails - toujours visible */}
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedEleve(eleve);
-                          // Si on peut valider, initialiser le formulaire avec les dates calculées
-                          if ((eleve.statut_demande === 'En attente' || eleve.statut_demande === 'En cours de traitement') && !eleve.inscription) {
-                            let abonnement = 'Mensuel';
-                            if (eleve.demande_inscription?.description) {
-                              try {
-                                const descriptionData = typeof eleve.demande_inscription.description === 'string'
-                                  ? JSON.parse(eleve.demande_inscription.description)
-                                  : eleve.demande_inscription.description;
-                                abonnement = descriptionData.abonnement || 'Mensuel';
-                              } catch (err) {
-                                console.warn('Erreur parsing description:', err);
-                              }
-                            }
-                            const { dateDebut, dateFin } = calculateDates(abonnement);
-                            setInscriptionForm({
-                              date_debut: dateDebut,
-                              date_fin: dateFin
-                            });
-                          }
-                          setShowInscriptionModal(true);
-                        }}
-                        className="rounded-xl"
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        Détails
-                      </Button>
-
-                      {(eleve.statut_demande === 'En attente' || eleve.statut_demande === 'En cours de traitement') && !eleve.inscription && (
-                        <>
-                          <Button
-                            onClick={() => handleValidate(eleve)}
-                            className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
-                          >
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Valider
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              const motif = prompt('Motif du refus:');
-                              if (motif) handleRefuse(eleve, motif);
-                            }}
-                            className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
-                          >
-                            <XCircle className="w-4 h-4 mr-2" />
-                            Refuser
-                          </Button>
-                        </>
-                      )}
-
-                      {eleve.statut_demande === 'Payée' && !eleve.inscription?.bus_id && (
-                        <Button
-                          onClick={() => handleVerifyZone(eleve)}
-                          className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
-                        >
-                          <Bus className="w-4 h-4 mr-2" />
-                          Affecter un bus
-                        </Button>
-                      )}
                     </div>
                   </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className={`px-4 py-2 rounded-xl text-sm font-medium ${getStatusBadge(eleve.statut_demande || 'En attente')}`}>
+                      {eleve.statut_demande || 'En attente'}
+                    </span>
+
+                    {/* Bouton Détails - toujours visible */}
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedEleve(eleve);
+                        // Si on peut valider, initialiser le formulaire avec les dates calculées
+                        if ((eleve.statut_demande === 'En attente' || eleve.statut_demande === 'En cours de traitement') && !eleve.inscription) {
+                          let abonnement = 'Mensuel';
+                          if (eleve.demande_inscription?.description) {
+                            try {
+                              const descriptionData = typeof eleve.demande_inscription.description === 'string'
+                                ? JSON.parse(eleve.demande_inscription.description)
+                                : eleve.demande_inscription.description;
+                              abonnement = descriptionData.abonnement || 'Mensuel';
+                            } catch (err) {
+                              console.warn('Erreur parsing description:', err);
+                            }
+                          }
+                          const { dateDebut, dateFin } = calculateDates(abonnement);
+                          setInscriptionForm({
+                            date_debut: dateDebut,
+                            date_fin: dateFin
+                          });
+                        }
+                        setShowInscriptionModal(true);
+                      }}
+                      className="rounded-xl"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      Détails
+                    </Button>
+
+                    {(eleve.statut_demande === 'En attente' || eleve.statut_demande === 'En cours de traitement') && !eleve.inscription && (
+                      <>
+                        <Button
+                          onClick={() => handleValidate(eleve)}
+                          className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Valider
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setSelectedEleve(eleve);
+                            setRefusalMotif('');
+                            setShowRefuseModal(true);
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Refuser
+                        </Button>
+                      </>
+                    )}
+
+                    {eleve.statut_demande === 'Payée' && !eleve.inscription?.bus_id && (
+                      <Button
+                        onClick={() => handleVerifyZone(eleve)}
+                        className="bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
+                      >
+                        <Bus className="w-4 h-4 mr-2" />
+                        Affecter un bus
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              ))
-            )}
-          </div>
-        </motion.div>
+              </div>
+            ))
+          )}
+        </div>
+      </motion.div>
 
       {/* Modal Inscription Details */}
       {showInscriptionModal && selectedEleve && (
@@ -941,37 +945,37 @@ export default function AdminInscriptions() {
                         </div>
                       )}
                       {/* Afficher le code de vérification si disponible */}
-                      {selectedEleve.demande_inscription.code_verification && 
-                       (selectedEleve.statut_demande === 'En attente de paiement' || 
-                        selectedEleve.statut_demande === 'Payée' ||
-                        selectedEleve.statut_demande === 'Validée' || 
-                        selectedEleve.statut_demande === 'Inscrit') && (
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-600 mb-1">Code de vérification du paiement</label>
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 px-4 py-3 bg-amber-50 border-2 border-amber-200 rounded-xl">
-                              <p className="text-xs text-gray-600 mb-1">Code à donner au tuteur pour valider le paiement:</p>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-xl text-amber-800">{selectedEleve.demande_inscription.code_verification}</span>
-                                <button
-                                  onClick={() => handleCopyCode(selectedEleve.demande_inscription.code_verification, selectedEleve.id)}
-                                  className="p-2 hover:bg-amber-100 rounded-lg transition-colors"
-                                  title="Copier le code"
-                                >
-                                  {copiedCode === selectedEleve.id ? (
-                                    <Check className="w-5 h-5 text-green-600" />
-                                  ) : (
-                                    <Copy className="w-5 h-5 text-amber-700" />
-                                  )}
-                                </button>
+                      {selectedEleve.demande_inscription.code_verification &&
+                        (selectedEleve.statut_demande === 'En attente de paiement' ||
+                          selectedEleve.statut_demande === 'Payée' ||
+                          selectedEleve.statut_demande === 'Validée' ||
+                          selectedEleve.statut_demande === 'Inscrit') && (
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-600 mb-1">Code de vérification du paiement</label>
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 px-4 py-3 bg-amber-50 border-2 border-amber-200 rounded-xl">
+                                <p className="text-xs text-gray-600 mb-1">Code à donner au tuteur pour valider le paiement:</p>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-xl text-amber-800">{selectedEleve.demande_inscription.code_verification}</span>
+                                  <button
+                                    onClick={() => handleCopyCode(selectedEleve.demande_inscription.code_verification, selectedEleve.id)}
+                                    className="p-2 hover:bg-amber-100 rounded-lg transition-colors"
+                                    title="Copier le code"
+                                  >
+                                    {copiedCode === selectedEleve.id ? (
+                                      <Check className="w-5 h-5 text-green-600" />
+                                    ) : (
+                                      <Copy className="w-5 h-5 text-amber-700" />
+                                    )}
+                                  </button>
+                                </div>
+                                {copiedCode === selectedEleve.id && (
+                                  <p className="text-xs text-green-600 mt-1">✓ Code copié dans le presse-papiers</p>
+                                )}
                               </div>
-                              {copiedCode === selectedEleve.id && (
-                                <p className="text-xs text-green-600 mt-1">✓ Code copié dans le presse-papiers</p>
-                              )}
                             </div>
                           </div>
-                        </div>
-                      )}
+                        )}
                       {/* Afficher le montant de la facture avec détails de réduction si disponible */}
                       {selectedEleve.demande_inscription.montant_facture && (() => {
                         try {
@@ -982,7 +986,7 @@ export default function AdminInscriptions() {
                           const tauxReduction = desc.taux_reduction || 0;
                           const montantReduction = desc.montant_reduction || 0;
                           const montantFacture = parseFloat(selectedEleve.demande_inscription.montant_facture);
-                          
+
                           if (tauxReduction > 0 && montantAvantReduction) {
                             return (
                               <div className="space-y-2">
@@ -1047,37 +1051,54 @@ export default function AdminInscriptions() {
                     </div>
                   )}
                   {availableBuses.length === 0 ? (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                      <p className="text-sm text-yellow-800 font-medium mb-2">
-                        ⚠️ Aucun bus disponible pour la zone "{selectedEleve.demande_inscription?.zone_geographique || selectedEleve.zone || 'non spécifiée'}"
-                      </p>
-                      <p className="text-xs text-yellow-700 mb-3">
-                        Vérifiez que des trajets couvrent cette zone et que des bus actifs y sont assignés avant de valider l'inscription.
-                      </p>
-                      {debugInfo && (
-                        <div className="mt-3 p-3 bg-white rounded-lg border border-yellow-300">
-                          <p className="text-xs font-semibold text-gray-700 mb-2">Informations de diagnostic:</p>
-                          <ul className="text-xs text-gray-600 space-y-1">
-                            <li>• Total bus actifs: {debugInfo.total_bus_actifs}</li>
-                            <li>• Bus sans trajet assigné: {debugInfo.bus_sans_trajet}</li>
-                            <li>• Trajets sans zones définies: {debugInfo.bus_trajets_vides}</li>
-                            <li>• Bus avec zones ne correspondant pas: {debugInfo.bus_zones_non_match}</li>
-                            {debugInfo.bus_pleins > 0 && (
-                              <li>• Bus trouvés mais pleins (pas de places): {debugInfo.bus_pleins}</li>
-                            )}
-                          </ul>
-                          {debugInfo.exemples_trajets_zones && debugInfo.exemples_trajets_zones.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-yellow-200">
-                              <p className="text-xs font-semibold text-gray-700 mb-2">Exemples de zones dans les trajets:</p>
-                              {debugInfo.exemples_trajets_zones.map((ex, idx) => (
-                                <div key={idx} className="text-xs text-gray-600 mb-2 p-2 bg-gray-50 rounded">
-                                  <p className="font-medium">Bus {ex.bus_numero} - {ex.trajet_nom}:</p>
-                                  <p className="text-gray-500">Zones: {Array.isArray(ex.zones) ? ex.zones.join(', ') : ex.zones}</p>
-                                  <p className="text-gray-500">Places restantes: {ex.places_restantes}</p>
-                                </div>
-                              ))}
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm text-amber-800 font-medium flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          ⚠️ Aucun bus disponible
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowDebug(!showDebug)}
+                          className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 h-8"
+                        >
+                          {showDebug ? 'Masquer' : 'Diagnostic'}
+                        </Button>
+                      </div>
+
+                      {showDebug && debugInfo && (
+                        <div className="space-y-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <div className="grid grid-cols-2 gap-2 text-[10px]">
+                            <div className="p-2 bg-white rounded border border-amber-100">
+                              <span className="text-gray-400">Vérifiés:</span>
+                              <p className="font-bold text-amber-700">{debugInfo.total_bus_actifs || 0}</p>
                             </div>
-                          )}
+                            <div className="p-2 bg-white rounded border border-amber-100">
+                              <span className="text-gray-400">Non match:</span>
+                              <p className="font-bold text-amber-700">{debugInfo.bus_zones_non_match || 0}</p>
+                            </div>
+                          </div>
+
+                          <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                            {debugInfo.exemples_trajets_zones && debugInfo.exemples_trajets_zones.length > 0 ? (
+                              debugInfo.exemples_trajets_zones.map((ex, i) => (
+                                <div key={i} className={`p-1.5 rounded border text-[10px] ${ex.zone_match ? 'bg-green-50 border-green-100' : 'bg-white border-gray-100'}`}>
+                                  <div className="flex justify-between font-bold">
+                                    <span>{ex.bus_numero}</span>
+                                    {ex.zone_match ? <span className="text-green-600">Match!</span> : <span className="text-gray-300">No match</span>}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {ex.zones && ex.zones.map((z, j) => (
+                                      <span key={j} className={`px-1 rounded ${ex.matched_zone === z ? 'bg-green-200 text-green-800' : 'bg-gray-100'}`}>
+                                        {z}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))
+                            ) : null}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1102,9 +1123,9 @@ export default function AdminInscriptions() {
                             trajetZones = typeof bus.trajet_zones === 'string' ? bus.trajet_zones.split(',').map(z => z.trim()) : [];
                           }
                         }
-                        
+
                         return (
-                          <div 
+                          <div
                             key={bus.id}
                             className="p-4 rounded-2xl border-2 border-gray-200 hover:border-blue-300 transition-colors bg-white"
                           >
@@ -1131,13 +1152,12 @@ export default function AdminInscriptions() {
                                   <div className="mt-2 flex flex-wrap gap-1">
                                     <span className="text-xs text-gray-500">Zones couvertes:</span>
                                     {trajetZones.map((zone, idx) => (
-                                      <span 
+                                      <span
                                         key={idx}
-                                        className={`text-xs px-2 py-1 rounded-lg ${
-                                          zone.trim().toLowerCase() === (selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || '').toLowerCase()
-                                            ? 'bg-green-100 text-green-700 font-medium'
-                                            : 'bg-gray-100 text-gray-600'
-                                        }`}
+                                        className={`text-xs px-2 py-1 rounded-lg ${zone.trim().toLowerCase() === (selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || '').toLowerCase()
+                                          ? 'bg-green-100 text-green-700 font-medium'
+                                          : 'bg-gray-100 text-gray-600'
+                                          }`}
                                       >
                                         {zone.trim()}
                                       </span>
@@ -1154,10 +1174,9 @@ export default function AdminInscriptions() {
                                 </div>
                               </div>
                               <div className="text-right ml-4">
-                                <p className={`text-3xl font-bold ${
-                                  (bus.placesRestantes || bus.places_restantes || 0) > 5 ? 'text-green-600' : 
+                                <p className={`text-3xl font-bold ${(bus.placesRestantes || bus.places_restantes || 0) > 5 ? 'text-green-600' :
                                   (bus.placesRestantes || bus.places_restantes || 0) > 0 ? 'text-orange-500' : 'text-red-500'
-                                }`}>
+                                  }`}>
                                   {bus.placesRestantes || bus.places_restantes || 0}
                                 </p>
                                 <p className="text-xs text-gray-500">places restantes</p>
@@ -1179,13 +1198,79 @@ export default function AdminInscriptions() {
                     Valider l'inscription
                   </h3>
                   {availableBuses.length === 0 && (
-                    <div className="mb-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                      <p className="text-sm text-red-800 font-medium mb-1">
-                        ⚠️ Validation impossible
+                    <div className="mb-4 p-4 bg-orange-50 border-2 border-orange-200 rounded-xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm text-orange-800 font-medium flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          ⚠️ Validation impossible : Aucun bus disponible
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowDebug(!showDebug)}
+                          className="text-orange-700 hover:text-orange-800 hover:bg-orange-100 h-8 font-bold"
+                        >
+                          {showDebug ? 'Masquer Diagnostic' : 'Diagnostic de recherche'}
+                        </Button>
+                      </div>
+
+                      <p className="text-xs text-orange-700 mb-2">
+                        Aucun bus actif avec des places disponibles n'a été trouvé pour la zone "{selectedEleve.demande_inscription?.zone_geographique || selectedEleve.zone || 'non spécifiée'}".
                       </p>
-                      <p className="text-xs text-red-700">
-                        Vous ne pouvez pas valider cette inscription car aucun bus n'est disponible pour la zone "{selectedEleve.demande_inscription?.zone_geographique || selectedEleve.zone || 'non spécifiée'}". Veuillez d'abord créer un trajet couvrant cette zone et y affecter un bus actif.
-                      </p>
+
+                      {showDebug && debugInfo && (
+                        <div className="mt-4 pt-4 border-t border-orange-200 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <div className="grid grid-cols-2 gap-2 text-[11px] mb-4">
+                            <div className="p-2 bg-white rounded border border-orange-100">
+                              <span className="text-gray-500 uppercase font-bold">Total vérifiés:</span>
+                              <p className="text-lg font-black text-orange-700">{debugInfo.total_bus_actifs || 0}</p>
+                            </div>
+                            <div className="p-2 bg-white rounded border border-orange-100">
+                              <span className="text-gray-500 uppercase font-bold">Zones non match:</span>
+                              <p className="text-lg font-black text-orange-700">{debugInfo.bus_zones_non_match || 0}</p>
+                            </div>
+                          </div>
+
+                          <div className="text-[11px] font-bold text-gray-400 mb-2 uppercase tracking-widest">
+                            Analyse détaillée par bus :
+                          </div>
+                          <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                            {debugInfo.exemples_trajets_zones && debugInfo.exemples_trajets_zones.length > 0 ? (
+                              debugInfo.exemples_trajets_zones.map((ex, i) => (
+                                <div key={i} className={`p-3 rounded-xl border text-xs ${ex.zone_match ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'}`}>
+                                  <div className="flex justify-between items-start mb-1">
+                                    <span className={`font-bold ${ex.zone_match ? 'text-green-700' : 'text-gray-700'}`}>
+                                      {ex.bus_numero}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${ex.zone_match ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                      {ex.zone_match ? 'Zone Match ✅' : 'No Match ❌'}
+                                    </span>
+                                  </div>
+                                  <p className="text-gray-500 mb-2">Route: <span className="text-gray-700 font-medium">{ex.trajet_nom || 'Non assigné'}</span></p>
+                                  <div className="flex flex-wrap gap-1 mb-2">
+                                    {ex.zones && ex.zones.length > 0 ? ex.zones.map((z, j) => (
+                                      <span key={j} className={`px-2 py-0.5 rounded-md text-[10px] ${ex.matched_zone === z ? 'bg-green-600 text-white font-bold' : 'bg-gray-100 text-gray-600'}`}>
+                                        {z}
+                                      </span>
+                                    )) : <span className="italic text-gray-400">Aucune zone configurée</span>}
+                                  </div>
+                                  <div className="flex justify-between items-center pt-2 border-t border-dashed border-gray-100">
+                                    <span className="text-[10px] text-gray-400">Places: {ex.places_restantes}</span>
+                                    {ex.zone_match && ex.places_restantes <= 0 && (
+                                      <span className="text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded text-[10px]">BUS COMPLET</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-center py-6 text-gray-400 italic text-xs">Aucun bus trouvé dans le système</p>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-500 mt-3 italic text-center">
+                            La recherche fusionne les zones proches et ignore les accents.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                   {availableBuses.length > 0 && (
@@ -1230,9 +1315,9 @@ export default function AdminInscriptions() {
                                 ? JSON.parse(selectedEleve.demande_inscription.description)
                                 : selectedEleve.demande_inscription.description || {};
                               abonnement = desc.abonnement || 'Mensuel';
-                            } catch (err) {}
+                            } catch (err) { }
                           }
-                          return abonnement === 'Annuel' 
+                          return abonnement === 'Annuel'
                             ? 'Date automatique (30/06/2026 pour abonnement annuel)'
                             : 'Date automatique (date de début + 1 mois pour abonnement mensuel)';
                         })()}
@@ -1259,11 +1344,10 @@ export default function AdminInscriptions() {
                 <Button
                   onClick={handleCreateInscription}
                   disabled={availableBuses.length === 0}
-                  className={`rounded-xl ${
-                    availableBuses.length === 0
-                      ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed opacity-60'
-                      : 'bg-green-500 hover:bg-green-600'
-                  } text-white`}
+                  className={`rounded-xl ${availableBuses.length === 0
+                    ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed opacity-60'
+                    : 'bg-green-500 hover:bg-green-600'
+                    } text-white`}
                   title={availableBuses.length === 0 ? 'Aucun bus disponible pour cette zone. Impossible de valider l\'inscription.' : ''}
                 >
                   <CheckCircle className="w-4 h-4 mr-2" />
@@ -1344,9 +1428,9 @@ export default function AdminInscriptions() {
                         trajetZones = bus.trajet_zones.split(',').map(z => z.trim());
                       }
                     }
-                    
+
                     return (
-                      <div 
+                      <div
                         key={bus.id}
                         className="p-4 rounded-2xl border-2 border-gray-100 hover:border-amber-200 transition-colors"
                       >
@@ -1358,13 +1442,12 @@ export default function AdminInscriptions() {
                               <div className="mt-2 flex flex-wrap gap-1">
                                 <span className="text-xs text-gray-500">Zones couvertes:</span>
                                 {trajetZones.map((zone, idx) => (
-                                  <span 
+                                  <span
                                     key={idx}
-                                    className={`text-xs px-2 py-1 rounded-lg ${
-                                      zone.trim().toLowerCase() === (selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || '').toLowerCase()
-                                        ? 'bg-green-100 text-green-700 font-medium'
-                                        : 'bg-gray-100 text-gray-600'
-                                    }`}
+                                    className={`text-xs px-2 py-1 rounded-lg ${zone.trim().toLowerCase() === (selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || '').toLowerCase()
+                                      ? 'bg-green-100 text-green-700 font-medium'
+                                      : 'bg-gray-100 text-gray-600'
+                                      }`}
                                   >
                                     {zone.trim()}
                                   </span>
@@ -1375,23 +1458,22 @@ export default function AdminInscriptions() {
                               Capacité: {bus.elevesInscrits || bus.eleves_inscrits || 0}/{bus.capacite}
                             </p>
                           </div>
-                        <div className="text-right">
-                          <p className={`text-2xl font-bold ${
-                            (bus.placesRestantes || bus.places_restantes || 0) > 5 ? 'text-green-500' : 'text-orange-500'
-                          }`}>
-                            {bus.placesRestantes || bus.places_restantes || 0}
-                          </p>
-                          <p className="text-xs text-gray-400">places restantes</p>
-                          <Button
-                            onClick={() => handleAffectBus(bus.id)}
-                            className="mt-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
-                            size="sm"
-                          >
-                            Affecter
-                          </Button>
+                          <div className="text-right">
+                            <p className={`text-2xl font-bold ${(bus.placesRestantes || bus.places_restantes || 0) > 5 ? 'text-green-500' : 'text-orange-500'
+                              }`}>
+                              {bus.placesRestantes || bus.places_restantes || 0}
+                            </p>
+                            <p className="text-xs text-gray-400">places restantes</p>
+                            <Button
+                              onClick={() => handleAffectBus(bus.id)}
+                              className="mt-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
+                              size="sm"
+                            >
+                              Affecter
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </div>
@@ -1408,6 +1490,67 @@ export default function AdminInscriptions() {
                 className="rounded-xl"
               >
                 Fermer
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal Refus */}
+      {showRefuseModal && selectedEleve && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-md w-full"
+          >
+            <div className="p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-800">
+                Refuser l'inscription
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {selectedEleve.prenom} {selectedEleve.nom}
+              </p>
+            </div>
+
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Motif du refus *
+              </label>
+              <textarea
+                value={refusalMotif}
+                onChange={(e) => setRefusalMotif(e.target.value)}
+                placeholder="Veuillez indiquer la raison du refus..."
+                className="w-full h-32 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 resize-none"
+                autoFocus
+              />
+            </div>
+
+            <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRefuseModal(false);
+                  setRefusalMotif('');
+                  setSelectedEleve(null);
+                }}
+                className="rounded-xl"
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={() => {
+                  if (refusalMotif.trim()) {
+                    handleRefuse(selectedEleve, refusalMotif);
+                    setShowRefuseModal(false);
+                    setRefusalMotif('');
+                  }
+                }}
+                disabled={!refusalMotif.trim()}
+                className="bg-red-500 hover:bg-red-600 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                Confirmer le refus
               </Button>
             </div>
           </motion.div>
