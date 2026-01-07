@@ -96,7 +96,7 @@ const SelectContent = ({ children, isOpen, onSelect, value, className = '' }) =>
   if (!isOpen) return null;
 
   return (
-    <div className={`absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden animate-fadeIn ${className}`}>
+    <div className={`absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden animate-fadeIn ${className}`} style={{ pointerEvents: 'auto' }}>
       <div className="max-h-60 overflow-y-auto">
         {React.Children.map(children, child => 
           React.cloneElement(child, { onSelect, selectedValue: value })

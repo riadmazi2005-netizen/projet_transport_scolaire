@@ -2,7 +2,6 @@
 require_once '../../config/headers.php';
 require_once '../../config/database.php';
 
-
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Méthode non autorisée']);
@@ -13,21 +12,14 @@ $eleveId = isset($_GET['eleve_id']) ? intval($_GET['eleve_id']) : null;
 
 if (!$eleveId) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'eleve_id est requis']);
-$eleveId = $_GET['eleve_id'] ?? null;
-
-if (!$eleveId) {
-    http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'eleve_id requis']);
-
     exit;
 }
 
 try {
     $pdo = getDBConnection();
-
     
-    // Récupérer toutes les inscriptions de l'élève
+    // Récupérer toutes les inscriptions de l'élève avec les infos du bus et du trajet
     $stmt = $pdo->prepare('
         SELECT 
             i.*,
@@ -35,6 +27,9 @@ try {
             b.marque as bus_marque,
             b.modele as bus_modele,
             b.capacite as bus_capacite,
+            b.chauffeur_id,
+            b.responsable_id,
+            b.trajet_id,
             t.nom as trajet_nom
         FROM inscriptions i
         LEFT JOIN bus b ON i.bus_id = b.id
@@ -45,17 +40,6 @@ try {
     $stmt->execute([$eleveId]);
     $inscriptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    $stmt = $pdo->prepare('SELECT * FROM inscriptions WHERE eleve_id = ? ORDER BY date_inscription DESC');
-    $stmt->execute([$eleveId]);
-    $inscriptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    if (empty($inscriptions)) {
-        echo json_encode([
-            'success' => true,
-            'data' => []
-        ]);
-        exit;
-    }
     echo json_encode([
         'success' => true,
         'data' => $inscriptions
@@ -64,7 +48,6 @@ try {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'success' => false, 
         'message' => 'Erreur lors de la récupération des inscriptions: ' . $e->getMessage()
     ]);
 }

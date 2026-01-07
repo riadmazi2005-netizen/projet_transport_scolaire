@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, CheckCircle, AlertCircle, Info, Trash2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,26 @@ export default function NotificationPanel({
 }) {
   const [filter, setFilter] = useState('all'); // all, unread, read
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+
+  // Fermer avec la touche Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && onClose) {
+        onClose();
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscape);
+    // Empêcher le scroll du body quand le modal est ouvert
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, onClose]);
 
   const filteredNotifications = notifications.filter(notif => {
     if (filter === 'unread') return !notif.lue;
@@ -69,21 +89,29 @@ export default function NotificationPanel({
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-        onClick={onClose}
-      >
+    <AnimatePresence mode="wait">
+      {isOpen && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          onClick={(e) => e.stopPropagation()}
-          className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4"
+          onClick={(e) => {
+            // Fermer seulement si on clique directement sur l'overlay (pas sur le contenu)
+            if (e.target === e.currentTarget && onClose) {
+              onClose();
+            }
+          }}
+          style={{ pointerEvents: 'auto' }}
         >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden relative z-[10000]"
+            style={{ pointerEvents: 'auto' }}
+          >
           {/* Header */}
           <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6">
             <div className="flex items-center justify-between mb-4">
@@ -257,8 +285,9 @@ export default function NotificationPanel({
               </div>
             </div>
           )}
+          </motion.div>
         </motion.div>
-      </motion.div>
+      )}
     </AnimatePresence>
   );
 }

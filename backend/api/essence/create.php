@@ -31,10 +31,16 @@ try {
     ');
     
     $photoTicket = $data['photo_ticket'] ?? null;
-    // Si la photo est trop longue pour VARCHAR(255), elle sera tronquée
-    // On va vérifier après l'insertion
+    // Vérifier si la photo est trop longue (si la colonne est encore en VARCHAR(255))
     if ($photoTicket && strlen($photoTicket) > 255) {
-        error_log("ATTENTION: Photo trop longue (" . strlen($photoTicket) . " chars) pour VARCHAR(255). Migration nécessaire!");
+        // Vérifier le type de colonne
+        $stmtCheck = $pdo->query("SHOW COLUMNS FROM prise_essence WHERE Field = 'photo_ticket'");
+        $columnInfo = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+        if ($columnInfo && strpos(strtolower($columnInfo['Type']), 'varchar') !== false) {
+            error_log("ATTENTION: Photo trop longue (" . strlen($photoTicket) . " chars) pour VARCHAR(255). Exécutez la migration: migrate_photo_ticket_to_longtext.php");
+            // Tronquer la photo pour éviter l'erreur SQL, mais c'est une solution temporaire
+            $photoTicket = substr($photoTicket, 0, 255);
+        }
     }
     
     $stmt->execute([

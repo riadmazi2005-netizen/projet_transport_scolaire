@@ -26,9 +26,6 @@ export default function AdminEssence() {
 
   useEffect(() => {
     loadData();
-    // Actualiser toutes les 30 secondes pour avoir les nouvelles prises d'essence
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -403,61 +400,62 @@ export default function AdminEssence() {
                       </div>
                       
                       {/* Photo du ticket */}
-                      {prise.photo_ticket && (() => {
-                        let photoSrc = prise.photo_ticket;
-                        
-                        // Nettoyer et parser la photo
-                        if (typeof photoSrc === 'string' && photoSrc.trim()) {
-                          try {
-                            // Essayer de parser si c'est du JSON
-                            if (photoSrc.trim().startsWith('[') || photoSrc.trim().startsWith('{')) {
+                      {prise.photo_ticket && prise.photo_ticket !== 'null' && prise.photo_ticket !== '' && prise.photo_ticket !== null && (() => {
+                        try {
+                          let photoSrc = prise.photo_ticket;
+                          
+                          // Si c'est une chaîne JSON, essayer de parser
+                          if (typeof photoSrc === 'string' && photoSrc.trim().startsWith('[')) {
+                            try {
                               const parsed = JSON.parse(photoSrc);
                               if (Array.isArray(parsed) && parsed.length > 0) {
                                 photoSrc = parsed[0];
-                              } else if (parsed && typeof parsed === 'object' && parsed.data) {
-                                photoSrc = parsed.data;
                               }
-                            }
-                          } catch (e) {
-                            // Si le parsing échoue, utiliser tel quel
-                            console.log('Erreur parsing photo:', e);
-                          }
-                          
-                          // Si la photo ne commence pas par data:image, l'ajouter
-                          if (photoSrc && !photoSrc.startsWith('data:image') && !photoSrc.startsWith('http')) {
-                            // Si c'est du base64 pur, ajouter le préfixe
-                            if (photoSrc.length > 100) {
-                              photoSrc = `data:image/jpeg;base64,${photoSrc}`;
+                            } catch (e) {
+                              // Garder la valeur originale si le parsing échoue
                             }
                           }
                           
-                          // Vérifier que c'est une image valide
-                          if (photoSrc && (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'))) {
+                          // Nettoyer les guillemets si présents
+                          if (typeof photoSrc === 'string') {
+                            photoSrc = photoSrc.replace(/^["']+|["']+$/g, '');
+                          }
+                          
+                          // Vérifier que c'est une URL valide
+                          if (typeof photoSrc === 'string' && 
+                              (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'))) {
                             return (
-                              <div className="mt-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <ImageIcon className="w-4 h-4 text-amber-600" />
-                                  <span className="text-sm font-medium text-gray-700">Photo du ticket</span>
+                              <div className="mt-4 pt-4 border-t border-gray-200">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <ImageIcon className="w-5 h-5 text-amber-600" />
+                                  <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
                                 </div>
-                                <div className="relative group cursor-pointer" onClick={() => setSelectedPhoto(photoSrc)}>
+                                <div 
+                                  className="relative group cursor-pointer inline-block" 
+                                  onClick={() => setSelectedPhoto(photoSrc)}
+                                >
                                   <img
                                     src={photoSrc}
                                     alt="Ticket essence"
-                                    className="w-full max-w-xs h-32 object-contain rounded-lg border-2 border-amber-200 bg-gray-50 hover:border-amber-400 transition-colors"
+                                    className="max-w-xs h-40 object-contain rounded-lg border-2 border-amber-200 bg-gray-50 hover:border-amber-400 transition-colors shadow-md"
                                     onError={(e) => {
-                                      console.error('Erreur chargement image:', photoSrc.substring(0, 50));
+                                      console.error('Erreur chargement image ticket');
                                       e.target.style.display = 'none';
                                     }}
                                   />
-                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg">
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg pointer-events-none">
                                     <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                                   </div>
                                 </div>
                               </div>
                             );
                           }
+                          
+                          return null;
+                        } catch (e) {
+                          console.error('Erreur traitement photo:', e);
+                          return null;
                         }
-                        return null;
                       })()}
                     </div>
                   </div>

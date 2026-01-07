@@ -137,6 +137,7 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
             exit={{ opacity: 0 }}
             onClick={() => setIsMobileOpen(false)}
             className="lg:hidden fixed inset-0 bg-black/50 z-40"
+            style={{ pointerEvents: 'auto' }}
           />
         )}
       </AnimatePresence>
@@ -155,6 +156,7 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
           flex flex-col
           ${isCollapsed ? 'items-center' : ''}
         `}
+        style={{ pointerEvents: 'auto' }}
       >
         {/* User Info - En haut */}
         {!isCollapsed && chauffeur && (

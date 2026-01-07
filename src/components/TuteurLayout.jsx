@@ -24,14 +24,25 @@ export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
       return;
     }
     
-    const tuteurData = JSON.parse(session);
-    setTuteur(tuteurData);
-    Promise.all([
-      loadNotifications(tuteurData.id),
-      loadNewCounts(tuteurData)
-    ]).finally(() => {
+    try {
+      const tuteurData = JSON.parse(session);
+      setTuteur(tuteurData);
+      
+      // Charger les données en arrière-plan sans bloquer le rendu
+      Promise.all([
+        loadNotifications(tuteurData.id).catch(err => {
+          console.warn('Erreur chargement notifications dans Layout:', err);
+        }),
+        loadNewCounts(tuteurData).catch(err => {
+          console.warn('Erreur chargement compteurs dans Layout:', err);
+        })
+      ]).finally(() => {
+        setLoading(false);
+      });
+    } catch (err) {
+      console.error('Erreur parsing session dans TuteurLayout:', err);
       setLoading(false);
-    });
+    }
   }, [navigate]);
 
   // Rafraîchir les notifications quand on navigue vers la page des notifications
@@ -166,7 +177,9 @@ export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
     navigate(createPageUrl('Home'));
   };
 
-  if (loading) {
+  // Ne pas bloquer le rendu si on a déjà le tuteur, même si loading est true
+  // Cela permet au contenu de s'afficher pendant que les notifications se chargent
+  if (loading && !tuteur) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-lime-500 border-t-transparent rounded-full animate-spin" />

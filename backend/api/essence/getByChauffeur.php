@@ -20,6 +20,22 @@ try {
     $stmt->execute([$chauffeur_id]);
     $prises = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // Debug: vérifier les photos
+    foreach ($prises as &$prise) {
+        if (!empty($prise['photo_ticket'])) {
+            $photoLength = strlen($prise['photo_ticket']);
+            // Si la photo est tronquée (exactement 255 caractères), elle a probablement été tronquée
+            if ($photoLength == 255) {
+                error_log("ATTENTION: Photo tronquée pour prise_essence ID {$prise['id']} - longueur: $photoLength");
+            }
+            // Nettoyer la photo si elle contient des caractères d'échappement
+            if (strpos($prise['photo_ticket'], '\\') !== false) {
+                $prise['photo_ticket'] = stripslashes($prise['photo_ticket']);
+            }
+        }
+    }
+    unset($prise); // Libérer la référence
+    
     echo json_encode([
         'success' => true,
         'data' => $prises

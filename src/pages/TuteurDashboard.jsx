@@ -723,73 +723,50 @@ function TuteurDashboardContent() {
                               handleCancelDemandeClick(eleve);
                             }}
                             className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
-                    <div className="flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className={getStatusBadge(eleve.statut_demande)}>
-                          {eleve.statut_demande}
-                        </span>
-                        
-                        {/* Boutons selon le statut */}
-                        {(eleve.statut_demande === 'En cours de traitement' || eleve.statut_demande === 'En attente') && (
-                          <>
-                            <Link to={createPageUrl(`TuteurDemandes`)} onClick={(e) => e.stopPropagation()}>
-                              <Button className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600">
-                                <Edit className="w-4 h-4 mr-2" />
-                                Modifier
-                              </Button>
-                            </Link>
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCancelDemandeClick(eleve);
-                              }}
-                              className="rounded-xl bg-lime-500 hover:bg-lime-600 text-white border-2 border-lime-600"
-                            >
-                              <XCircle className="w-4 h-4 mr-2" />
-                              Annuler
-                            </Button>
-                          </>
-                        )}
-                        
-                        {eleve.statut_demande === 'En attente de paiement' && eleve.demande_inscription?.id && (
-                          <Button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedEleveForPayment(eleve);
-                              setShowPaymentModal(true);
-                              setPaymentCode('');
-                              setPaymentError('');
-                            }}
-                            className="bg-gradient-to-r from-lime-600 to-lime-600 hover:from-lime-700 hover:to-lime-700 text-white rounded-xl font-semibold shadow-md"
-
                           >
-                            <CreditCard className="w-4 h-4 mr-2" />
-                            Payer
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Annuler
                           </Button>
-                        )}
-                      </div>
+                        </>
+                      )}
                       
-                      {/* Bouton Désabonnement - Séparé des autres actions */}
-                      {eleve.statut_demande === 'Inscrit' && (
-                        <div className="border-t border-gray-200 pt-3 mt-2">
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedEleveForDesabonnement(eleve);
-                              setShowDesabonnementModal(true);
-                              setDesabonnementRaison('');
-                            }}
-                            className="w-full rounded-xl text-white border-2 font-semibold"
-                            style={{ backgroundColor: '#E57373', borderColor: '#E57373' }}
-                            onMouseEnter={(e) => e.target.style.backgroundColor = '#EF5350'}
-                            onMouseLeave={(e) => e.target.style.backgroundColor = '#E57373'}
-                          >
-                            <LogOut className="w-4 h-4 mr-2" />
-                            Désabonnement
-                          </Button>
-                        </div>
+                      {eleve.statut_demande === 'En attente de paiement' && eleve.demande_inscription?.id && (
+                        <Button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEleveForPayment(eleve);
+                            setShowPaymentModal(true);
+                            setPaymentCode('');
+                            setPaymentError('');
+                          }}
+                          className="bg-gradient-to-r from-lime-600 to-lime-600 hover:from-lime-700 hover:to-lime-700 text-white rounded-xl font-semibold shadow-md"
+                        >
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Payer
+                        </Button>
                       )}
                     </div>
+                    
+                    {/* Bouton Désabonnement - Séparé des autres actions */}
+                    {eleve.statut_demande === 'Inscrit' && (
+                      <div className="border-t border-gray-200 pt-3 mt-2 w-full">
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEleveForDesabonnement(eleve);
+                            setShowDesabonnementModal(true);
+                            setDesabonnementRaison('');
+                          }}
+                          className="w-full rounded-xl text-white border-2 font-semibold"
+                          style={{ backgroundColor: '#E57373', borderColor: '#E57373' }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#EF5350'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#E57373'}
+                        >
+                          <LogOut className="w-4 h-4 mr-2" />
+                          Désabonnement
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))}

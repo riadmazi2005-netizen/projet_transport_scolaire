@@ -6,10 +6,8 @@ import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { 
   Bell, ArrowLeft, CheckCircle, AlertCircle, Info, Trash2, 
-  Mail, FileText, AlertTriangle, XCircle, Filter
+  Mail, FileText, AlertTriangle
 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import ConfirmDialog from '../components/ui/ConfirmDialog';
 import ChauffeurLayout from '../components/ChauffeurLayout';
 
 export default function ChauffeurNotifications() {
@@ -17,9 +15,6 @@ export default function ChauffeurNotifications() {
   const [chauffeur, setChauffeur] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, unread, read
-  const [typeFilter, setTypeFilter] = useState('all'); // all, info, alerte, warning, success
-  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   useEffect(() => {
     const session = localStorage.getItem('chauffeur_session');
@@ -73,19 +68,6 @@ export default function ChauffeurNotifications() {
     }
   };
 
-  const deleteAllNotifications = async () => {
-    if (!chauffeur) return;
-    
-    const chauffeurId = chauffeur.id || chauffeur.type_id;
-    if (!chauffeurId) return;
-
-    try {
-      await notificationsAPI.deleteAll(chauffeurId, 'chauffeur');
-      setNotifications([]);
-    } catch (err) {
-      console.error('Erreur lors de la suppression de toutes les notifications:', err);
-    }
-  };
 
   const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -147,16 +129,8 @@ export default function ChauffeurNotifications() {
     return 'bg-blue-50 border-blue-200';
   };
 
-  const filteredNotifications = notifications.filter(notif => {
-    // Filtre par lecture
-    if (filter === 'unread' && notif.lue) return false;
-    if (filter === 'read' && !notif.lue) return false;
-    
-    // Filtre par type
-    if (typeFilter !== 'all' && notif.type?.toLowerCase() !== typeFilter.toLowerCase()) return false;
-    
-    return true;
-  });
+  // Afficher toutes les notifications sans filtre
+  const filteredNotifications = notifications;
 
   const unreadCount = notifications.filter(n => !n.lue).length;
 
@@ -205,81 +179,6 @@ export default function ChauffeurNotifications() {
         </div>
       </motion.div>
 
-      {/* Filtres */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="bg-white rounded-2xl shadow-lg p-4 mb-6"
-      >
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Filter className="w-4 h-4 inline mr-1" />
-              Filtrer par statut
-            </label>
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes</SelectItem>
-                <SelectItem value="unread">Non lues ({notifications.filter(n => !n.lue).length})</SelectItem>
-                <SelectItem value="read">Lues ({notifications.filter(n => n.lue).length})</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Filter className="w-4 h-4 inline mr-1" />
-              Filtrer par type
-            </label>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les types</SelectItem>
-                <SelectItem value="info">Informations</SelectItem>
-                <SelectItem value="alerte">Alertes</SelectItem>
-                <SelectItem value="warning">Avertissements</SelectItem>
-                <SelectItem value="success">Succès</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Boutons d'action */}
-        {notifications.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-4 mt-4 border-t border-gray-200">
-            {unreadCount > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  notifications
-                    .filter(n => !n.lue)
-                    .forEach(n => markAsRead(n.id));
-                }}
-                className="text-green-600 hover:text-green-700 hover:bg-green-50 rounded-xl"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Tout marquer comme lu
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDeleteAllConfirm(true)}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Supprimer toutes les notifications
-            </Button>
-          </div>
-        )}
-      </motion.div>
-
       {/* Liste des notifications */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -292,9 +191,7 @@ export default function ChauffeurNotifications() {
             <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">Aucune notification</h3>
             <p className="text-gray-500">
-              {filter === 'all'
-                ? 'Vous n\'avez aucune notification pour le moment.'
-                : `Aucune notification ${filter === 'unread' ? 'non lue' : 'lue'} trouvée.`}
+              Vous n'avez aucune notification pour le moment.
             </p>
           </div>
         ) : (
@@ -367,20 +264,6 @@ export default function ChauffeurNotifications() {
         )}
       </motion.div>
 
-      {/* Dialog de confirmation de suppression de toutes les notifications */}
-      <ConfirmDialog
-        isOpen={showDeleteAllConfirm}
-        title="Supprimer toutes les notifications"
-        message="Êtes-vous sûr de vouloir supprimer toutes les notifications ? Cette action est irréversible."
-        onConfirm={() => {
-          deleteAllNotifications();
-          setShowDeleteAllConfirm(false);
-        }}
-        onCancel={() => setShowDeleteAllConfirm(false)}
-        confirmText="Supprimer"
-        cancelText="Annuler"
-        variant="destructive"
-      />
     </ChauffeurLayout>
   );
 }

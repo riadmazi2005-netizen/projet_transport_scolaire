@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Bus, Bell, LogOut, Users, AlertCircle, DollarSign,
   Navigation, User, CheckCircle, Calendar, MapPin, Plus, X, Search,
-  Fuel, FileText, ClipboardCheck, Wrench, Clock, TrendingUp, Building2, AlertTriangle, Image as ImageIcon, Trash2, ZoomIn, UserCircle, Save, Edit
+  Fuel, FileText, ClipboardCheck, Wrench, Clock, TrendingUp, Building2, AlertTriangle, Image as ImageIcon, Trash2, ZoomIn, UserCircle, Save, Edit, ArrowLeft, Home
 } from 'lucide-react';
 import NotificationPanel from '../components/ui/NotificationPanel';
 import StatCard from '../components/ui/StatCard';
@@ -387,28 +387,27 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
         }
       `}</style>
     <div className="chauffeur-dashboard">
-        {/* Header */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-3xl shadow-xl p-6 mb-8"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <Users className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">
-                Bienvenue, {chauffeur?.prenom} {chauffeur?.nom}
-              </h1>
-              <p className="text-gray-500">{chauffeur?.email}</p>
-            </div>
-          </div>
-        </motion.div>
-
         {/* Content - Dashboard par défaut (stats seulement) */}
         {activeTab === null && (
           <>
+            {/* Header - Bienvenue */}
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-3xl shadow-xl p-6 mb-8"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <Users className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800">
+                    Bienvenue, {chauffeur?.prenom} {chauffeur?.nom}
+                  </h1>
+                  <p className="text-gray-500">{chauffeur?.email}</p>
+                </div>
+              </div>
+            </motion.div>
             {/* Alerte de licenciement si 3 accidents */}
             {isLicencie && (
               <motion.div
@@ -533,6 +532,17 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-3xl shadow-xl p-8"
           >
+            {/* Bouton retour */}
+            <div className="mb-6">
+              <Button
+                onClick={() => setActiveTab(null)}
+                variant="ghost"
+                className="flex items-center gap-2 text-gray-600 hover:text-green-600 hover:bg-green-100/50 rounded-xl px-4 py-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Retour au dashboard
+              </Button>
+            </div>
             {/* Header */}
             <div className="text-center mb-8">
               <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -559,13 +569,35 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   telephone: profileForm.telephone
                 };
                 
-                await chauffeursAPI.update(chauffeurId, updateData);
+                const response = await chauffeursAPI.update(chauffeurId, updateData);
                 
-                // Recharger les données
+                // Récupérer les données mises à jour depuis l'API
+                const updatedChauffeurResponse = await chauffeursAPI.getById(chauffeurId);
+                const updatedChauffeur = updatedChauffeurResponse?.data || updatedChauffeurResponse || {};
+                
+                // Mettre à jour l'état local
                 const session = localStorage.getItem('chauffeur_session');
                 if (session) {
                   const chauffeurData = JSON.parse(session);
-                  await loadData(chauffeurData);
+                  
+                  // Mettre à jour le localStorage avec les nouvelles données
+                  const updatedSession = {
+                    ...chauffeurData,
+                    ...updatedChauffeur,
+                    // Conserver type_id et id
+                    type_id: chauffeurData.type_id || updatedChauffeur.id,
+                    id: chauffeurData.id || updatedChauffeur.id
+                  };
+                  localStorage.setItem('chauffeur_session', JSON.stringify(updatedSession));
+                  
+                  // Mettre à jour l'état local
+                  setChauffeur(updatedSession);
+                  
+                  // Recharger toutes les données
+                  await loadData(updatedSession);
+                  
+                  // Déclencher un événement pour notifier ChauffeurLayout
+                  window.dispatchEvent(new CustomEvent('chauffeur_session_updated'));
                 }
                 
                 showToast('Profil mis à jour avec succès', 'success');
@@ -632,7 +664,20 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
 
         {/* Content */}
         {activeTab === 'bus' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <>
+            <div className="bg-white rounded-3xl shadow-xl p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <Button
+                  onClick={() => setActiveTab(null)}
+                  variant="ghost"
+                  className="flex items-center gap-2 text-gray-600 hover:text-green-600 hover:bg-green-100/50 rounded-xl px-4 py-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Retour au dashboard
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-3xl shadow-xl p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <Bus className="w-5 h-5 text-green-500" />
@@ -744,11 +789,24 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               )}
             </div>
           </div>
+          </>
         )}
 
         {activeTab === 'accidents' && (
-          <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+          <>
+            <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    onClick={() => setActiveTab(null)}
+                    variant="ghost"
+                    className="flex items-center gap-2 text-gray-600 hover:text-green-600 hover:bg-green-100/50 rounded-xl px-4 py-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Retour au dashboard
+                  </Button>
+                </div>
+                <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <AlertCircle className="w-6 h-6 text-red-500" />
                 Historique des Accidents
@@ -762,6 +820,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   Déclarer un accident
                 </Button>
               )}
+            </div>
             </div>
             
             {/* Alerte de licenciement dans la section accidents */}
@@ -980,25 +1039,39 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               </div>
             )}
           </div>
+          </>
         )}
 
         {/* Section Essence */}
         {activeTab === 'essence' && (
-          <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-green-50 to-emerald-50">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Fuel className="w-6 h-6 text-green-500" />
-                Gestion de l'Essence
-                <span className="ml-3 text-sm font-normal text-gray-500">({priseEssence.length} prises)</span>
-              </h2>
-              <Button
-                onClick={() => setShowEssenceForm(true)}
-                className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Nouvelle prise d'essence
-              </Button>
-            </div>
+          <>
+            <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    onClick={() => setActiveTab(null)}
+                    variant="ghost"
+                    className="flex items-center gap-2 text-gray-600 hover:text-green-600 hover:bg-green-100/50 rounded-xl px-4 py-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Retour au dashboard
+                  </Button>
+                </div>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <Fuel className="w-6 h-6 text-green-500" />
+                    Gestion de l'Essence
+                    <span className="ml-3 text-sm font-normal text-gray-500">({priseEssence.length} prises)</span>
+                  </h2>
+                  <Button
+                    onClick={() => setShowEssenceForm(true)}
+                    className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nouvelle prise d'essence
+                  </Button>
+                </div>
+              </div>
             
             {/* Statistiques améliorées */}
             <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4 bg-gradient-to-br from-green-50 via-emerald-50 to-green-50">
@@ -1264,73 +1337,150 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                             
                             {/* Photo du ticket */}
                             {(() => {
-                              // Debug
-                              console.log('Essence photo_ticket:', essence.photo_ticket ? `Existe (${essence.photo_ticket.length} chars)` : 'NULL');
-                              
-                              if (!essence.photo_ticket) {
+                              // Vérifier si la photo existe
+                              if (!essence.photo_ticket || essence.photo_ticket === 'null' || essence.photo_ticket === '' || essence.photo_ticket === null) {
                                 return null;
                               }
                               
-                              let photoSrc = essence.photo_ticket;
-                              
-                              // Nettoyer et parser la photo
-                              if (typeof photoSrc === 'string' && photoSrc.trim()) {
-                                try {
-                                  // Essayer de parser si c'est du JSON
-                                  if (photoSrc.trim().startsWith('[') || photoSrc.trim().startsWith('{')) {
-                                    const parsed = JSON.parse(photoSrc);
-                                    if (Array.isArray(parsed) && parsed.length > 0) {
-                                      photoSrc = parsed[0];
-                                    } else if (parsed && typeof parsed === 'object' && parsed.data) {
-                                      photoSrc = parsed.data;
+                              // Fonction pour traiter et normaliser la photo
+                              const processPhoto = (rawPhoto) => {
+                                if (!rawPhoto) return null;
+                                
+                                let photoSrc = String(rawPhoto);
+                                
+                                // Nettoyer et parser la photo
+                                if (photoSrc.trim()) {
+                                  try {
+                                    // Essayer de parser si c'est du JSON
+                                    if (photoSrc.trim().startsWith('[') || photoSrc.trim().startsWith('{')) {
+                                      const parsed = JSON.parse(photoSrc);
+                                      if (Array.isArray(parsed) && parsed.length > 0) {
+                                        photoSrc = String(parsed[0]);
+                                      } else if (parsed && typeof parsed === 'object' && parsed.data) {
+                                        photoSrc = String(parsed.data);
+                                      }
+                                    }
+                                  } catch (e) {
+                                    // Si le parsing échoue, utiliser tel quel
+                                  }
+                                  
+                                  // Nettoyer les espaces, guillemets et caractères spéciaux
+                                  photoSrc = photoSrc.trim();
+                                  photoSrc = photoSrc.replace(/^["']+|["']+$/g, ''); // Enlever guillemets
+                                  photoSrc = photoSrc.replace(/^\\["']+|\\["']+$/g, ''); // Enlever guillemets échappés
+                                  
+                                  // Si la photo commence déjà par data:image, la retourner telle quelle
+                                  if (photoSrc.startsWith('data:image')) {
+                                    return photoSrc;
+                                  }
+                                  
+                                  // Si c'est une URL, la retourner telle quelle
+                                  if (photoSrc.startsWith('http://') || photoSrc.startsWith('https://')) {
+                                    return photoSrc;
+                                  }
+                                  
+                                  // Si c'est du base64 pur (longueur > 50 caractères), ajouter le préfixe
+                                  const cleanBase64 = photoSrc.replace(/\s/g, ''); // Enlever tous les espaces
+                                  
+                                  if (cleanBase64.length > 50) {
+                                    // Vérifier que c'est bien du base64 valide (plus permissif)
+                                    const base64Pattern = /^[A-Za-z0-9+/=\s]+$/;
+                                    
+                                    if (base64Pattern.test(cleanBase64) || cleanBase64.length > 100) {
+                                      return `data:image/jpeg;base64,${cleanBase64}`;
                                     }
                                   }
-                                } catch (e) {
-                                  // Si le parsing échoue, utiliser tel quel
-                                  console.log('Erreur parsing photo:', e);
+                                  
+                                  return null;
                                 }
+                                return null;
+                              };
+                              
+                              const processedPhoto = processPhoto(essence.photo_ticket);
+                              
+                              if (!processedPhoto) {
+                                // Vérifier si la photo est tronquée (255 caractères = probablement tronquée)
+                                const photoLength = essence.photo_ticket ? String(essence.photo_ticket).length : 0;
+                                const isTruncated = photoLength === 255;
                                 
-                                // Si la photo ne commence pas par data:image, l'ajouter
-                                if (photoSrc && !photoSrc.startsWith('data:image') && !photoSrc.startsWith('http')) {
-                                  // Si c'est du base64 pur, ajouter le préfixe
-                                  if (photoSrc.length > 100) {
-                                    photoSrc = `data:image/jpeg;base64,${photoSrc}`;
-                                  }
-                                }
-                                
-                                // Vérifier que c'est une image valide
-                                if (photoSrc && (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'))) {
-                                  console.log('Photo valide, affichage...');
+                                if (isTruncated) {
                                   return (
-                                    <div className="mt-4">
+                                    <div className="mt-4 pt-4 border-t border-gray-200">
                                       <div className="flex items-center gap-2 mb-2">
-                                        <ImageIcon className="w-4 h-4 text-green-600" />
-                                        <span className="text-sm font-medium text-gray-700">Photo du ticket</span>
+                                        <ImageIcon className="w-5 h-5 text-green-600" />
+                                        <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
                                       </div>
-                                      <div className="relative group cursor-pointer" onClick={() => setSelectedEssenceTicketPhoto(photoSrc)}>
-                                        <img
-                                          src={photoSrc}
-                                          alt="Ticket essence"
-                                          className="w-full h-32 object-contain rounded-lg border-2 border-green-200 bg-gray-50 hover:border-green-400 transition-colors"
-                                          onError={(e) => {
-                                            console.error('Erreur chargement image - longueur:', photoSrc.length, 'premiers chars:', photoSrc.substring(0, 50));
-                                            e.target.style.display = 'none';
-                                          }}
-                                          onLoad={() => {
-                                            console.log('Image chargée avec succès');
-                                          }}
-                                        />
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg">
-                                          <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                        </div>
+                                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                        <p className="text-sm text-red-700 font-medium mb-1">
+                                          ⚠️ Photo tronquée
+                                        </p>
+                                        <p className="text-xs text-red-600">
+                                          La photo a été tronquée lors de l'enregistrement. Contactez l'administrateur.
+                                        </p>
                                       </div>
                                     </div>
                                   );
-                                } else {
-                                  console.log('Photo invalide - photoSrc:', photoSrc ? photoSrc.substring(0, 50) : 'null');
                                 }
+                                return null;
                               }
-                              return null;
+                              
+                              return (
+                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <ImageIcon className="w-5 h-5 text-green-600" />
+                                    <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
+                                  </div>
+                                  <div 
+                                    className="relative group cursor-pointer inline-block" 
+                                    onClick={() => {
+                                      const finalPhoto = processPhoto(essence.photo_ticket);
+                                      if (finalPhoto) {
+                                        setSelectedEssenceTicketPhoto(finalPhoto);
+                                      }
+                                    }}
+                                  >
+                                    <img
+                                      src={processedPhoto}
+                                      alt="Ticket essence"
+                                      className="max-w-xs h-40 object-contain rounded-lg border-2 border-green-200 bg-gray-50 hover:border-green-400 transition-colors shadow-md"
+                                      onError={(e) => {
+                                        console.error('Erreur chargement image ticket');
+                                        // Essayer avec différents formats
+                                        const base64Data = processedPhoto.replace(/^data:image\/[^;]+;base64,/, '');
+                                        if (base64Data && base64Data.length > 50) {
+                                          // Essayer PNG
+                                          if (!e.target.dataset.triedPng) {
+                                            e.target.dataset.triedPng = 'true';
+                                            e.target.src = `data:image/png;base64,${base64Data}`;
+                                          } else if (!e.target.dataset.triedWebp) {
+                                            // Essayer WebP
+                                            e.target.dataset.triedWebp = 'true';
+                                            e.target.src = `data:image/webp;base64,${base64Data}`;
+                                          } else {
+                                            // Cacher l'image si tous les formats ont échoué
+                                            e.target.style.display = 'none';
+                                            const parent = e.target.parentElement;
+                                            if (parent && !parent.querySelector('.error-message')) {
+                                              const errorDiv = document.createElement('div');
+                                              errorDiv.className = 'error-message text-red-500 text-sm mt-2';
+                                              errorDiv.textContent = 'Impossible de charger l\'image';
+                                              parent.appendChild(errorDiv);
+                                            }
+                                          }
+                                        } else {
+                                          e.target.style.display = 'none';
+                                        }
+                                      }}
+                                      onLoad={() => {
+                                        console.log('✅ Image chargée avec succès');
+                                      }}
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg pointer-events-none">
+                                      <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
                             })()}
                           </div>
                         </motion.div>
@@ -1341,13 +1491,26 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 );
               })()}
             </div>
-          </div>
+            </div>
+          </>
         )}
 
         {/* Section Signalements */}
         {activeTab === 'signalements' && (
-          <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-green-50 to-emerald-50">
+          <>
+            <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+              <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-green-50 to-emerald-50">
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    onClick={() => setActiveTab(null)}
+                    variant="ghost"
+                    className="flex items-center gap-2 text-gray-600 hover:text-green-600 hover:bg-green-100/50 rounded-xl px-4 py-2"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Retour au dashboard
+                  </Button>
+                </div>
+                <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                   <Wrench className="w-6 h-6 text-green-500" />
                   Signalements de Problèmes
@@ -1359,7 +1522,8 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 <Plus className="w-4 h-4 mr-2" />
                 Signaler un problème
               </Button>
-            </div>
+                </div>
+              </div>
 
             {/* Filtres */}
             {signalements.length > 0 && (
@@ -1699,6 +1863,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               })()}
             </div>
           </div>
+          </>
         )}
 
       </div>
@@ -2105,8 +2270,8 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               } catch (err) {
                 showToast('Erreur: ' + (err.message || 'Erreur inconnue'), 'error');
               }
-            }} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            }} className="p-6">
+              <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <Label>Date *</Label>
                   <Input type="date" value={essenceForm.date} onChange={(e) => setEssenceForm({...essenceForm, date: e.target.value})} className="mt-1 rounded-xl" required />
@@ -2123,14 +2288,14 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   <Label>Prix total (DH) *</Label>
                   <Input type="number" step="0.01" value={essenceForm.prix_total} onChange={(e) => setEssenceForm({...essenceForm, prix_total: e.target.value})} className="mt-1 rounded-xl" required />
                 </div>
-                <div>
+                <div className="col-span-2">
                   <Label>Station-service</Label>
                   <Input value={essenceForm.station_service} onChange={(e) => setEssenceForm({...essenceForm, station_service: e.target.value})} className="mt-1 rounded-xl" />
                 </div>
               </div>
               
               {/* Upload Photo Ticket */}
-              <div>
+              <div className="mb-4">
                 <Label>Photo du ticket/reçu</Label>
                 <input
                   type="file"
@@ -2161,42 +2326,37 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                 >
                   <ImageIcon className="w-5 h-5 text-gray-400" />
                   <span className="text-sm text-gray-600">
-                    {essenceTicketPhoto ? 'Photo sélectionnée' : 'Cliquez pour ajouter une photo du ticket'}
+                    {essenceTicketPhoto ? 'Photo sélectionnée - Cliquez pour changer' : 'Cliquez pour ajouter une photo du ticket'}
                   </span>
                 </label>
                 
-                {/* Prévisualisation de la photo */}
+                {/* Prévisualisation de la photo - compacte */}
                 {essenceTicketPhoto && (
-                  <div className="mt-4 relative">
-                    <div className="relative group">
-                      <img
-                        src={essenceTicketPhoto.preview}
-                        alt="Ticket essence"
-                        className="w-full h-48 object-contain rounded-lg border-2 border-green-200 bg-gray-50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          URL.revokeObjectURL(essenceTicketPhoto.preview);
-                          setEssenceTicketPhoto(null);
-                        }}
-                        className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center opacity-90 hover:opacity-100 shadow-md hover:bg-red-600 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedEssenceTicketPhoto(essenceTicketPhoto.preview)}
-                        className="absolute top-2 left-2 w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center opacity-90 hover:opacity-100 shadow-md hover:bg-green-600 transition-colors"
-                      >
-                        <ZoomIn className="w-4 h-4" />
-                      </button>
+                  <div className="mt-3 flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <img
+                      src={essenceTicketPhoto.preview}
+                      alt="Ticket essence"
+                      className="w-16 h-16 object-contain rounded border border-green-300"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-700">Photo sélectionnée</p>
+                      <p className="text-xs text-gray-500">{essenceTicketPhoto.file.name}</p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        URL.revokeObjectURL(essenceTicketPhoto.preview);
+                        setEssenceTicketPhoto(null);
+                      }}
+                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
                 )}
               </div>
               
-              <div className="flex gap-3 justify-end pt-4 border-t">
+              <div className="flex gap-3 justify-end pt-4 border-t col-span-2">
                 <Button type="button" variant="outline" onClick={() => {
                   if (essenceTicketPhoto) {
                     URL.revokeObjectURL(essenceTicketPhoto.preview);
@@ -2481,32 +2641,113 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       )}
 
       {/* Modal pour voir la photo du ticket d'essence en grand */}
-      {selectedEssenceTicketPhoto && (
-        <div 
-          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedEssenceTicketPhoto(null)}
-        >
+      <AnimatePresence>
+        {selectedEssenceTicketPhoto && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="relative max-w-5xl max-h-[90vh] w-full"
-            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setSelectedEssenceTicketPhoto(null)}
           >
-            <button
-              onClick={() => setSelectedEssenceTicketPhoto(null)}
-              className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 shadow-lg transition-colors"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="relative max-w-5xl max-h-[90vh] w-full flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="w-6 h-6" />
-            </button>
-            <img
-              src={selectedEssenceTicketPhoto}
-              alt="Photo ticket essence"
-              className="w-full h-auto rounded-lg shadow-2xl"
-            />
+              <button
+                onClick={() => setSelectedEssenceTicketPhoto(null)}
+                className="absolute top-4 right-4 z-10 w-10 h-10 bg-white hover:bg-gray-100 text-gray-800 rounded-full flex items-center justify-center shadow-lg transition-colors"
+                aria-label="Fermer"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              {(() => {
+                // Traiter la photo avant de l'afficher
+                let displayPhoto = selectedEssenceTicketPhoto;
+                console.log('Modal - Photo reçue, longueur:', displayPhoto.length, 'début:', displayPhoto.substring(0, 50));
+                
+                // Si la photo ne commence pas par data:image, essayer de la corriger
+                if (!displayPhoto.startsWith('data:image') && !displayPhoto.startsWith('http')) {
+                  // Nettoyer la photo
+                  let cleanPhoto = displayPhoto.replace(/^["']+|["']+$/g, '').trim();
+                  cleanPhoto = cleanPhoto.replace(/\s/g, ''); // Enlever tous les espaces
+                  
+                  // Vérifier si la photo est tronquée (exactement 255 caractères = probablement tronquée par VARCHAR(255))
+                  if (cleanPhoto.length === 255) {
+                    console.warn('ATTENTION: Photo tronquée à 255 caractères! La colonne doit être en LONGTEXT.');
+                  }
+                  
+                  // Essayer avec jpeg
+                  if (cleanPhoto.length > 50) {
+                    displayPhoto = `data:image/jpeg;base64,${cleanPhoto}`;
+                  }
+                }
+                
+                return (
+                  <img
+                    key={displayPhoto.substring(0, 100)}
+                    src={displayPhoto}
+                    alt="Photo ticket essence"
+                    className="max-w-full max-h-[90vh] w-auto h-auto rounded-lg shadow-2xl object-contain"
+                    onError={(e) => {
+                      console.error('Erreur chargement image dans modal');
+                      const currentSrc = e.target.src;
+                      
+                      // Ne pas réessayer si on a déjà essayé plusieurs fois
+                      if (e.target.dataset.retryCount && parseInt(e.target.dataset.retryCount) >= 3) {
+                        e.target.style.display = 'none';
+                        if (!e.target.parentElement.querySelector('.error-message')) {
+                          const errorDiv = document.createElement('div');
+                          errorDiv.className = 'error-message text-white text-center p-4 bg-red-500 rounded-lg';
+                          const photoLength = selectedEssenceTicketPhoto.length;
+                          const isTruncated = photoLength === 255;
+                          errorDiv.innerHTML = `
+                            <p class="font-bold mb-2">Impossible de charger l'image</p>
+                            ${isTruncated ? '<p class="text-sm">⚠️ La photo est tronquée (255 caractères). Exécutez la migration LONGTEXT.</p>' : '<p class="text-sm">Le format peut être corrompu.</p>'}
+                            <p class="text-xs mt-2">Longueur: ${photoLength} caractères</p>
+                          `;
+                          e.target.parentElement.appendChild(errorDiv);
+                        }
+                        return;
+                      }
+                      
+                      const retryCount = parseInt(e.target.dataset.retryCount || '0') + 1;
+                      e.target.dataset.retryCount = retryCount.toString();
+                      
+                      // Extraire le base64 pur
+                      let base64Data = selectedEssenceTicketPhoto;
+                      base64Data = base64Data.replace(/^data:image\/[^;]+;base64,/, '');
+                      base64Data = base64Data.replace(/^["']+|["']+$/g, '').trim();
+                      base64Data = base64Data.replace(/\s/g, '');
+                      
+                      console.log(`Tentative ${retryCount} de chargement, base64 length:`, base64Data.length);
+                      
+                      // Essayer différents formats
+                      if (retryCount === 1 && base64Data.length > 50) {
+                        e.target.src = `data:image/jpeg;base64,${base64Data}`;
+                      } else if (retryCount === 2 && base64Data.length > 50) {
+                        e.target.src = `data:image/png;base64,${base64Data}`;
+                      } else if (retryCount === 3 && base64Data.length > 50) {
+                        e.target.src = `data:image/webp;base64,${base64Data}`;
+                      }
+                    }}
+                    onLoad={(e) => {
+                      console.log('✅ Image chargée avec succès dans le modal');
+                      // Retirer le compteur de retry si l'image charge
+                      if (e.target.dataset.retryCount) {
+                        delete e.target.dataset.retryCount;
+                      }
+                    }}
+                  />
+                );
+              })()}
+            </motion.div>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Modal de confirmation de suppression de signalement */}
       {signalementToDelete && (
