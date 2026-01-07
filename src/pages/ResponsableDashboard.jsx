@@ -39,6 +39,11 @@ export default function ResponsableDashboard() {
   const [elevesCustomDate, setElevesCustomDate] = useState('');
   const [elevesGroupFilter, setElevesGroupFilter] = useState('all');
   const [elevesSearchTerm, setElevesSearchTerm] = useState('');
+  
+  // États pour les filtres de présence
+  const [presencePeriodFilter, setPresencePeriodFilter] = useState('auto'); // 'auto', 'matin', 'soir'
+  const [processedStudents, setProcessedStudents] = useState(new Set()); // Élèves dont la présence a été enregistrée
+  const [showNotificationButtons, setShowNotificationButtons] = useState(new Set()); // Élèves avec bouton notification visible
   const [accidents, setAccidents] = useState([]);
   const [showAccidentForm, setShowAccidentForm] = useState(false);
   const [editingAccident, setEditingAccident] = useState(null);
@@ -593,7 +598,6 @@ export default function ResponsableDashboard() {
     try {
       await notificationsAPI.deleteAll(responsableId, 'responsable');
       setNotifications([]);
-      console.log('Toutes les notifications ont été supprimées avec succès');
     } catch (err) {
       console.error('Erreur lors de la suppression de toutes les notifications:', err);
     }
@@ -605,6 +609,8 @@ export default function ResponsableDashboard() {
         p.eleve_id === eleveId && p.date === selectedDate
       );
       
+      let presenceData;
+      
       if (existingPresence) {
         // Mettre à jour la présence existante
         const updateData = {
@@ -613,9 +619,8 @@ export default function ResponsableDashboard() {
         };
         
         const response = await presencesAPI.marquer(updateData);
-        const presenceData = response?.data || response;
+        presenceData = response?.data || response;
         
-        // Mettre à jour l'état local directement
         setPresences(prev => prev.map(p => 
           p.id === existingPresence.id 
             ? { ...p, ...presenceData }
@@ -631,12 +636,6 @@ export default function ResponsableDashboard() {
           bus_id: bus?.id,
           responsable_id: responsable?.type_id || responsable?.id
         };
-        
-        const response = await presencesAPI.marquer(newPresenceData);
-        const presenceData = response?.data || response;
-        
-        // Ajouter la nouvelle présence à l'état local
-        setPresences(prev => [...prev, presenceData]);
       }
       
       // Si marqué comme absent, envoyer notification au tuteur
@@ -657,10 +656,18 @@ export default function ResponsableDashboard() {
           }
         }
       }
-    } catch (err) {
-      console.error('Erreur lors de la modification de présence:', err);
-      showToast('Erreur lors de la modification de présence: ' + (err.message || 'Erreur inconnue'), 'error');
-    }
+      } catch (err) {
+        console.error('Erreur lors de la modification de présence:', err);
+        showToast('Erreur lors de la modification de présence: ' + (err.message || 'Erreur inconnue'), 'error');
+      }
+  };
+
+  const handleMarkPresent = async (eleveId, periode) => {
+    await handleTogglePresence(eleveId, periode, true);
+  };
+
+  const handleMarkAbsent = async (eleveId, periode) => {
+    await handleTogglePresence(eleveId, periode, false);
   };
 
   const handleNotifyAbsence = async (eleve, periode = 'matin') => {
@@ -1113,13 +1120,674 @@ export default function ResponsableDashboard() {
             </div>
           </div>
         )}
-        </div>
-      </main>
-    </div>
-  );
-}
 
-export default ResponsableDashboard;
+        {activeTab === 'bus' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-3xl shadow-xl p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Bus className="w-5 h-5 text-purple-500" />
+                Mon Bus
+              </h2>
+              {bus ? (
+                <div className="space-y-4">
+                  <div className="bg-purple-50 rounded-2xl p-6 text-center">
+                    <p className="text-5xl font-bold text-purple-600">{bus.numero.toString().replace(/^#\s*/, '')}</p>
+                    <p className="text-gray-500 mt-2">{bus.marque} {bus.modele}</p>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-gray-500">Capacité</span>
+                      <span className="font-medium">{bus.capacite} places</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-gray-500">Places occupées</span>
+                      <span className="font-medium">{eleves.length}</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-gray-500">Statut</span>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        bus.statut === 'Actif' ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {bus.statut}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center text-gray-400 py-8">Aucun bus assigné</p>
+              )}
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-xl p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Navigation className="w-5 h-5 text-purple-500" />
+                Mon Trajet
+              </h2>
+              {trajet ? (
+                <div className="space-y-4">
+                  <div className="bg-purple-50 rounded-2xl p-4">
+                    <p className="text-sm text-purple-600 font-medium">Trajet</p>
+                    <p className="text-xl font-bold text-gray-800">{trajet.nom}</p>
+                  </div>
+                  
+                  {trajet.zones && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
+                        <MapPin className="w-4 h-4" />
+                        Zones desservies
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(Array.isArray(trajet.zones) ? trajet.zones : JSON.parse(trajet.zones || '[]')).map((zone, i) => (
+                          <span key={i} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
+                            {zone}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <div className="bg-purple-50 rounded-xl p-3">
+                      <p className="text-xs text-purple-600 font-medium">Groupe A - Matin</p>
+                      <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_a} - {trajet.heure_arrivee_matin_a}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3">
+                      <p className="text-xs text-purple-600 font-medium">Groupe A - Soir</p>
+                      <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_a} - {trajet.heure_arrivee_soir_a}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3">
+                      <p className="text-xs text-purple-600 font-medium">Groupe B - Matin</p>
+                      <p className="font-semibold text-gray-800">{trajet.heure_depart_matin_b} - {trajet.heure_arrivee_matin_b}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-3">
+                      <p className="text-xs text-purple-600 font-medium">Groupe B - Soir</p>
+                      <p className="font-semibold text-gray-800">{trajet.heure_depart_soir_b} - {trajet.heure_arrivee_soir_b}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center text-gray-400 py-8">Aucun trajet assigné</p>
+              )}
+            </div>
+
+            {/* Chauffeur */}
+            {bus && (
+              <div className="bg-white rounded-3xl shadow-xl p-6 md:col-span-2">
+                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <User className="w-5 h-5 text-purple-500" />
+                  Chauffeur
+                </h2>
+                {chauffeur ? (
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
+                      <User className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800">
+                        {chauffeur.prenom} {chauffeur.nom}
+                      </h3>
+                      <p className="text-gray-500">{chauffeur.telephone}</p>
+                      <p className="text-gray-400 text-sm">{chauffeur.email}</p>
+                    </div>
+                    <div className="ml-auto">
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-500">Accidents:</span>
+                        <span className={`font-bold ${
+                          chauffeur.nombre_accidents >= 3 ? 'text-red-500' : 'text-purple-500'
+                        }`}>
+                          {chauffeur.nombre_accidents} / 3
+                        </span>
+                      </div>
+                      {chauffeur.nombre_accidents >= 3 && (
+                        <div className="mt-2 bg-red-50 border border-red-200 rounded-xl p-2 text-red-700 text-xs">
+                          <AlertCircle className="w-4 h-4 inline mr-1" />
+                          Attention: 3 accidents = licenciement + amende 1000 DH
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-400 py-4">Aucun chauffeur assigné</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Section Communication avec Parents */}
+        {activeTab === 'communication' && (
+          <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <MessageSquare className="w-6 h-6 text-purple-500" />
+                Communication avec les Parents
+              </h2>
+              <Button
+                onClick={() => setShowCommunicationForm(true)}
+                className="bg-purple-500 hover:bg-purple-600 text-white rounded-xl"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Nouveau message
+              </Button>
+            </div>
+            
+            <div className="p-6">
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
+                <p className="text-sm text-purple-800">
+                  <strong>💡 Astuce:</strong> Envoyez des notifications groupées pour informer tous les parents d'un bus, ou des messages personnalisés à un parent spécifique.
+                </p>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4">
+                    <p className="text-sm text-purple-600 font-medium">Messages envoyés</p>
+                    <p className="text-2xl font-bold text-purple-800">
+                      {sentMessages.length}
+                    </p>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4">
+                    <p className="text-sm text-purple-600 font-medium">Parents notifiés</p>
+                    <p className="text-2xl font-bold text-purple-800">{tuteurs.length}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4">
+                    <p className="text-sm text-purple-600 font-medium">Élèves concernés</p>
+                    <p className="text-2xl font-bold text-purple-800">{eleves.length}</p>
+                  </div>
+                </div>
+                
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Historique des messages</h3>
+                  <div className="space-y-3">
+                    {sentMessages.length > 0 ? (
+                      sentMessages.slice(0, 20).map((notif) => (
+                        <div key={notif.id} className="bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors relative">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1 pr-12">
+                              <h4 className="font-semibold text-gray-800">{notif.titre}</h4>
+                              <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{notif.message}</p>
+                              
+                              {/* Informations du destinataire */}
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <p className="text-xs font-semibold text-gray-800 mb-2">Destinataire :</p>
+                                {notif.tuteur_nom || notif.tuteur_prenom ? (
+                                  <div className="bg-white rounded-lg p-3 space-y-2">
+                                    {(notif.tuteur_prenom || notif.tuteur_nom) && (
+                                      <div className="flex items-center gap-2">
+                                        <User className="w-4 h-4 text-purple-600" />
+                                        <span className="text-sm font-medium text-gray-800">
+                                          {notif.tuteur_prenom || ''} {notif.tuteur_nom || ''}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {notif.tuteur_telephone && (
+                                      <div className="flex items-center gap-2">
+                                        <Phone className="w-4 h-4 text-purple-600" />
+                                        <span className="text-sm text-gray-700">{notif.tuteur_telephone}</span>
+                                      </div>
+                                    )}
+                                    {notif.tuteur_email && (
+                                      <div className="flex items-center gap-2">
+                                        <Mail className="w-4 h-4 text-purple-600" />
+                                        <span className="text-sm text-gray-700">{notif.tuteur_email}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="bg-gray-100 rounded-lg p-3">
+                                    <p className="text-xs text-gray-500 italic">Informations du destinataire non disponibles</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setDeleteConfirm({ show: true, messageId: notif.id })}
+                              className="absolute top-4 right-4 p-2 hover:bg-red-100 rounded-lg text-red-600 hover:text-red-700 transition-colors"
+                              title="Supprimer ce message"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            {format(new Date(notif.date || new Date()), 'dd MMMM yyyy à HH:mm')}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-gray-400">
+                        <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Aucun message envoyé</p>
+                        <p className="text-xs mt-1">Les messages que vous envoyez aux parents apparaîtront ici</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'accidents' && (
+          <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-red-50 to-rose-50">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <AlertCircle className="w-6 h-6 text-red-500" />
+                Historique des Accidents
+                <span className="ml-3 text-sm font-normal text-gray-500">({accidents.length})</span>
+              </h2>
+              <Button
+                onClick={() => setShowAccidentForm(true)}
+                className="bg-red-500 hover:bg-red-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Déclarer un accident
+              </Button>
+            </div>
+            {accidents.length === 0 ? (
+              <div className="p-12 text-center">
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <CheckCircle className="w-16 h-16 mx-auto text-purple-300 mb-4" />
+                  <p className="text-gray-500 font-medium">Aucun accident enregistré</p>
+                  <p className="text-sm text-gray-400 mt-1">Continuez à être vigilant !</p>
+                </motion.div>
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <AnimatePresence>
+                  {accidents.map((accident, index) => {
+                    // Parser les photos
+                    let photos = [];
+                    try {
+                      if (accident.photos) {
+                        if (Array.isArray(accident.photos)) {
+                          photos = accident.photos;
+                        } else if (typeof accident.photos === 'string' && accident.photos.trim() !== '') {
+                          // Si c'est une chaîne JSON
+                          if (accident.photos.trim().startsWith('[') || accident.photos.trim().startsWith('{')) {
+                            const parsed = JSON.parse(accident.photos);
+                            if (Array.isArray(parsed)) {
+                              photos = parsed;
+                            } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.photos)) {
+                              photos = parsed.photos;
+                            }
+                          } else if (accident.photos.startsWith('data:image')) {
+                            // Si c'est une seule photo en base64 directe
+                            photos = [accident.photos];
+                          }
+                        }
+                      }
+                      // Filtrer et normaliser les photos valides
+                      photos = photos
+                        .map(photo => {
+                          if (typeof photo === 'string') {
+                            return photo.startsWith('data:image') || photo.startsWith('http') ? photo : null;
+                          } else if (photo && typeof photo === 'object') {
+                            return photo.data || photo.src || photo.url || photo.base64 || null;
+                          }
+                          return null;
+                        })
+                        .filter(photo => photo && photo.trim() !== '');
+                    } catch (e) {
+                      console.error('Erreur parsing photos:', e);
+                      photos = [];
+                    }
+
+                    const isExpanded = expandedAccident === accident.id;
+                    const graviteColors = {
+                      'Grave': { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', badge: 'bg-red-100 text-red-700', icon: 'text-red-500' },
+                      'Moyenne': { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700', icon: 'text-orange-500' },
+                      'Légère': { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700', icon: 'text-purple-500' }
+                    };
+                    const colors = graviteColors[accident.gravite] || graviteColors['Légère'];
+
+                    return (
+                      <motion.div
+                        key={accident.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                        className={`${colors.bg} ${colors.border} border-2 rounded-2xl shadow-md hover:shadow-lg transition-all overflow-hidden`}
+                      >
+                        {/* En-tête de la carte */}
+                        <div className="p-5">
+                          <div className="flex justify-between items-start mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg ${colors.bg} ${colors.icon}`}>
+                                <AlertTriangle className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${colors.badge} border ${colors.border}`}>
+                                    {accident.gravite}
+                                  </span>
+                                  {accident.statut && (
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                      accident.statut === 'Traité' ? 'bg-green-100 text-green-700' :
+                                      accident.statut === 'En cours' ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-gray-100 text-gray-700'
+                                    }`}>
+                                      {accident.statut}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                                  <Clock className="w-4 h-4" />
+                                  <span>
+                                    {accident.date ? format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr }) : 'Date inconnue'}
+                                    {accident.heure && ` à ${accident.heure}`}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setExpandedAccident(isExpanded ? null : accident.id)}
+                              className="text-gray-500 hover:text-gray-700"
+                            >
+                              {isExpanded ? <X className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                            </Button>
+                          </div>
+
+                          {/* Description principale */}
+                          <p className={`font-semibold ${colors.text} mb-4 text-base leading-relaxed`}>
+                            {accident.description}
+                          </p>
+
+                          {/* Informations principales */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                            {accident.lieu && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <MapPin className="w-4 h-4 text-gray-400" />
+                                <div>
+                                  <span className="text-gray-500 text-xs">Lieu</span>
+                                  <p className="font-medium text-gray-800">{accident.lieu}</p>
+                                </div>
+                              </div>
+                            )}
+                            {accident.bus_numero && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Bus className="w-4 h-4 text-gray-400" />
+                                <div>
+                                  <span className="text-gray-500 text-xs">Bus</span>
+                                  <p className="font-medium text-gray-800">{accident.bus_numero}</p>
+                                </div>
+                              </div>
+                            )}
+                            {accident.nombre_eleves !== null && accident.nombre_eleves !== undefined && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <UsersIcon className="w-4 h-4 text-gray-400" />
+                                <div>
+                                  <span className="text-gray-500 text-xs">Élèves</span>
+                                  <p className="font-medium text-gray-800">{accident.nombre_eleves}</p>
+                                </div>
+                              </div>
+                            )}
+                            {accident.nombre_blesses > 0 && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <AlertCircle className="w-4 h-4 text-red-400" />
+                                <div>
+                                  <span className="text-gray-500 text-xs">Blessés</span>
+                                  <p className="font-medium text-red-600">{accident.nombre_blesses}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Section dépliable avec détails */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="pt-4 border-t border-gray-200 space-y-3">
+                                  {accident.degats && (
+                                    <div className="flex items-start gap-2 text-sm">
+                                      <FileText className="w-4 h-4 text-gray-400 mt-0.5" />
+                                      <div>
+                                        <span className="text-gray-500">Dégâts: </span>
+                                        <span className="font-medium text-gray-800">{accident.degats}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {accident.chauffeur_nom && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <User className="w-4 h-4 text-gray-400" />
+                                      <div>
+                                        <span className="text-gray-500">Chauffeur: </span>
+                                        <span className="font-medium text-gray-800">
+                                          {accident.chauffeur_prenom} {accident.chauffeur_nom}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {accident.eleves_concernees && (
+                                    <div className="flex items-start gap-2 text-sm">
+                                      <UsersIcon className="w-4 h-4 text-gray-400 mt-0.5" />
+                                      <div>
+                                        <span className="text-gray-500">Élèves concernés: </span>
+                                        <span className="font-medium text-gray-800">{accident.eleves_concernees}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          {/* Photos */}
+                          {photos.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <ImageIcon className="w-4 h-4" />
+                                  <span className="font-medium">Photos ({photos.length})</span>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                {photos.map((photo, photoIndex) => {
+                                  const photoSrc = typeof photo === 'string' 
+                                    ? photo 
+                                    : (photo?.data || photo?.src || photo);
+                                  
+                                  if (!photoSrc) return null;
+                                  
+                                  return (
+                                    <motion.div
+                                      key={photoIndex}
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      className="relative group cursor-pointer"
+                                      onClick={() => setSelectedPhoto(photoSrc)}
+                                    >
+                                      <div className="relative overflow-hidden rounded-lg border-2 border-gray-200 group-hover:border-purple-400 transition-colors">
+                                        <img
+                                          src={photoSrc}
+                                          alt={`Photo accident ${photoIndex + 1}`}
+                                          className="w-full h-24 object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                          <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Boutons Modifier et Supprimer */}
+                          <div className="mt-4 flex gap-2 justify-end pt-4 border-t border-gray-200">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // Charger les données de l'accident dans le formulaire
+                                setEditingAccident(accident);
+                                setAccidentForm({
+                                  date: accident.date ? format(new Date(accident.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+                                  heure: accident.heure || format(new Date(), 'HH:mm'),
+                                  lieu: accident.lieu || '',
+                                  description: accident.description || '',
+                                  degats: accident.degats || '',
+                                  gravite: accident.gravite || 'Légère',
+                                  nombre_eleves: accident.nombre_eleves?.toString() || '',
+                                  nombre_blesses: accident.nombre_blesses?.toString() || '0'
+                                });
+                                
+                                // Charger les photos existantes
+                                if (photos.length > 0) {
+                                  setAccidentPhotos(photos.map((photoSrc, index) => {
+                                    const src = typeof photoSrc === 'string' ? photoSrc : (photoSrc?.data || photoSrc?.src || photoSrc);
+                                    return {
+                                      preview: src,
+                                      file: null,
+                                      id: `existing-${index}`
+                                    };
+                                  }));
+                                } else {
+                                  setAccidentPhotos([]);
+                                }
+                                
+                                setShowAccidentForm(true);
+                              }}
+                              className="rounded-xl text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                            >
+                              <Edit className="w-4 h-4 mr-2" />
+                              Modifier
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setDeleteAccidentConfirm({ show: true, id: accident.id })}
+                              className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Supprimer
+                            </Button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ConfirmDialog pour la suppression d'accident */}
+        <ConfirmDialog
+          isOpen={deleteAccidentConfirm.show}
+          title="Supprimer l'accident"
+          message="Êtes-vous sûr de vouloir supprimer cet accident ? Cette action est irréversible."
+          onConfirm={async () => {
+            try {
+              await accidentsAPI.delete(deleteAccidentConfirm.id);
+              setDeleteAccidentConfirm({ show: false, id: null });
+              const responsableSessionReload = localStorage.getItem('responsable_session');
+              if (responsableSessionReload) {
+                const responsableDataReload = JSON.parse(responsableSessionReload);
+                await loadData(responsableDataReload);
+              } else {
+                await loadData(responsable);
+              }
+              showToast('Accident supprimé avec succès', 'success');
+            } catch (err) {
+              console.error('Erreur lors de la suppression:', err);
+              showToast('Erreur lors de la suppression: ' + (err.message || 'Erreur inconnue'), 'error');
+              setDeleteAccidentConfirm({ show: false, id: null });
+            }
+          }}
+          onCancel={() => setDeleteAccidentConfirm({ show: false, id: null })}
+          confirmText="Supprimer"
+          cancelText="Annuler"
+          variant="destructive"
+        />
+
+        {/* Modal pour voir les photos en grand */}
+        {selectedPhoto && (
+          <div 
+            className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setSelectedPhoto(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="relative max-w-5xl max-h-[90vh] w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white text-gray-800 rounded-full p-2 shadow-lg transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <img
+                src={selectedPhoto}
+                alt="Photo accident"
+                className="w-full h-auto rounded-lg shadow-2xl"
+              />
+            </motion.div>
+          </div>
+        )}
+
+          {/* Modal Déclaration Accident */}
+          {showAccidentForm && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              >
+                <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-red-500 to-rose-500">
+                  <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <AlertCircle className="w-6 h-6" />
+                  {editingAccident ? 'Modifier un Accident' : 'Déclarer un Accident'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Nettoyer les URLs de prévisualisation
+                    accidentPhotos.forEach(photo => {
+                      if (photo.preview && photo.preview.startsWith('blob:')) {
+                        URL.revokeObjectURL(photo.preview);
+                      }
+                    });
+                    setAccidentPhotos([]);
+                    setShowAccidentForm(false);
+                    setEditingAccident(null);
+                  }}
+                  className="text-white hover:text-red-100 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                // Vérifier la taille totale des fichiers
+                const totalSize = accidentPhotos.reduce((sum, photo) => sum + photo.file.size, 0);
+                const maxSize = 10 * 1024 * 1024; // 10 MB max
+                
+                if (totalSize > maxSize) {
+                  showToast('La taille totale des photos dépasse 10 MB. Veuillez réduire le nombre ou la taille des images.', 'error');
+                  return;
+                }
 
                 // Compresser et convertir les photos en base64 (seulement les nouvelles photos)
                 const newPhotos = accidentPhotos.filter(photo => photo.file);
