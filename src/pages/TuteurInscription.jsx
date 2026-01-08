@@ -17,8 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  GraduationCap, ArrowLeft, UserPlus, User, 
+import {
+  GraduationCap, ArrowLeft, UserPlus, User,
   MapPin, Bus, CheckCircle, Plus, X, Trash2, AlertCircle
 } from 'lucide-react';
 
@@ -52,14 +52,14 @@ export default function TuteurInscription() {
   const villes = ['Rabat', 'Salé', 'Temara'];
   const [zones, setZones] = useState([]);
   const [zonesFiltrees, setZonesFiltrees] = useState([]);
-  
+
   // Classes selon le niveau
   const classesParNiveau = {
     'Primaire': ['1AP', '2AP', '3AP', '4AP', '5AP', '6AP'],
     'Collège': ['1AC', '2AC', '3AC'],
     'Lycée': ['TC', '1BAC', '2BAC']
   };
-  
+
   // Fonction pour obtenir les classes disponibles selon le niveau
   const getClassesDisponibles = (niveau) => {
     return niveau ? (classesParNiveau[niveau] || []) : [];
@@ -82,7 +82,7 @@ export default function TuteurInscription() {
       loadZones();
     }
   }, [zones.length]);
-  
+
   useEffect(() => {
     // Filtrer les zones selon la ville sélectionnée
     if (formData.ville) {
@@ -110,10 +110,10 @@ export default function TuteurInscription() {
       console.log('📦 Réponse brute zonesAPI.getAll():', zonesRes);
       console.log('📦 Type de réponse:', typeof zonesRes);
       console.log('📦 Est un tableau?', Array.isArray(zonesRes));
-      
+
       // Gérer différentes structures de réponse
       let zonesData;
-      
+
       // Cas 1: { success: true, data: [...] }
       if (zonesRes && typeof zonesRes === 'object' && zonesRes.success !== false && zonesRes.data) {
         zonesData = zonesRes.data;
@@ -134,10 +134,10 @@ export default function TuteurInscription() {
         console.warn('⚠️ Format de réponse non reconnu:', zonesRes);
         zonesData = [];
       }
-      
+
       const zonesArray = Array.isArray(zonesData) ? zonesData : [];
       console.log(`✅ Zones chargées: ${zonesArray.length} zone(s)`);
-      
+
       if (zonesArray.length > 0) {
         console.log('📋 Exemple de zone:', zonesArray[0]);
         const villesUniques = [...new Set(zonesArray.map(z => z.ville).filter(Boolean))];
@@ -149,13 +149,13 @@ export default function TuteurInscription() {
       } else {
         console.warn('⚠️ Aucune zone chargée!');
       }
-      
+
       setZones(zonesArray);
       return zonesArray;
     } catch (err) {
       console.error('❌ Erreur lors du chargement des zones:', err);
       console.error('❌ Détails:', err.message, err.stack);
-      
+
       // Afficher un message d'erreur à l'utilisateur
       const errorMessage = err.message || 'Erreur inconnue';
       if (errorMessage.includes('connexion') || errorMessage.includes('base de données') || errorMessage.includes('MySQL')) {
@@ -163,7 +163,7 @@ export default function TuteurInscription() {
       } else {
         setError('Erreur lors du chargement des zones: ' + errorMessage);
       }
-      
+
       setZones([]);
       return [];
     }
@@ -218,7 +218,7 @@ export default function TuteurInscription() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     try {
       // Validation des champs de transport (communs à tous les élèves)
       if (!formData.type_transport || !formData.abonnement || !formData.groupe) {
@@ -236,15 +236,15 @@ export default function TuteurInscription() {
           return;
         }
       }
-      
+
       // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
       const tuteurId = tuteur.type_id || tuteur.id;
-      
+
       // Préparer le lien de parenté (valeur sélectionnée ou personnalisée)
-      const lienParenteFinal = formData.lien_parente === 'Autre' 
-        ? formData.lien_parente_custom.trim() 
+      const lienParenteFinal = formData.lien_parente === 'Autre'
+        ? formData.lien_parente_custom.trim()
         : formData.lien_parente;
-      
+
       // Créer tous les élèves et leurs demandes
       const results = [];
       for (const eleveData of elevesList) {
@@ -260,15 +260,15 @@ export default function TuteurInscription() {
           tuteur_id: tuteurId,
           statut: 'Inactif' // Will be 'Actif' after payment
         });
-        
+
         if (!eleveResponse || !eleveResponse.success || !eleveResponse.data) {
           const errorMsg = eleveResponse?.message || 'Erreur lors de la création de l\'élève';
           console.error('Erreur création élève:', eleveResponse);
           throw new Error(errorMsg);
         }
-        
+
         const newEleve = eleveResponse.data;
-        
+
         // Create demande (inscription request)
         const demandeResponse = await demandesAPI.create({
           eleve_id: newEleve.id,
@@ -286,16 +286,16 @@ export default function TuteurInscription() {
           }),
           statut: 'En attente'
         });
-        
+
         if (!demandeResponse || !demandeResponse.success) {
           const errorMsg = demandeResponse?.message || 'Erreur lors de la création de la demande';
           console.error('Erreur création demande:', demandeResponse);
           throw new Error(errorMsg);
         }
-        
+
         results.push({ eleve: newEleve, demande: demandeResponse });
       }
-      
+
       // Créer les notifications
       try {
         const nomsEleves = elevesList.map(e => `${e.prenom} ${e.nom}`).join(', ');
@@ -309,13 +309,13 @@ export default function TuteurInscription() {
       } catch (notifError) {
         console.warn('Erreur notification tuteur:', notifError);
       }
-      
+
       // Récupérer tous les admins pour leur envoyer une notification
       try {
         const adminsData = await getAdmins();
         if (adminsData.success && adminsData.data && adminsData.data.length > 0) {
           const nomsEleves = elevesList.map(e => `${e.prenom} ${e.nom}`).join(', ');
-          const notificationPromises = adminsData.data.map(admin => 
+          const notificationPromises = adminsData.data.map(admin =>
             notificationsAPI.create({
               destinataire_id: admin.id,
               destinataire_type: 'admin',
@@ -329,7 +329,7 @@ export default function TuteurInscription() {
       } catch (adminError) {
         console.warn('Impossible de récupérer les admins pour la notification:', adminError);
       }
-      
+
       // Rediriger vers le dashboard après un court délai
       setTimeout(() => {
         navigate(createPageUrl('TuteurDashboard'));
@@ -378,17 +378,15 @@ export default function TuteurInscription() {
             <div className="flex justify-between">
               {steps.map((step, index) => (
                 <div key={step.num} className="flex items-center">
-                  <div 
-                    className={`flex items-center gap-2 cursor-pointer ${
-                      currentStep >= step.num ? 'text-amber-600' : 'text-gray-400'
-                    }`}
+                  <div
+                    className={`flex items-center gap-2 cursor-pointer ${currentStep >= step.num ? 'text-amber-600' : 'text-gray-400'
+                      }`}
                     onClick={() => currentStep > step.num && setCurrentStep(step.num)}
                   >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      currentStep >= step.num 
-                        ? 'bg-lime-500 text-white' 
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${currentStep >= step.num
+                        ? 'bg-lime-500 text-white'
                         : 'bg-gray-100 text-gray-400'
-                    }`}>
+                      }`}>
                       {currentStep > step.num ? (
                         <CheckCircle className="w-5 h-5" />
                       ) : (
@@ -398,9 +396,8 @@ export default function TuteurInscription() {
                     <span className="hidden sm:block font-medium">{step.title}</span>
                   </div>
                   {index < steps.length - 1 && (
-                    <div className={`w-12 sm:w-24 h-1 mx-2 rounded ${
-                      currentStep > step.num ? 'bg-lime-500' : 'bg-gray-200'
-                    }`} />
+                    <div className={`w-12 sm:w-24 h-1 mx-2 rounded ${currentStep > step.num ? 'bg-lime-500' : 'bg-gray-200'
+                      }`} />
                   )}
                 </div>
               ))}
@@ -429,33 +426,33 @@ export default function TuteurInscription() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-gray-600">Nom</Label>
-                      <Input 
-                        value={tuteur?.nom || ''} 
-                        disabled 
+                      <Input
+                        value={tuteur?.nom || ''}
+                        disabled
                         className="mt-1 bg-white border-gray-200"
                       />
                     </div>
                     <div>
                       <Label className="text-gray-600">Prénom</Label>
-                      <Input 
-                        value={tuteur?.prenom || ''} 
-                        disabled 
+                      <Input
+                        value={tuteur?.prenom || ''}
+                        disabled
                         className="mt-1 bg-white border-gray-200"
                       />
                     </div>
                     <div>
                       <Label className="text-gray-600">Email</Label>
-                      <Input 
-                        value={tuteur?.email || ''} 
-                        disabled 
+                      <Input
+                        value={tuteur?.email || ''}
+                        disabled
                         className="mt-1 bg-white border-gray-200"
                       />
                     </div>
                     <div>
                       <Label className="text-gray-600">Téléphone</Label>
-                      <Input 
-                        value={tuteur?.telephone || ''} 
-                        disabled 
+                      <Input
+                        value={tuteur?.telephone || ''}
+                        disabled
                         className="mt-1 bg-white border-gray-200"
                       />
                     </div>
@@ -464,8 +461,8 @@ export default function TuteurInscription() {
 
                 <div>
                   <Label className="text-gray-700 font-medium">Lien de parenté avec l'élève</Label>
-                  <Select 
-                    value={formData.lien_parente} 
+                  <Select
+                    value={formData.lien_parente}
                     onValueChange={(v) => {
                       handleChange('lien_parente', v);
                       // Réinitialiser la valeur personnalisée si on change d'option
@@ -490,7 +487,7 @@ export default function TuteurInscription() {
                       <SelectItem value="Autre">Autre (précisez)</SelectItem>
                     </SelectContent>
                   </Select>
-                  
+
                   {formData.lien_parente === 'Autre' && (
                     <Input
                       type="text"
@@ -539,19 +536,19 @@ export default function TuteurInscription() {
 
                 {elevesList.map((eleve, index) => {
                   const classesDisponibles = getClassesDisponibles(eleve.niveau);
-                  const zonesFiltreesEleve = eleve.ville 
+                  const zonesFiltreesEleve = eleve.ville
                     ? zones.filter(z => {
-                        // Comparaison insensible à la casse et aux espaces
-                        const zoneVille = (z.ville || '').toString().trim();
-                        const eleveVille = (eleve.ville || '').toString().trim();
-                        const matchVille = zoneVille.toLowerCase() === eleveVille.toLowerCase();
-                        // Gérer actif comme boolean (true/false) ou comme entier (1/0) depuis MySQL
-                        const estActif = z.actif === true || z.actif === 1 || z.actif === '1' || z.actif === 'true';
-                        const result = matchVille && estActif;
-                        return result;
-                      })
+                      // Comparaison insensible à la casse et aux espaces
+                      const zoneVille = (z.ville || '').toString().trim();
+                      const eleveVille = (eleve.ville || '').toString().trim();
+                      const matchVille = zoneVille.toLowerCase() === eleveVille.toLowerCase();
+                      // Gérer actif comme boolean (true/false) ou comme entier (1/0) depuis MySQL
+                      const estActif = z.actif === true || z.actif === 1 || z.actif === '1' || z.actif === 'true';
+                      const result = matchVille && estActif;
+                      return result;
+                    })
                     : [];
-                  
+
                   // Debug: afficher les zones filtrées
                   if (eleve.ville) {
                     console.log(`Filtrage zones pour "${eleve.ville}":`);
@@ -619,8 +616,8 @@ export default function TuteurInscription() {
                         </div>
                         <div>
                           <Label className="text-gray-700 font-medium">Sexe</Label>
-                          <Select 
-                            value={eleve.sexe} 
+                          <Select
+                            value={eleve.sexe}
                             onValueChange={(v) => handleEleveChange(index, 'sexe', v)}
                           >
                             <SelectTrigger className="mt-1 h-12 rounded-xl">
@@ -637,8 +634,8 @@ export default function TuteurInscription() {
                       <div className="grid grid-cols-2 gap-4 mt-4">
                         <div>
                           <Label className="text-gray-700 font-medium">Niveau</Label>
-                          <Select 
-                            value={eleve.niveau} 
+                          <Select
+                            value={eleve.niveau}
                             onValueChange={(v) => handleEleveChange(index, 'niveau', v)}
                           >
                             <SelectTrigger className="mt-1 h-12 rounded-xl">
@@ -653,8 +650,8 @@ export default function TuteurInscription() {
                         </div>
                         <div>
                           <Label className="text-gray-700 font-medium">Classe *</Label>
-                          <Select 
-                            value={eleve.classe} 
+                          <Select
+                            value={eleve.classe}
                             onValueChange={(v) => handleEleveChange(index, 'classe', v)}
                             disabled={!eleve.niveau}
                           >
@@ -679,8 +676,8 @@ export default function TuteurInscription() {
                           <MapPin className="w-4 h-4 text-lime-500" />
                           Ville *
                         </Label>
-                        <Select 
-                          value={eleve.ville} 
+                        <Select
+                          value={eleve.ville}
                           onValueChange={(v) => handleEleveChange(index, 'ville', v)}
                         >
                           <SelectTrigger className="mt-1 h-12 rounded-xl">
@@ -699,8 +696,8 @@ export default function TuteurInscription() {
                           <MapPin className="w-4 h-4 text-lime-500" />
                           Zone géographique *
                         </Label>
-                        <Select 
-                          value={eleve.zone} 
+                        <Select
+                          value={eleve.zone}
                           onValueChange={(v) => handleEleveChange(index, 'zone', v)}
                           disabled={!eleve.ville || zonesFiltreesEleve.length === 0}
                         >
@@ -808,8 +805,8 @@ export default function TuteurInscription() {
 
                 <div>
                   <Label className="text-gray-700 font-medium">Type de transport</Label>
-                  <Select 
-                    value={formData.type_transport} 
+                  <Select
+                    value={formData.type_transport}
                     onValueChange={(v) => handleChange('type_transport', v)}
                   >
                     <SelectTrigger className="mt-1 h-12 rounded-xl">
@@ -825,8 +822,8 @@ export default function TuteurInscription() {
 
                 <div>
                   <Label className="text-gray-700 font-medium">Type d'abonnement</Label>
-                  <Select 
-                    value={formData.abonnement} 
+                  <Select
+                    value={formData.abonnement}
                     onValueChange={(v) => handleChange('abonnement', v)}
                   >
                     <SelectTrigger className="mt-1 h-12 rounded-xl">
@@ -841,8 +838,8 @@ export default function TuteurInscription() {
 
                 <div>
                   <Label className="text-gray-700 font-medium">Groupe horaire</Label>
-                  <Select 
-                    value={formData.groupe} 
+                  <Select
+                    value={formData.groupe}
                     onValueChange={(v) => handleChange('groupe', v)}
                   >
                     <SelectTrigger className="mt-1 h-12 rounded-xl">
@@ -875,13 +872,56 @@ export default function TuteurInscription() {
                       <span className="text-gray-600">Groupe:</span>
                       <span className="font-medium">{formData.groupe || '-'}</span>
                     </div>
-                    <div className="border-t border-amber-200 pt-2 mt-2 flex justify-between">
-                      <span className="text-gray-800 font-semibold">Montant estimé:</span>
-                      <span className="font-bold text-amber-600">
-                        {formData.type_transport && formData.abonnement
-                          ? formaterMontantFacture(formData.type_transport, formData.abonnement)
-                          : '-'}
-                      </span>
+                    <div className="border-t border-amber-200 pt-2 mt-2">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-gray-600">Prix unitaire:</span>
+                        <span className="font-medium text-gray-800">
+                          {formData.type_transport && formData.abonnement
+                            ? formaterMontantFacture(formData.type_transport, formData.abonnement)
+                            : '-'}
+                        </span>
+                      </div>
+
+                      {formData.type_transport && formData.abonnement && (
+                        <>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-gray-600">Nombre d'élèves:</span>
+                            <span className="font-medium text-gray-800">{elevesList.length}</span>
+                          </div>
+
+                          {elevesList.length > 1 && (
+                            <div className="text-xs text-lime-700 italic mb-2">
+                              * Réduction famille appliquée (-10% pour le 2ème, -20% pour les suivants)
+                            </div>
+                          )}
+
+                          <div className="flex justify-between items-center pt-2 border-t border-amber-300/50">
+                            <span className="text-gray-800 font-semibold">Total standard:</span>
+                            <span className="line-through text-gray-400 font-medium">
+                              {(() => {
+                                const unitPrice = calculerMontantFacture(formData.type_transport, formData.abonnement);
+                                return `${unitPrice * elevesList.length} DH`;
+                              })()}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center mt-1">
+                            <span className="text-gray-900 font-bold text-lg">Total à payer:</span>
+                            <span className="font-bold text-amber-600 text-xl">
+                              {(() => {
+                                const unitPrice = calculerMontantFacture(formData.type_transport, formData.abonnement);
+                                let total = 0;
+                                for (let i = 0; i < elevesList.length; i++) {
+                                  if (i === 0) total += unitPrice;
+                                  else if (i === 1) total += unitPrice * 0.9;
+                                  else total += unitPrice * 0.8;
+                                }
+                                return `${total} DH`;
+                              })()}
+                            </span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import AdminLayout from '../components/AdminLayout';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import {
-  Fuel, Calendar, Bus, User, ArrowLeft, TrendingUp, TrendingDown, Filter, Image as ImageIcon, ZoomIn, X
+  Fuel, Calendar, Bus, User, ArrowLeft, TrendingUp, TrendingDown, Filter, Image as ImageIcon, ZoomIn, X, Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -23,6 +23,7 @@ export default function AdminEssence() {
   const [filterDate, setFilterDate] = useState('');
   const [filterPeriode, setFilterPeriode] = useState('mois'); // mois, semaine, jour, tous
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
 
   useEffect(() => {
     loadData();
@@ -116,6 +117,22 @@ export default function AdminEssence() {
     // Trier par consommation (total litres) décroissant
     return Object.values(stats).sort((a, b) => b.totalLitres - a.totalLitres);
   }, [filteredPrises]);
+
+
+
+  const handleDeleteClick = (id) => {
+    setDeleteConfirm({ show: true, id });
+  };
+
+  const handleDelete = async () => {
+    try {
+      await essenceAPI.delete(deleteConfirm.id);
+      setPrisesEssence(prev => prev.filter(p => p.id !== deleteConfirm.id));
+      setDeleteConfirm({ show: false, id: null });
+    } catch (err) {
+      console.error('Erreur suppression:', err);
+    }
+  };
 
   // Statistiques globales
   const statsGlobales = useMemo(() => {
@@ -398,119 +415,130 @@ export default function AdminEssence() {
                           </div>
                         )}
                       </div>
-
-                      {/* Photo du ticket */}
-                      {prise.photo_ticket && prise.photo_ticket !== 'null' && prise.photo_ticket !== '' && prise.photo_ticket !== null && (() => {
-                        try {
-                          let photoSrc = prise.photo_ticket;
-
-                          // Si c'est une chaîne JSON, essayer de parser
-                          if (typeof photoSrc === 'string' && photoSrc.trim().startsWith('[')) {
-                            try {
-                              const parsed = JSON.parse(photoSrc);
-                              if (Array.isArray(parsed) && parsed.length > 0) {
-                                photoSrc = parsed[0];
-                              }
-                            } catch (e) {
-                              // Garder la valeur originale si le parsing échoue
-                            }
-                          }
-
-                          // Nettoyer les guillemets si présents
-                          if (typeof photoSrc === 'string') {
-                            photoSrc = photoSrc.replace(/^["']+|["']+$/g, '');
-                          }
-
-                          // Vérifier que c'est une URL valide
-                          if (typeof photoSrc === 'string') {
-                            // Fonction interne pour traiter et normaliser la photo (identique à ChauffeurDashboard)
-                            const processPhoto = (rawPhoto) => {
-                              if (!rawPhoto) return null;
-                              let src = String(rawPhoto).trim();
-                              src = src.replace(/^["']+|["']+$/g, ''); // Enlever guillemets
-                              src = src.replace(/^\\["']+|\\["']+$/g, ''); // Enlever guillemets échappés
-
-                              if (src.startsWith('data:image') || src.startsWith('http')) return src;
-
-                              const cleanBase64 = src.replace(/\s/g, '');
-                              if (cleanBase64.length > 50) {
-                                return `data:image/jpeg;base64,${cleanBase64}`;
-                              }
-                              return null;
-                            };
-
-                            const processedSrc = processPhoto(photoSrc);
-                            const photoLength = String(photoSrc).length;
-                            const isTruncated = photoLength === 255;
-
-                            if (!processedSrc && isTruncated) {
-                              return (
-                                <div className="mt-4 pt-4 border-t border-gray-200">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <ImageIcon className="w-5 h-5 text-red-500" />
-                                    <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
-                                  </div>
-                                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                                    <p className="text-sm text-red-700 font-medium mb-1">⚠️ Photo tronquée (BDD)</p>
-                                    <p className="text-xs text-red-600">
-                                      La colonne BDD est en VARCHAR(255). Exécutez la migration LONGTEXT pour les prochains envois.
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            if (processedSrc) {
-                              return (
-                                <div className="mt-4 pt-4 border-t border-gray-200">
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <ImageIcon className="w-5 h-5 text-amber-600" />
-                                    <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
-                                  </div>
-                                  <div
-                                    className="relative group cursor-pointer inline-block"
-                                    onClick={() => setSelectedPhoto(processedSrc)}
-                                  >
-                                    <img
-                                      src={processedSrc}
-                                      alt="Ticket essence"
-                                      className="max-w-xs h-40 object-contain rounded-lg border-2 border-amber-200 bg-gray-50 hover:border-amber-400 transition-colors shadow-md"
-                                      onError={(e) => {
-                                        console.error('Erreur chargement image ticket Admin');
-                                        const cleanBase64 = processedSrc.replace(/^data:image\/[^;]+;base64,/, '');
-                                        if (cleanBase64.length > 50) {
-                                          if (!e.target.dataset.triedPng) {
-                                            e.target.dataset.triedPng = 'true';
-                                            e.target.src = `data:image/png;base64,${cleanBase64}`;
-                                          } else if (!e.target.dataset.triedWebp) {
-                                            e.target.dataset.triedWebp = 'true';
-                                            e.target.src = `data:image/webp;base64,${cleanBase64}`;
-                                          } else {
-                                            e.target.style.display = 'none';
-                                          }
-                                        } else {
-                                          e.target.style.display = 'none';
-                                        }
-                                      }}
-                                    />
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg pointer-events-none">
-                                      <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            }
-                          }
-
-                          return null;
-                        } catch (e) {
-                          console.error('Erreur traitement photo:', e);
-                          return null;
-                        }
-                      })()}
                     </div>
                   </div>
+
+                  <Button
+                    variant="ghost"
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-xl"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(prise.id);
+                    }}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </Button>
                 </div>
+
+                {/* Photo du ticket */}
+                {prise.photo_ticket && prise.photo_ticket !== 'null' && prise.photo_ticket !== '' && prise.photo_ticket !== null && (() => {
+                  try {
+                    let photoSrc = prise.photo_ticket;
+
+                    // Si c'est une chaîne JSON, essayer de parser
+                    if (typeof photoSrc === 'string' && photoSrc.trim().startsWith('[')) {
+                      try {
+                        const parsed = JSON.parse(photoSrc);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                          photoSrc = parsed[0];
+                        }
+                      } catch (e) {
+                        // Garder la valeur originale si le parsing échoue
+                      }
+                    }
+
+                    // Nettoyer les guillemets si présents
+                    if (typeof photoSrc === 'string') {
+                      photoSrc = photoSrc.replace(/^["']+|["']+$/g, '');
+                    }
+
+                    // Vérifier que c'est une URL valide
+                    if (typeof photoSrc === 'string') {
+                      // Fonction interne pour traiter et normaliser la photo (identique à ChauffeurDashboard)
+                      const processPhoto = (rawPhoto) => {
+                        if (!rawPhoto) return null;
+                        let src = String(rawPhoto).trim();
+                        src = src.replace(/^["']+|["']+$/g, ''); // Enlever guillemets
+                        src = src.replace(/^\\["']+|\\["']+$/g, ''); // Enlever guillemets échappés
+
+                        if (src.startsWith('data:image') || src.startsWith('http')) return src;
+
+                        const cleanBase64 = src.replace(/\s/g, '');
+                        if (cleanBase64.length > 50) {
+                          return `data:image/jpeg;base64,${cleanBase64}`;
+                        }
+                        return null;
+                      };
+
+                      const processedSrc = processPhoto(photoSrc);
+                      const photoLength = String(photoSrc).length;
+                      const isTruncated = photoLength === 255;
+
+                      if (!processedSrc && isTruncated) {
+                        return (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <ImageIcon className="w-5 h-5 text-red-500" />
+                              <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
+                            </div>
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                              <p className="text-sm text-red-700 font-medium mb-1">⚠️ Photo tronquée (BDD)</p>
+                              <p className="text-xs text-red-600">
+                                La colonne BDD est en VARCHAR(255). Exécutez la migration LONGTEXT pour les prochains envois.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (processedSrc) {
+                        return (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center gap-2 mb-3">
+                              <ImageIcon className="w-5 h-5 text-amber-600" />
+                              <span className="text-sm font-semibold text-gray-700">Photo du ticket</span>
+                            </div>
+                            <div
+                              className="relative group cursor-pointer inline-block"
+                              onClick={() => setSelectedPhoto(processedSrc)}
+                            >
+                              <img
+                                src={processedSrc}
+                                alt="Ticket essence"
+                                className="max-w-xs h-40 object-contain rounded-lg border-2 border-amber-200 bg-gray-50 hover:border-amber-400 transition-colors shadow-md"
+                                onError={(e) => {
+                                  console.error('Erreur chargement image ticket Admin');
+                                  const cleanBase64 = processedSrc.replace(/^data:image\/[^;]+;base64,/, '');
+                                  if (cleanBase64.length > 50) {
+                                    if (!e.target.dataset.triedPng) {
+                                      e.target.dataset.triedPng = 'true';
+                                      e.target.src = `data:image/png;base64,${cleanBase64}`;
+                                    } else if (!e.target.dataset.triedWebp) {
+                                      e.target.dataset.triedWebp = 'true';
+                                      e.target.src = `data:image/webp;base64,${cleanBase64}`;
+                                    } else {
+                                      e.target.style.display = 'none';
+                                    }
+                                  } else {
+                                    e.target.style.display = 'none';
+                                  }
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center rounded-lg pointer-events-none">
+                                <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                    }
+
+                    return null;
+                  } catch (e) {
+                    console.error('Erreur traitement photo:', e);
+                    return null;
+                  }
+                })()}
               </motion.div>
             ))
           )}
@@ -559,6 +587,17 @@ export default function AdminEssence() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        isOpen={deleteConfirm.show}
+        title="Supprimer la prise d'essence"
+        message="Êtes-vous sûr de vouloir supprimer cette prise d'essence ? Cette action est irréversible."
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteConfirm({ show: false, id: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
     </AdminLayout>
   );
 }

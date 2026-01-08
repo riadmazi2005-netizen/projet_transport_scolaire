@@ -5,8 +5,8 @@ import { notificationsAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import AdminLayout from '../components/AdminLayout';
-import { 
-  Bell, ArrowLeft, CheckCircle, AlertCircle, Info, Trash2, 
+import {
+  Bell, ArrowLeft, CheckCircle, AlertCircle, Info, Trash2,
   Mail, FileText, AlertTriangle, XCircle, Filter
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,7 +27,7 @@ export default function AdminNotifications() {
       navigate(createPageUrl('AdminLogin'));
       return;
     }
-    
+
     const adminData = JSON.parse(session);
     setAdmin(adminData);
     loadNotifications(adminData.id);
@@ -45,6 +45,19 @@ export default function AdminNotifications() {
         return dateB - dateA;
       });
       setNotifications(sortedNotifications);
+
+      // Marquer automatiquement comme lu si demandé par l'utilisateur
+      // "si j'entre a la page il va s'eteindre"
+      const unread = sortedNotifications.filter(n => !n.lue);
+      if (unread.length > 0) {
+        // Marquer tout comme lu silencieusement
+        // On ne bloque pas l'UI, on lance juste les requêtes
+        unread.forEach(n => {
+          notificationsAPI.marquerLue(n.id).catch(console.error);
+        });
+        // Mettre à jour l'état local pour éteindre le badge immédiatement
+        setNotifications(prev => prev.map(n => ({ ...n, lue: true })));
+      }
     } catch (err) {
       console.error('Erreur lors du chargement des notifications:', err);
     } finally {
@@ -72,7 +85,7 @@ export default function AdminNotifications() {
 
   const deleteAllNotifications = async () => {
     if (!admin) return;
-    
+
     try {
       await notificationsAPI.deleteAll(admin.id, 'admin');
       setNotifications([]);
@@ -94,8 +107,8 @@ export default function AdminNotifications() {
     if (minutes < 60) return `Il y a ${minutes} min`;
     if (hours < 24) return `Il y a ${hours}h`;
     if (days < 7) return `Il y a ${days}j`;
-    return date.toLocaleDateString('fr-FR', { 
-      day: 'numeric', 
+    return date.toLocaleDateString('fr-FR', {
+      day: 'numeric',
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
@@ -106,7 +119,7 @@ export default function AdminNotifications() {
   const getNotificationIcon = (type, titre) => {
     const lowerTitle = titre?.toLowerCase() || '';
     const lowerType = type?.toLowerCase() || '';
-    
+
     if (lowerType === 'alerte' || lowerTitle.includes('accident') || lowerTitle.includes('urgent') || lowerTitle.includes('requis')) {
       return <AlertCircle className="w-5 h-5 text-red-500" />;
     }
@@ -128,7 +141,7 @@ export default function AdminNotifications() {
   const getNotificationColor = (type, titre) => {
     const lowerType = type?.toLowerCase() || '';
     const lowerTitle = titre?.toLowerCase() || '';
-    
+
     if (lowerType === 'alerte' || lowerTitle.includes('accident') || lowerTitle.includes('urgent') || lowerTitle.includes('requis')) {
       return 'bg-red-50 border-red-200';
     }
@@ -145,10 +158,18 @@ export default function AdminNotifications() {
     // Filtre par lecture
     if (filter === 'unread' && notif.lue) return false;
     if (filter === 'read' && !notif.lue) return false;
-    
+
     // Filtre par type
-    if (typeFilter !== 'all' && notif.type?.toLowerCase() !== typeFilter.toLowerCase()) return false;
-    
+    if (typeFilter !== 'all') {
+      if (typeFilter === 'message') {
+        const lowerTitle = notif.titre?.toLowerCase() || '';
+        // Un message peut être identifié par le titre "message" ou "contact"
+        if (!lowerTitle.includes('message') && !lowerTitle.includes('contact')) return false;
+      } else if (notif.type?.toLowerCase() !== typeFilter.toLowerCase()) {
+        return false;
+      }
+    }
+
     return true;
   });
 
@@ -177,7 +198,7 @@ export default function AdminNotifications() {
       </div>
 
       {/* Header */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-3xl shadow-xl p-6 mb-8"
@@ -190,7 +211,7 @@ export default function AdminNotifications() {
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Mes Notifications</h1>
               <p className="text-gray-500">
-                {unreadCount > 0 
+                {unreadCount > 0
                   ? `${unreadCount} notification${unreadCount > 1 ? 's' : ''} non lue${unreadCount > 1 ? 's' : ''}`
                   : 'Aucune notification non lue'}
               </p>
@@ -200,7 +221,7 @@ export default function AdminNotifications() {
       </motion.div>
 
       {/* Filtres */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
@@ -234,6 +255,7 @@ export default function AdminNotifications() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les types</SelectItem>
+                <SelectItem value="message">Messages</SelectItem>
                 <SelectItem value="info">Informations</SelectItem>
                 <SelectItem value="alerte">Alertes</SelectItem>
                 <SelectItem value="warning">Avertissements</SelectItem>
@@ -242,7 +264,7 @@ export default function AdminNotifications() {
             </Select>
           </div>
         </div>
-        
+
         {/* Boutons d'action */}
         {notifications.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-200">
@@ -251,9 +273,9 @@ export default function AdminNotifications() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  notifications
-                    .filter(n => !n.lue)
-                    .forEach(n => markAsRead(n.id));
+                  // Marquer comme lu seulement les notifications filtrées visibles
+                  const notifsToMark = filteredNotifications.filter(n => !n.lue);
+                  notifsToMark.forEach(n => markAsRead(n.id));
                 }}
                 className="text-green-600 hover:text-green-700 hover:bg-green-50 rounded-xl"
               >
@@ -275,7 +297,7 @@ export default function AdminNotifications() {
       </motion.div>
 
       {/* Liste des notifications */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -286,7 +308,7 @@ export default function AdminNotifications() {
             <Bell className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-600 mb-2">Aucune notification</h3>
             <p className="text-gray-500">
-              {filter === 'all' 
+              {filter === 'all'
                 ? 'Vous n\'avez aucune notification pour le moment.'
                 : `Aucune notification ${filter === 'unread' ? 'non lue' : 'lue'} trouvée.`}
             </p>
@@ -298,11 +320,10 @@ export default function AdminNotifications() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05 }}
-              className={`bg-white rounded-2xl shadow-lg overflow-hidden border-l-4 ${
-                notif.lue 
-                  ? 'border-gray-300 opacity-75' 
-                  : 'border-amber-500'
-              } ${getNotificationColor(notif.type, notif.titre)}`}
+              className={`bg-white rounded-2xl shadow-lg overflow-hidden border-l-4 ${notif.lue
+                ? 'border-gray-300 opacity-75'
+                : 'border-amber-500'
+                } ${getNotificationColor(notif.type, notif.titre)}`}
             >
               <div className="p-6">
                 <div className="flex items-start justify-between gap-4">

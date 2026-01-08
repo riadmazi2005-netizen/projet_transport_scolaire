@@ -24,7 +24,7 @@ import {
   Fuel
 } from 'lucide-react';
 
-export default function AdminSidebar({ admin, notifications = [], newItemsCount = { inscriptions: 0, accidents: 0, problemes: 0 }, onLogout, onNotificationClick }) {
+export default function AdminSidebar({ admin, notifications = [], newItemsCount = { inscriptions: 0, accidents: 0, problemes: 0, paiements: 0 }, onLogout, onNotificationClick }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -235,7 +235,7 @@ export default function AdminSidebar({ admin, notifications = [], newItemsCount 
             {menuItems.map((item, index) => {
               const active = isActive(item.path);
               const Icon = item.icon;
-              
+
               // Déterminer le badge à afficher selon la page
               let badgeCount = 0;
               if (item.link === 'AdminNotifications') {
@@ -246,10 +246,12 @@ export default function AdminSidebar({ admin, notifications = [], newItemsCount 
                 badgeCount = newItemsCount.accidents || 0;
               } else if (item.link === 'AdminProblemes') {
                 badgeCount = newItemsCount.problemes || 0;
+              } else if (item.link === 'AdminPaiements') {
+                badgeCount = newItemsCount.paiements || 0;
               }
-              
+
               const showBadge = badgeCount > 0;
-              
+
               return (
                 <motion.button
                   key={item.link}

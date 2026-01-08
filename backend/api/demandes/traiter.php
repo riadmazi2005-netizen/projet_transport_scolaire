@@ -74,39 +74,50 @@ try {
         
         // Récupérer tous les élèves du tuteur avec leurs dates d'inscription (triés par date)
         // On considère soit la date d'inscription (si inscription active), soit la date de création de la demande (si payée/validée)
+        // Récupérer tous les élèves "valides" (inscrits ou en cours d'inscription) pour déterminer le rang
+        // On inclut la demande actuelle dans la liste pour avoir un classement cohérent
         $stmtRang = $pdo->prepare('
             SELECT 
-                e.id as eleve_id,
-                COALESCE(
-                    (SELECT MIN(i.date_inscription) FROM inscriptions i WHERE i.eleve_id = e.id AND i.statut = "Active"),
-                    (SELECT MIN(d.date_creation) FROM demandes d 
-                     WHERE d.eleve_id = e.id 
-                       AND d.type_demande = "inscription" 
-                       AND d.statut IN ("Payée", "Validée", "Inscrit", "En attente de paiement")
-                       AND d.id != ?)
-                ) as date_inscription
-            FROM eleves e
-            WHERE e.tuteur_id = ?
-            HAVING date_inscription IS NOT NULL
-            ORDER BY date_inscription ASC
+                rank_data.eleve_id,
+                rank_data.date_reference
+            FROM (
+                SELECT 
+                    e.id as eleve_id,
+                    COALESCE(
+                        -- Date d\'inscription active
+                        (SELECT MIN(i.date_inscription) FROM inscriptions i WHERE i.eleve_id = e.id AND i.statut = "Active"),
+                        -- OU Date de demande validée/payée/en attente de paiement...
+                        (SELECT MIN(d.date_creation) FROM demandes d 
+                         WHERE d.eleve_id = e.id 
+                           AND d.type_demande = "inscription" 
+                           AND d.statut IN ("Payée", "Validée", "Inscrit", "En attente de paiement")
+                        -- OU Date de la demande ACTUELLE (seulement pour l'élève concerné)
+                        CASE 
+                            WHEN e.id = (SELECT eleve_id FROM demandes WHERE id = ?) 
+                            THEN (SELECT date_creation FROM demandes WHERE id = ?) 
+                            ELSE NULL 
+                        END
+                    ) as date_reference
+                FROM eleves e
+                WHERE e.tuteur_id = ?
+            ) as rank_data
+            WHERE rank_data.date_reference IS NOT NULL
+            ORDER BY rank_data.date_reference ASC, rank_data.eleve_id ASC
         ');
-        $stmtRang->execute([$data['id'], $tuteurId]);
-        $elevesInscrits = $stmtRang->fetchAll(PDO::FETCH_ASSOC);
         
-        // Compter les élèves déjà inscrits (avec date d'inscription antérieure à la demande actuelle)
-        $nombreElevesAvant = 0;
-        foreach ($elevesInscrits as $eleveInscrit) {
-            if ($eleveInscrit['eleve_id'] != $eleveIdActuel) {
-                $dateInscription = $eleveInscrit['date_inscription'];
-                if ($dateInscription && $dateInscription < $dateCreationDemande) {
-                    $nombreElevesAvant++;
-                }
+        $stmtRang->execute([$data['id'], $data['id'], $data['id'], $tuteurId]);
+        $classementEleves = $stmtRang->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Trouver le rang de l'élève actuel dans la liste triée
+        $rangEleve = 1;
+        foreach ($classementEleves as $index => $info) {
+            if ($info['eleve_id'] == $eleveIdActuel) {
+                $rangEleve = $index + 1;
+                break;
             }
         }
         
-        // Le rang de l'élève actuel = nombre d'élèves inscrits avant lui + 1
-        $rangEleve = $nombreElevesAvant + 1;
-        $nombreElevesTotal = $rangEleve; // Total incluant l'élève actuel
+        $nombreElevesTotal = count($classementEleves);
         
         // Appliquer la réduction selon le rang exact de l'élève
         // 1er élève → pas de réduction (0%)

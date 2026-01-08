@@ -568,7 +568,7 @@ function TuteurDashboardContent() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <StatCard
           title="Mes Enfants"
-          value={eleves.length}
+          value={eleves.filter(e => e.statut_demande !== 'Refusée').length}
           icon={GraduationCap}
           color="lime"
         />
@@ -1167,11 +1167,29 @@ function TuteurDashboardContent() {
                       <span className="font-semibold">{selectedEleveForPayment.prenom} {selectedEleveForPayment.nom}</span>
                     </div>
                     {selectedEleveForPayment.demande_inscription?.montant_facture && (
-                      <div className="flex justify-between pt-2 border-t border-lime-200">
-                        <span className="text-gray-700 font-medium">Montant:</span>
-                        <span className="text-lg font-bold text-lime-700">
-                          {parseFloat(selectedEleveForPayment.demande_inscription.montant_facture).toFixed(2)} DH
-                        </span>
+                      <div className="flex flex-col pt-2 border-t border-lime-200">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-700 font-medium">Montant:</span>
+                          <div className="text-right">
+                            {selectedEleveForPayment.taux_reduction > 0 && selectedEleveForPayment.montant_avant_reduction ? (
+                              <>
+                                <span className="block text-sm text-gray-400 line-through decoration-red-500">
+                                  {parseFloat(selectedEleveForPayment.montant_avant_reduction).toFixed(2)} DH
+                                </span>
+                                <span className="text-lg font-bold text-lime-700">
+                                  {parseFloat(selectedEleveForPayment.demande_inscription.montant_facture).toFixed(2)} DH
+                                </span>
+                                <span className="block text-xs text-lime-600 font-medium">
+                                  (-{selectedEleveForPayment.taux_reduction}%)
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-lg font-bold text-lime-700">
+                                {parseFloat(selectedEleveForPayment.demande_inscription.montant_facture).toFixed(2)} DH
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

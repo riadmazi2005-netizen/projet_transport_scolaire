@@ -10,7 +10,7 @@ const API_BASE_URL = 'http://localhost/backend/api';
  */
 const fetchAPI = async (endpoint, options = {}) => {
   const token = localStorage.getItem('token');
-  
+
   const config = {
     method: options.method || 'GET',
     headers: {
@@ -25,16 +25,16 @@ const fetchAPI = async (endpoint, options = {}) => {
   try {
     const url = `${API_BASE_URL}${endpoint}`;
     console.log(`[API] ${options.method || 'GET'} ${url}`);
-    
+
     const response = await fetch(url, config);
-    
+
     // Try to parse JSON response
     let data;
     const contentType = response.headers.get('content-type');
-    
+
     // Lire le body une seule fois
     const text = await response.text();
-    
+
     if (contentType && contentType.includes('application/json')) {
       try {
         data = JSON.parse(text);
@@ -64,7 +64,7 @@ const fetchAPI = async (endpoint, options = {}) => {
 2. Le backend est dans C:\\xampp\\htdocs\\backend
 3. L'URL ${API_BASE_URL} est accessible dans votre navigateur`);
     }
-    
+
     // If it's already an Error with a message, rethrow it
     if (error instanceof Error) {
       console.error('[API] Error:', error);
@@ -85,15 +85,15 @@ export const authAPI = {
   login: async (emailOrPhone, password, expectedRole = null) => {
     // Détecter si c'est un email ou un téléphone
     const isEmail = emailOrPhone.includes('@');
-    const data = isEmail 
+    const data = isEmail
       ? { email: emailOrPhone, password }
       : { telephone: emailOrPhone, password };
-    
+
     // Ajouter le rôle attendu si spécifié
     if (expectedRole) {
       data.expected_role = expectedRole;
     }
-    
+
     return fetchAPI('/auth/login.php', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -273,12 +273,12 @@ export const trajetsAPI = {
 
 export const presencesAPI = {
   getByDate: (date, busId = null) => {
-    const url = busId 
+    const url = busId
       ? `/presences/getByDate.php?date=${date}&bus_id=${busId}`
       : `/presences/getByDate.php?date=${date}`;
     return fetchAPI(url);
   },
-  getByEleve: (eleveId, startDate, endDate) => 
+  getByEleve: (eleveId, startDate, endDate) =>
     fetchAPI(`/presences/getByEleve.php?eleve_id=${eleveId}&start_date=${startDate}&end_date=${endDate}`),
   marquer: (data) => fetchAPI('/presences/marquer.php', {
     method: 'POST',
@@ -319,9 +319,9 @@ export const accidentsAPI = {
 // ============================================
 
 export const notificationsAPI = {
-  getByUser: (userId, userType) => 
+  getByUser: (userId, userType) =>
     fetchAPI(`/notifications/getByUser.php?user_id=${userId}&user_type=${userType}`),
-  getSentByResponsable: (responsableId) => 
+  getSentByResponsable: (responsableId) =>
     fetchAPI(`/notifications/getSentByResponsable.php?responsable_id=${responsableId}`),
   marquerLue: (id) => fetchAPI('/notifications/marquerLue.php', {
     method: 'PUT',
@@ -347,9 +347,9 @@ export const notificationsAPI = {
 
 export const demandesAPI = {
   getAll: () => fetchAPI('/demandes/getAll.php'),
-  getByUser: (userId, userType) => 
+  getByUser: (userId, userType) =>
     fetchAPI(`/demandes/getByUser.php?user_id=${userId}&user_type=${userType}`),
-  getByTuteur: (tuteurId) => 
+  getByTuteur: (tuteurId) =>
     fetchAPI(`/demandes/getByTuteur.php?tuteur_id=${tuteurId}`),
   create: (data) => fetchAPI('/demandes/create.php', {
     method: 'POST',
@@ -447,10 +447,10 @@ export const contactAPI = {
 // ============================================
 
 export const statistiquesAPI = {
-  getDashboard: (role, userId) => 
+  getDashboard: (role, userId) =>
     fetchAPI(`/statistiques/dashboard.php?role=${role}&user_id=${userId}`),
   getFinancieres: () => fetchAPI('/statistiques/financieres.php'),
-  getPresences: (startDate, endDate) => 
+  getPresences: (startDate, endDate) =>
     fetchAPI(`/statistiques/presences.php?start_date=${startDate}&end_date=${endDate}`),
 };
 
@@ -465,6 +465,10 @@ export const essenceAPI = {
     body: JSON.stringify(data),
   }),
   getByChauffeur: (chauffeurId) => fetchAPI(`/essence/getByChauffeur.php?chauffeur_id=${chauffeurId}`),
+  delete: (id) => fetchAPI('/essence/delete.php', {
+    method: 'DELETE',
+    body: JSON.stringify({ id }),
+  }),
 };
 
 // ============================================

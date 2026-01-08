@@ -74,9 +74,14 @@ try {
     // Utiliser le montant de la facture depuis la demande (avec réduction déjà appliquée)
     $montantFacture = floatval($demande['montant_facture'] ?? 0);
     
-    // Calculer le montant mensuel pour l'inscription
+    // Calculer le montant mensuel pour l'inscription (en appliquant la réduction)
     $typeTransport = $descriptionData['type_transport'] ?? 'Aller-Retour';
     $basePrice = ($typeTransport === 'Aller-Retour') ? 400 : 250;
+    
+    // Appliquer la réduction si elle existe
+    $tauxReduction = $descriptionData['taux_reduction'] ?? 0;
+    $basePrice = $basePrice * (1 - $tauxReduction);
+    
     $montantMensuel = ($abonnement === 'Annuel') ? $basePrice : $basePrice;
     
     // Code correct - mettre à jour le statut de la demande en "Payée"

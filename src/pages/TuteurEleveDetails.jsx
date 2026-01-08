@@ -619,10 +619,29 @@ function TuteurEleveDetailsContent() {
                       </div>
                     )}
 
+                    {/* Chauffeur Details */}
                     {chauffeur && (
                       <div className="flex justify-between py-2 border-b border-gray-100">
                         <span className="text-gray-600">Chauffeur</span>
-                        <span className="font-medium text-gray-800">{chauffeur.prenom} {chauffeur.nom}</span>
+                        <div className="text-right">
+                          <div className="font-medium text-gray-800">{chauffeur.prenom} {chauffeur.nom}</div>
+                          {chauffeur.telephone && (
+                            <div className="text-sm text-gray-500">{chauffeur.telephone}</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Responsable Details */}
+                    {responsable && (
+                      <div className="flex justify-between py-2 border-b border-gray-100">
+                        <span className="text-gray-600">Responsable Bus</span>
+                        <div className="text-right">
+                          <div className="font-medium text-gray-800">{responsable.prenom} {responsable.nom}</div>
+                          {responsable.telephone && (
+                            <div className="text-sm text-gray-500">{responsable.telephone}</div>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -762,7 +781,13 @@ function TuteurEleveDetailsContent() {
               ) : (
                 <div className="text-center py-8 text-gray-400 mb-6">
                   <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Aucune donnée de présence disponible pour cette période</p>
+                  <p className="text-gray-500 max-w-sm mx-auto">
+                    Aucune donnée de présence disponible pour cette période.
+                    <br />
+                    <span className="text-sm text-gray-400 mt-2 block">
+                      Les absences s'afficheront ici une fois saisies par le responsable du bus.
+                    </span>
+                  </p>
                 </div>
               )}
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import AdminSidebar from './AdminSidebar';
-import { notificationsAPI, demandesAPI, accidentsAPI, signalementsAPI } from '../services/apiService';
+import { notificationsAPI, demandesAPI, accidentsAPI, signalementsAPI, paiementsAPI } from '../services/apiService';
 
 export default function AdminLayout({ children, title = 'Administration' }) {
   const navigate = useNavigate();
@@ -13,7 +13,8 @@ export default function AdminLayout({ children, title = 'Administration' }) {
   const [newItemsCount, setNewItemsCount] = useState({
     inscriptions: 0,
     accidents: 0,
-    problemes: 0
+    problemes: 0,
+    paiements: 0
   });
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export default function AdminLayout({ children, title = 'Administration' }) {
       navigate(createPageUrl('AdminLogin'));
       return;
     }
-    
+
     const adminData = JSON.parse(session);
     setAdmin(adminData);
     loadNotifications(adminData.id);
@@ -40,22 +41,30 @@ export default function AdminLayout({ children, title = 'Administration' }) {
   // Rafraîchir les notifications et les compteurs toutes les 30 secondes
   useEffect(() => {
     if (!admin) return;
-    
+
     const loadAllData = async () => {
       await loadNotifications(admin.id);
       await loadNewItemsCount();
     };
-    
+
     loadAllData();
-    const interval = setInterval(loadAllData, 30000);
-    
+    loadAllData();
+    const interval = setInterval(loadAllData, 15000); // Rafraîchir toutes les 15 secondes (plus rapide)
+
     return () => clearInterval(interval);
   }, [admin]);
 
   const loadNotifications = async (adminId) => {
     try {
       const response = await notificationsAPI.getByUser(adminId, 'admin');
-      const notifs = response?.data || response || [];
+      let notifs = response?.data || response || [];
+
+      // Si on est sur la page des notifications, on les considère comme lues localement
+      // pour que le badge disparaisse immédiatement
+      if (location.pathname === '/AdminNotifications') {
+        notifs = notifs.map(n => ({ ...n, lue: true }));
+      }
+
       setNotifications(notifs.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)));
     } catch (err) {
       console.warn('Erreur lors du chargement des notifications:', err);
@@ -68,8 +77,8 @@ export default function AdminLayout({ children, title = 'Administration' }) {
       // Compter les nouvelles inscriptions (demandes en attente ou en cours de traitement)
       const demandesRes = await demandesAPI.getAll();
       const demandes = demandesRes?.data || demandesRes || [];
-      const nouvellesInscriptions = demandes.filter(d => 
-        d.type_demande === 'inscription' && 
+      const nouvellesInscriptions = demandes.filter(d =>
+        d.type_demande === 'inscription' &&
         (d.statut === 'En attente' || d.statut === 'En cours de traitement')
       ).length;
 
@@ -81,18 +90,24 @@ export default function AdminLayout({ children, title = 'Administration' }) {
       // Compter les nouveaux problèmes non résolus
       const signalementsRes = await signalementsAPI.getAll();
       const signalements = signalementsRes?.data || signalementsRes || [];
-      const nouveauxProblemes = signalements.filter(s => 
+      const nouveauxProblemes = signalements.filter(s =>
         s.statut === 'En attente' || s.statut === 'En cours'
       ).length;
+
+      // Compter les paiements en attente de vérification
+      const paiementsRes = await paiementsAPI.getAll();
+      const paiements = paiementsRes?.data || paiementsRes || [];
+      const nouveauxPaiements = paiements.filter(p => p.statut === 'En attente').length;
 
       setNewItemsCount({
         inscriptions: nouvellesInscriptions,
         accidents: nouveauxAccidents,
-        problemes: nouveauxProblemes
+        problemes: nouveauxProblemes,
+        paiements: nouveauxPaiements
       });
     } catch (err) {
       console.warn('Erreur lors du chargement des compteurs:', err);
-      setNewItemsCount({ inscriptions: 0, accidents: 0, problemes: 0 });
+      setNewItemsCount({ inscriptions: 0, accidents: 0, problemes: 0, paiements: 0 });
     }
   };
 
@@ -118,9 +133,9 @@ export default function AdminLayout({ children, title = 'Administration' }) {
         notifications={notifications}
         newItemsCount={newItemsCount}
         onLogout={handleLogout}
-        onNotificationClick={() => {}}
+        onNotificationClick={() => { }}
       />
-      
+
       <main className="lg:ml-[280px] min-h-screen p-4 md:p-8">
         <div className="max-w-7xl mx-auto">
           {children}
