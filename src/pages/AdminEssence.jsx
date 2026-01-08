@@ -14,6 +14,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export default function AdminEssence() {
+  console.log('🏁 AdminEssence: Initializing component...');
   const navigate = useNavigate();
   const [prisesEssence, setPrisesEssence] = useState([]);
   const [buses, setBuses] = useState([]);

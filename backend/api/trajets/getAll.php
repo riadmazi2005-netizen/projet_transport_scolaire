@@ -20,7 +20,7 @@ foreach ($trajets as &$trajet) {
 }
 
 echo json_encode(['success' => true, 'data' => $trajets]);
-?>
+
 
 
 

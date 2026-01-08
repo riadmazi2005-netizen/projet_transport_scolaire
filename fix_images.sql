@@ -8,4 +8,4 @@ ALTER TABLE prise_essence MODIFY COLUMN photo_ticket LONGTEXT;
 ALTER TABLE accidents MODIFY COLUMN photos LONGTEXT;
 
 -- 3. Corriger la table des signalements
-ALTER TABLE signalements MODIFY COLUMN photos LONGTEXT;
+ALTER TABLE signalements_maintenance add  photos LONGTEXT;

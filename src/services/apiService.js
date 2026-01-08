@@ -198,6 +198,25 @@ export const tuteursAPI = {
   }),
   getEleves: (id) => fetchAPI(`/tuteurs/eleves.php?tuteur_id=${id}`),
   getPaiements: (id) => fetchAPI(`/tuteurs/paiements.php?tuteur_id=${id}`),
+  uploadPhoto: (id, file) => {
+    const formData = new FormData();
+    formData.append('id', id);
+    formData.append('photo', file);
+
+    // Pour l'upload de fichiers, on ne doit pas définir Content-Type à application/json
+    // fetchAPI gère cela si le body est FormData, mais notre implémentation actuelle force le header
+    // On doit utiliser fetch directement ou modifier fetchAPI. 
+    // Ici on fait un appel direct pour simplifier car fetchAPI force Content-Type: application/json
+
+    const token = localStorage.getItem('token');
+    return fetch(`${API_BASE_URL}/tuteurs/upload_photo.php`, {
+      method: 'POST',
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+      body: formData
+    }).then(response => response.json());
+  },
 };
 
 // ============================================

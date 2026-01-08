@@ -14,5 +14,5 @@ echo json_encode([
     'method' => $_SERVER['REQUEST_METHOD'] ?? 'Unknown',
     'headers_received' => getallheaders()
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-?>
+
 

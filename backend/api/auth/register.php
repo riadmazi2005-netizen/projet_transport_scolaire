@@ -176,5 +176,6 @@ try {
         'message' => 'Erreur lors de la création du compte. Veuillez réessayer.'
     ], JSON_UNESCAPED_UNICODE);
 }
-?>
+
+
 

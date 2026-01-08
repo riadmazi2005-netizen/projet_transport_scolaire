@@ -91,6 +91,7 @@ try {
                          WHERE d.eleve_id = e.id 
                            AND d.type_demande = "inscription" 
                            AND d.statut IN ("Payée", "Validée", "Inscrit", "En attente de paiement")
+                        ),
                         -- OU Date de la demande ACTUELLE (seulement pour l'élève concerné)
                         CASE 
                             WHEN e.id = (SELECT eleve_id FROM demandes WHERE id = ?) 
@@ -105,7 +106,7 @@ try {
             ORDER BY rank_data.date_reference ASC, rank_data.eleve_id ASC
         ');
         
-        $stmtRang->execute([$data['id'], $data['id'], $data['id'], $tuteurId]);
+        $stmtRang->execute([$data['id'], $data['id'], $tuteurId]);
         $classementEleves = $stmtRang->fetchAll(PDO::FETCH_ASSOC);
         
         // Trouver le rang de l'élève actuel dans la liste triée
@@ -291,5 +292,3 @@ try {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Erreur lors du traitement: ' . $e->getMessage()]);
 }
-?>
-

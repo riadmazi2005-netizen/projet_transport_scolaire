@@ -85,11 +85,17 @@ try {
         }
     }
     
-    // Champs tuteurs (adresse)
+    // Champs tuteurs (adresse, photo_identite)
     if (isset($data['adresse'])) {
         $tuteurFields[] = 'adresse = ?';
         $tuteurValues[] = trim($data['adresse']);
         unset($data['adresse']);
+    }
+    
+    if (isset($data['photo_identite'])) {
+        $tuteurFields[] = 'photo_identite = ?';
+        $tuteurValues[] = $data['photo_identite'];
+        unset($data['photo_identite']);
     }
     
     // Mettre à jour la table utilisateurs si nécessaire
@@ -117,7 +123,7 @@ try {
     
     // Récupérer l'utilisateur mis à jour avec l'adresse du tuteur
     $stmt = $pdo->prepare('
-        SELECT u.id, u.nom, u.prenom, u.email, u.telephone, u.statut, u.date_creation, u.date_modification, t.adresse
+        SELECT u.id, u.nom, u.prenom, u.email, u.telephone, u.statut, u.date_creation, u.date_modification, t.adresse, t.photo_identite
         FROM utilisateurs u
         INNER JOIN tuteurs t ON t.utilisateur_id = u.id
         WHERE u.id = ?
@@ -137,4 +143,5 @@ try {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Erreur lors de la mise à jour']);
 }
-?>
+
+

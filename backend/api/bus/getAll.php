@@ -28,7 +28,7 @@ try {
         'message' => 'Erreur lors du chargement des bus'
     ]);
 }
-?>
+
 
 
 

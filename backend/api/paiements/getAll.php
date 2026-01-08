@@ -26,5 +26,6 @@ try {
         'message' => 'Erreur lors de la récupération des paiements: ' . $e->getMessage()
     ]);
 }
-?>
+
+
 

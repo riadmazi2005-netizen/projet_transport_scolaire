@@ -30,5 +30,6 @@ echo json_encode([
     'success' => true,
     'data' => $responsable ?: null
 ]);
-?>
+
+
 

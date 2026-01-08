@@ -51,5 +51,6 @@ try {
         echo json_encode(['success' => false, 'message' => 'Erreur lors de la création: ' . $e->getMessage()]);
     }
 }
-?>
+
+
 

@@ -795,25 +795,78 @@ export default function AdminInscriptions() {
         </div>
       </motion.div>
 
-      {/* Modal Inscription Details */}
       {showInscriptionModal && selectedEleve && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-3xl overflow-hidden max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           >
-            <div className="p-6 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Eye className="w-5 h-5" />
-                Détails de l'inscription
-              </h2>
-              <p className="text-gray-500 mt-1">
-                {selectedEleve.prenom} {selectedEleve.nom}
-              </p>
+            <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <User className="w-6 h-6" />
+                  Détails de l'Inscription
+                </h2>
+                <p className="text-blue-100 mt-1">
+                  Demande #{selectedEleve.demande_inscription?.id} • {selectedEleve.prenom} {selectedEleve.nom}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowInscriptionModal(false)}
+                className="p-1 hover:bg-white/20 rounded-full transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
 
             <div className="p-6 space-y-6">
+              {/* Infos Tuteur avec Photo */}
+              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <User className="w-5 h-5 text-blue-500" />
+                  Informations du Tuteur
+                </h3>
+
+                <div className="flex flex-col md:flex-row gap-6">
+                  {/* Photo si disponible */}
+                  {selectedEleve.tuteur?.photo_identite && (
+                    <div className="flex-shrink-0">
+                      <div className="w-32 h-32 rounded-xl overflow-hidden border-4 border-white shadow-md bg-gray-200">
+                        <img
+                          src={`http://localhost${selectedEleve.tuteur.photo_identite}`}
+                          alt={`Photo de ${selectedEleve.tuteur.prenom}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://ui-avatars.com/api/?name=' + selectedEleve.tuteur.prenom + '+' + selectedEleve.tuteur.nom + '&background=random';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 flex-grow">
+                    <div>
+                      <span className="text-xs text-gray-500 uppercase tracking-wider">Nom complet</span>
+                      <p className="font-medium text-gray-900">{selectedEleve.tuteur?.nom} {selectedEleve.tuteur?.prenom}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 uppercase tracking-wider">Téléphone</span>
+                      <p className="font-medium text-gray-900">{selectedEleve.tuteur?.telephone || '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 uppercase tracking-wider">Email</span>
+                      <p className="font-medium text-gray-900 break-words">{selectedEleve.tuteur?.email}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 uppercase tracking-wider">Adresse</span>
+                      <p className="font-medium text-gray-900">{selectedEleve.tuteur?.adresse || '-'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Informations de l'élève */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">

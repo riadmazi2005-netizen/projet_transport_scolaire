@@ -88,5 +88,6 @@ try {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage()]);
 }
-?>
+
+
 

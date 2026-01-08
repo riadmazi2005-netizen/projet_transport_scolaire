@@ -81,5 +81,6 @@ try {
         'message' => 'Erreur lors de la récupération des élèves: ' . $e->getMessage()
     ]);
 }
-?>
+
+
 

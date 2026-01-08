@@ -28,5 +28,5 @@ try {
         'message' => 'Erreur lors de la récupération des inscriptions: ' . $e->getMessage()
     ]);
 }
-?>
+
 

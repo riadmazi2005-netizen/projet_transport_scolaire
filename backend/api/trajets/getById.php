@@ -8,7 +8,8 @@ $stmt = $pdo->prepare('SELECT * FROM trajets WHERE id = ?');
 $stmt->execute([$id]);
 $trajet = $stmt->fetch(PDO::FETCH_ASSOC);
 echo json_encode(['success' => true, 'data' => $trajet ?: null]);
-?>
+
+
 
 
 

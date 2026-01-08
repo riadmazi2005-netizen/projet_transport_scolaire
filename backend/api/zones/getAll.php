@@ -40,5 +40,6 @@ try {
     ]);
     exit; // Arrêter l'exécution pour éviter d'autres sorties
 }
-?>
+
+
 

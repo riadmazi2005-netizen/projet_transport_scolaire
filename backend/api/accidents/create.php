@@ -286,5 +286,6 @@ try {
     ini_set('display_errors', 0);
     echo json_encode(['success' => false, 'message' => 'Erreur lors de la création: ' . $e->getMessage()]);
 }
-?>
+
+
 

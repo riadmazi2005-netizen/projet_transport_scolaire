@@ -7,7 +7,8 @@ $pdo = getDBConnection();
 $stmt = $pdo->prepare('SELECT * FROM accidents WHERE chauffeur_id = ? ORDER BY date DESC');
 $stmt->execute([$chauffeur_id]);
 echo json_encode(['success' => true, 'data' => $stmt->fetchAll()]);
-?>
+
+
 
 
 

@@ -126,5 +126,6 @@ try {
         'message' => 'Erreur lors de la sauvegarde de la présence: ' . $e->getMessage()
     ]);
 }
-?>
+
+
 

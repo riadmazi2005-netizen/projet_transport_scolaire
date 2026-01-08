@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, notificationsAPI, demandesAPI, zonesAPI } from '../services/apiService';
+import { elevesAPI, notificationsAPI, demandesAPI, zonesAPI, tuteursAPI } from '../services/apiService';
 import { calculerMontantFacture, formaterMontantFacture } from '../utils/calculFacture';
 
 // Helper function to get admins
@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   GraduationCap, ArrowLeft, UserPlus, User,
-  MapPin, Bus, CheckCircle, Plus, X, Trash2, AlertCircle
+  MapPin, Bus, CheckCircle, Plus, X, Trash2, AlertCircle, Upload, Image as ImageIcon
 } from 'lucide-react';
 
 export default function TuteurInscription() {
@@ -27,6 +27,8 @@ export default function TuteurInscription() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [tuteur, setTuteur] = useState(null);
+  const [photoIdentite, setPhotoIdentite] = useState(null); // State pour la photo
+  const [existingElevesCount, setExistingElevesCount] = useState(0); // Nombre d'élèves déjà inscrits
   const [currentStep, setCurrentStep] = useState(1);
   const [elevesList, setElevesList] = useState([{
     // Infos élève
@@ -71,8 +73,30 @@ export default function TuteurInscription() {
       navigate(createPageUrl('TuteurLogin'));
       return;
     }
-    setTuteur(JSON.parse(session));
+    const tuteurData = JSON.parse(session);
+    setTuteur(tuteurData);
     loadZones();
+
+    // Charger les élèves existants pour le calcul de la réduction
+    const loadExistingEleves = async () => {
+      try {
+        const response = await tuteursAPI.getEleves(tuteurData.id || tuteurData.type_id);
+        if (response && response.success && Array.isArray(response.data)) {
+          // Compter les élèves avec une inscription active OU en cours de validation/paiement
+          // Cela doit correspondre à la logique du backend (traiter.php)
+          const validStatuses = ['Active', 'Inscrit', 'Validée', 'Payée', 'En attente de paiement'];
+          const activeEleves = response.data.filter(e =>
+            (e.inscription_statut && e.inscription_statut === 'Active') ||
+            (e.statut_demande && validStatuses.includes(e.statut_demande))
+          );
+          console.log('Nombre d\'élèves déjà inscrits (pour réduction):', activeEleves.length);
+          setExistingElevesCount(activeEleves.length);
+        }
+      } catch (err) {
+        console.error('Erreur chargement élèves existants:', err);
+      }
+    };
+    loadExistingEleves();
   }, [navigate]);
 
   // Recharger les zones si elles ne sont pas chargées
@@ -216,13 +240,17 @@ export default function TuteurInscription() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('🚀 Soumission du formulaire...');
     setLoading(true);
     setError('');
 
     try {
       // Validation des champs de transport (communs à tous les élèves)
       if (!formData.type_transport || !formData.abonnement || !formData.groupe) {
-        setError('Veuillez remplir tous les champs de transport');
+        const msg = 'Veuillez remplir tous les champs de transport';
+        console.warn(msg);
+        setError(msg);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         setLoading(false);
         return;
       }
@@ -231,10 +259,17 @@ export default function TuteurInscription() {
       for (let i = 0; i < elevesList.length; i++) {
         const eleve = elevesList[i];
         if (!eleve.nom || !eleve.prenom || !eleve.classe || !eleve.ville || !eleve.zone || !eleve.adresse) {
-          setError(`Veuillez remplir tous les champs obligatoires pour l'élève ${i + 1}`);
+          const msg = `Veuillez remplir tous les champs obligatoires pour l'élève ${i + 1}`;
+          console.warn(msg);
+          setError(msg);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           setLoading(false);
           return;
         }
+      }
+
+      if (!tuteur) {
+        throw new Error("Erreur: Données tuteur introuvables. Veuillez vous reconnecter.");
       }
 
       // Utiliser type_id qui est l'ID du tuteur dans la table tuteurs
@@ -245,9 +280,12 @@ export default function TuteurInscription() {
         ? formData.lien_parente_custom.trim()
         : formData.lien_parente;
 
+      console.log('📝 Création des inscriptions pour', elevesList.length, 'élèves...');
+
       // Créer tous les élèves et leurs demandes
       const results = [];
       for (const eleveData of elevesList) {
+        console.log(`- Traitement élève: ${eleveData.prenom} ${eleveData.nom}`);
         // Create eleve
         const eleveResponse = await elevesAPI.create({
           nom: eleveData.nom,
@@ -263,11 +301,12 @@ export default function TuteurInscription() {
 
         if (!eleveResponse || !eleveResponse.success || !eleveResponse.data) {
           const errorMsg = eleveResponse?.message || 'Erreur lors de la création de l\'élève';
-          console.error('Erreur création élève:', eleveResponse);
+          console.error('❌ Erreur création élève:', eleveResponse);
           throw new Error(errorMsg);
         }
 
         const newEleve = eleveResponse.data;
+        console.log('  ✅ Élève créé:', newEleve.id);
 
         // Create demande (inscription request)
         const demandeResponse = await demandesAPI.create({
@@ -289,9 +328,10 @@ export default function TuteurInscription() {
 
         if (!demandeResponse || !demandeResponse.success) {
           const errorMsg = demandeResponse?.message || 'Erreur lors de la création de la demande';
-          console.error('Erreur création demande:', demandeResponse);
+          console.error('❌ Erreur création demande:', demandeResponse);
           throw new Error(errorMsg);
         }
+        console.log('  ✅ Demande créée:', demandeResponse);
 
         results.push({ eleve: newEleve, demande: demandeResponse });
       }
@@ -306,6 +346,19 @@ export default function TuteurInscription() {
           message: `L'inscription de ${elevesList.length === 1 ? nomsEleves : `${elevesList.length} élèves (${nomsEleves})`} a été envoyée et est en attente de validation.`,
           type: 'info'
         });
+
+        // Upload de la photo si présente
+        if (photoIdentite) {
+          try {
+            console.log('📸 Upload de la photo d\'identité...');
+            await tuteursAPI.uploadPhoto(tuteurId, photoIdentite);
+            console.log('✅ Photo uploadée avec succès');
+          } catch (photoError) {
+            console.error('❌ Erreur upload photo:', photoError);
+            // On ne bloque pas l'inscription pour une erreur de photo, mais on peut notifier
+          }
+        }
+
       } catch (notifError) {
         console.warn('Erreur notification tuteur:', notifError);
       }
@@ -330,15 +383,16 @@ export default function TuteurInscription() {
         console.warn('Impossible de récupérer les admins pour la notification:', adminError);
       }
 
+      console.log('🎉 Inscription terminée avec succès !');
       // Rediriger vers le dashboard après un court délai
       setTimeout(() => {
         navigate(createPageUrl('TuteurDashboard'));
       }, 500);
     } catch (err) {
-      console.error('Erreur lors de l\'inscription:', err);
+      console.error('🚨 Erreur lors de l\'inscription:', err);
       const errorMessage = err.message || err.response?.message || 'Erreur lors de l\'envoi de l\'inscription. Veuillez réessayer.';
       setError(errorMessage);
-      setLoading(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }
@@ -384,8 +438,8 @@ export default function TuteurInscription() {
                     onClick={() => currentStep > step.num && setCurrentStep(step.num)}
                   >
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${currentStep >= step.num
-                        ? 'bg-lime-500 text-white'
-                        : 'bg-gray-100 text-gray-400'
+                      ? 'bg-lime-500 text-white'
+                      : 'bg-gray-100 text-gray-400'
                       }`}>
                       {currentStep > step.num ? (
                         <CheckCircle className="w-5 h-5" />
@@ -459,6 +513,36 @@ export default function TuteurInscription() {
                   </div>
                 </div>
 
+                <div className="bg-white rounded-2xl p-6 border border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-lime-500" />
+                    Photo d'identité (Obligatoire)
+                  </h3>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <Label className="text-gray-600 block mb-2">Ajouter une photo d'identité</Label>
+                      <p className="text-xs text-gray-500 mb-3">CIN ou passeport ou attestation de tuteur légal. Format JPG ou PNG, max 5MB.</p>
+                      <Input
+                        type="file"
+                        accept="image/jpeg,image/png,image/jpg"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setPhotoIdentite(e.target.files[0]);
+                          }
+                        }}
+                        className="cursor-pointer file:cursor-pointer file:text-lime-700 file:bg-lime-50 file:border-0 file:rounded-lg file:px-4 file:py-2 file:mr-4 file:hover:bg-lime-100"
+                        required
+                      />
+                      {!photoIdentite && (
+                        <p className="text-xs text-red-500 mt-2 font-medium">
+                          Veuillez télécharger un document d'identité pour continuer.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div>
                   <Label className="text-gray-700 font-medium">Lien de parenté avec l'élève</Label>
                   <Select
@@ -503,7 +587,7 @@ export default function TuteurInscription() {
                 <Button
                   type="button"
                   onClick={() => setCurrentStep(2)}
-                  disabled={!formData.lien_parente || (formData.lien_parente === 'Autre' && !formData.lien_parente_custom.trim())}
+                  disabled={!formData.lien_parente || (formData.lien_parente === 'Autre' && !formData.lien_parente_custom.trim()) || !photoIdentite}
                   className="w-full h-12 bg-gradient-to-r from-lime-500 to-lime-600 hover:from-lime-600 hover:to-lime-700 text-white rounded-xl"
                 >
                   Continuer
@@ -885,17 +969,29 @@ export default function TuteurInscription() {
                       {formData.type_transport && formData.abonnement && (
                         <>
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-gray-600">Nombre d'élèves:</span>
+                            <span className="text-gray-600">Nouveaux élèves à inscrire:</span>
                             <span className="font-medium text-gray-800">{elevesList.length}</span>
                           </div>
 
-                          {elevesList.length > 1 && (
-                            <div className="text-xs text-lime-700 italic mb-2">
-                              * Réduction famille appliquée (-10% pour le 2ème, -20% pour les suivants)
+                          {existingElevesCount > 0 && (
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-gray-600">Élèves déjà inscrits:</span>
+                              <span className="font-medium text-blue-600">{existingElevesCount}</span>
                             </div>
                           )}
 
-                          <div className="flex justify-between items-center pt-2 border-t border-amber-300/50">
+                          {(elevesList.length > 1 || existingElevesCount > 0) && (
+                            <div className="text-xs text-lime-700 italic mb-2 mt-2 p-2 bg-lime-100 rounded-lg">
+                              <span className="font-bold">✨ Réduction famille appliquée:</span><br />
+                              - 2ème enfant: -10%<br />
+                              - 3ème enfant et plus: -20%<br />
+                              {existingElevesCount > 0
+                                ? `Vos ${existingElevesCount} enfant(s) déjà inscrit(s) sont pris en compte dans le calcul.`
+                                : "La réduction s'applique automatiquement sur vos inscriptions multiples."}
+                            </div>
+                          )}
+
+                          <div className="flex justify-between items-center pt-2 border-t border-amber-300/50 mt-2">
                             <span className="text-gray-800 font-semibold">Total standard:</span>
                             <span className="line-through text-gray-400 font-medium">
                               {(() => {
@@ -911,10 +1007,17 @@ export default function TuteurInscription() {
                               {(() => {
                                 const unitPrice = calculerMontantFacture(formData.type_transport, formData.abonnement);
                                 let total = 0;
+                                let elevesCount = existingElevesCount; // Commencer le décompte avec les élèves existants
+
                                 for (let i = 0; i < elevesList.length; i++) {
-                                  if (i === 0) total += unitPrice;
-                                  else if (i === 1) total += unitPrice * 0.9;
+                                  // 1er enfant (total=0) : 100%
+                                  // 2ème enfant (total=1) : 90%
+                                  // 3ème enfant (total>=2) : 80%
+                                  if (elevesCount === 0) total += unitPrice;
+                                  else if (elevesCount === 1) total += unitPrice * 0.9;
                                   else total += unitPrice * 0.8;
+
+                                  elevesCount++;
                                 }
                                 return `${total} DH`;
                               })()}
@@ -954,7 +1057,7 @@ export default function TuteurInscription() {
             )}
           </form>
         </motion.div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }

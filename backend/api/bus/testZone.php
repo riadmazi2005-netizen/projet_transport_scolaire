@@ -191,5 +191,6 @@ try {
 } catch (PDOException $e) {
     echo "<p style='color: red;'>Erreur: " . htmlspecialchars($e->getMessage()) . "</p>";
 }
-?>
+
+
 

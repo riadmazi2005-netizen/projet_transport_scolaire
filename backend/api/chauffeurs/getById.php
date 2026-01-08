@@ -8,7 +8,8 @@ $stmt = $pdo->prepare('SELECT c.*, u.nom, u.prenom, u.email, u.telephone FROM ch
 $stmt->execute([$id]);
 $chauffeur = $stmt->fetch(PDO::FETCH_ASSOC);
 echo json_encode(['success' => true, 'data' => $chauffeur ?: null]);
-?>
+
+
 
 
 

@@ -45,7 +45,8 @@ try {
         'message' => 'Erreur lors de la création de l\'élève: ' . $e->getMessage()
     ]);
 }
-?>
+
+
 
 
 
