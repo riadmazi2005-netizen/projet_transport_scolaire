@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from '../components/AdminLayout';
 import {
   ClipboardList, Search, CheckCircle, XCircle, AlertCircle,
-  Eye, User, Bus, MapPin, Filter, Calendar, ArrowLeft, FileText, Copy, Check
+  Eye, User, Bus, MapPin, Filter, Calendar, ArrowLeft, FileText, Copy, Check, X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -157,12 +157,14 @@ export default function AdminInscriptions() {
     return { dateDebut, dateFin };
   };
 
-  const handleValidate = async (eleve) => {
+  const handleOpenModal = async (eleve) => {
     setSelectedEleve(eleve);
     setError(null);
+    setAvailableBuses([]); // Réinitialiser avant chargement
+    setDebugInfo(null);
 
-    // Extraire le type d'abonnement depuis la demande
-    let abonnement = 'Mensuel'; // Par défaut
+    // Déterminer le type d'abonnement
+    let abonnement = 'Mensuel';
     if (eleve.demande_inscription?.description) {
       try {
         const descriptionData = typeof eleve.demande_inscription.description === 'string'
@@ -174,57 +176,42 @@ export default function AdminInscriptions() {
       }
     }
 
-    // Calculer les dates selon le type d'abonnement
+    // Calculer les dates
     const { dateDebut, dateFin } = calculateDates(abonnement);
-
-    // Initialiser le formulaire avec les dates calculées
     setInscriptionForm({
       date_debut: dateDebut,
       date_fin: dateFin
     });
 
-    // Charger les bus disponibles pour la zone de l'élève
+    // Charger les bus disponibles
     try {
       const zone = eleve.demande_inscription?.zone_geographique || eleve.zone;
-
       if (zone) {
         const busesResponse = await busAPI.getByZone(zone);
-        console.log('🔍 Réponse getByZone pour zone "' + zone + '":', busesResponse);
-
-        // Toujours stocker les informations de débogage si disponibles
-        if (busesResponse.debug) {
-          setDebugInfo(busesResponse.debug);
-          console.log('📊 Informations de débogage:', busesResponse.debug);
-        }
+        if (busesResponse.debug) setDebugInfo(busesResponse.debug);
 
         if (busesResponse.success && busesResponse.data && busesResponse.data.length > 0) {
-          const busesWithCapacity = busesResponse.data.map(bus => {
-            const trajet = trajets.find(t => t.id === bus.trajet_id);
-            return {
-              ...bus,
-              trajet,
-              placesRestantes: bus.places_restantes || 0,
-              elevesInscrits: bus.eleves_inscrits || 0
-            };
-          });
+          const busesWithCapacity = busesResponse.data.map(bus => ({
+            ...bus,
+            trajet: trajets.find(t => t.id === bus.trajet_id),
+            placesRestantes: bus.places_restantes || 0,
+            elevesInscrits: bus.eleves_inscrits || 0
+          }));
           setAvailableBuses(busesWithCapacity);
-          setError(null);
         } else {
-          setAvailableBuses([]);
-          // Toujours afficher un message d'erreur, même si on a des infos de débogage
           setError(busesResponse.message || `Aucun bus disponible pour la zone "${zone}"`);
         }
-      } else {
-        setAvailableBuses([]);
-        setError('Aucune zone géographique définie pour cet élève');
       }
     } catch (err) {
-      console.error('Erreur lors du chargement des bus:', err);
-      setAvailableBuses([]);
-      setError('Erreur lors du chargement des bus disponibles: ' + (err.message || 'Erreur inconnue'));
+      console.error('Erreur chargement bus:', err);
+      setError('Erreur lors du chargement des bus disponibles');
     }
 
     setShowInscriptionModal(true);
+  };
+
+  const handleValidate = (eleve) => {
+    handleOpenModal(eleve);
   };
 
   const handleCreateInscription = async () => {
@@ -726,29 +713,7 @@ export default function AdminInscriptions() {
                     {/* Bouton Détails - toujours visible */}
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        setSelectedEleve(eleve);
-                        // Si on peut valider, initialiser le formulaire avec les dates calculées
-                        if ((eleve.statut_demande === 'En attente' || eleve.statut_demande === 'En cours de traitement') && !eleve.inscription) {
-                          let abonnement = 'Mensuel';
-                          if (eleve.demande_inscription?.description) {
-                            try {
-                              const descriptionData = typeof eleve.demande_inscription.description === 'string'
-                                ? JSON.parse(eleve.demande_inscription.description)
-                                : eleve.demande_inscription.description;
-                              abonnement = descriptionData.abonnement || 'Mensuel';
-                            } catch (err) {
-                              console.warn('Erreur parsing description:', err);
-                            }
-                          }
-                          const { dateDebut, dateFin } = calculateDates(abonnement);
-                          setInscriptionForm({
-                            date_debut: dateDebut,
-                            date_fin: dateFin
-                          });
-                        }
-                        setShowInscriptionModal(true);
-                      }}
+                      onClick={() => handleOpenModal(eleve)}
                       className="rounded-xl"
                     >
                       <Eye className="w-4 h-4 mr-2" />
