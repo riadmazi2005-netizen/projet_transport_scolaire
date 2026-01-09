@@ -9,6 +9,7 @@ try {
             t.id,
             t.utilisateur_id,
             t.adresse,
+            t.photo_identite,
             u.nom,
             u.prenom,
             u.email,

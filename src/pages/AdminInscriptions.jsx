@@ -40,6 +40,7 @@ export default function AdminInscriptions() {
   const [copiedCode, setCopiedCode] = useState(null);
   const [showRefuseModal, setShowRefuseModal] = useState(false);
   const [refusalMotif, setRefusalMotif] = useState('');
+  const [showZoomModal, setShowZoomModal] = useState(null);
 
   useEffect(() => {
     // Charger les données de l'admin depuis la session
@@ -796,19 +797,46 @@ export default function AdminInscriptions() {
                 <div className="flex flex-col md:flex-row gap-6">
                   {/* Photo si disponible */}
                   {selectedEleve.tuteur?.photo_identite && (
-                    <div className="flex-shrink-0">
-                      <div className="w-32 h-32 rounded-xl overflow-hidden border-4 border-white shadow-md bg-gray-200">
-                        <img
-                          src={`http://localhost${selectedEleve.tuteur.photo_identite}`}
-                          alt={`Photo de ${selectedEleve.tuteur.prenom}`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = 'https://ui-avatars.com/api/?name=' + selectedEleve.tuteur.prenom + '+' + selectedEleve.tuteur.nom + '&background=random';
-                          }}
-                        />
+                    <>
+                      <div className="flex-shrink-0 cursor-pointer" onClick={() => setShowZoomModal(selectedEleve.tuteur.photo_identite)}>
+                        <div className="w-32 h-32 rounded-xl overflow-hidden border-4 border-white shadow-md bg-gray-200 group relative">
+                          <img
+                            src={`http://localhost${selectedEleve.tuteur.photo_identite}`}
+                            alt={`Photo de ${selectedEleve.tuteur.prenom}`}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://ui-avatars.com/api/?name=' + selectedEleve.tuteur.prenom + '+' + selectedEleve.tuteur.nom + '&background=random';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                            <Eye className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+                          </div>
+                        </div>
+                        <p className="text-center text-xs text-blue-600 mt-1 font-medium hover:underline">Agrandir</p>
                       </div>
-                    </div>
+
+                      {/* Modal de zoom */}
+                      {showZoomModal && (
+                        <div
+                          className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 cursor-zoom-out"
+                          onClick={() => setShowZoomModal(null)}
+                        >
+                          <button
+                            className="absolute top-4 right-4 text-white hover:text-gray-300 bg-white/10 hover:bg-white/20 rounded-full p-2 transition-colors"
+                            onClick={() => setShowZoomModal(null)}
+                          >
+                            <X className="w-8 h-8" />
+                          </button>
+                          <img
+                            src={`http://localhost${showZoomModal}`}
+                            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl cursor-default"
+                            onClick={(e) => e.stopPropagation()}
+                            alt="Zoom"
+                          />
+                        </div>
+                      )}
+                    </>
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 flex-grow">

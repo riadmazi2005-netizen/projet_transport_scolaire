@@ -123,7 +123,7 @@ try {
     
     // Récupérer l'utilisateur mis à jour avec l'adresse du tuteur
     $stmt = $pdo->prepare('
-        SELECT u.id, u.nom, u.prenom, u.email, u.telephone, u.statut, u.date_creation, u.date_modification, t.adresse, t.photo_identite
+        SELECT u.id, u.nom, u.prenom, u.email, u.telephone, u.statut, u.date_creation, u.date_modification, t.adresse
         FROM utilisateurs u
         INNER JOIN tuteurs t ON t.utilisateur_id = u.id
         WHERE u.id = ?
@@ -141,7 +141,7 @@ try {
     ]);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Erreur lors de la mise à jour']);
+    echo json_encode(['success' => false, 'message' => 'Erreur lors de la mise à jour: ' . $e->getMessage()]);
 }
 
 
