@@ -104,7 +104,12 @@ export default function ChauffeurSidebar({ chauffeur, notifications = [], onLogo
     // Sinon, utiliser le système d'onglets existant
     if (setActiveTab) {
       setActiveTab(item.id);
+    } else {
+      // Si on n'est pas sur le dashboard (ex: page Notifications), on y retourne
+      // On passe l'ID de l'onglet cible via le state pour que le Dashboard puisse l'ouvrir (si implémenté)
+      navigate(createPageUrl('ChauffeurDashboard'), { state: { activeTab: item.id } });
     }
+
     // Fermer le menu mobile après navigation
     if (window.innerWidth < 1024) {
       setIsMobileOpen(false);

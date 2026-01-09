@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { createPageUrl } from '../utils';
 import {
   chauffeursAPI,
@@ -2865,7 +2865,8 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
 }
 
 export default function ChauffeurDashboard() {
-  const [activeTab, setActiveTab] = React.useState(null); // null = dashboard avec stats seulement
+  const location = useLocation();
+  const [activeTab, setActiveTab] = React.useState(location.state?.activeTab || null); // null = dashboard avec stats seulement
 
   return (
     <ChauffeurLayout activeTab={activeTab} setActiveTab={setActiveTab}>

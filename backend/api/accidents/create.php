@@ -153,6 +153,10 @@ try {
                             $stmt = $pdo->prepare('UPDATE chauffeurs SET statut = ? WHERE id = ?');
                             $stmt->execute(['Licencié', $chauffeur_id]);
                             
+                            // Bloquer également l'accès utilisateur pour empêcher la connexion
+                            $stmt = $pdo->prepare('UPDATE utilisateurs SET statut = ? WHERE id = ?');
+                            $stmt->execute(['Inactif', $utilisateurId]);
+                            
                             // Envoyer une notification de licenciement
                             $stmt = $pdo->prepare('
                                 INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
