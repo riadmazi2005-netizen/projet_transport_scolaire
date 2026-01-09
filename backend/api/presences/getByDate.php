@@ -29,10 +29,10 @@ try {
     
     $presences = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Convertir les valeurs boolean
+    // Convertir les valeurs boolean, en préservant NULL
     foreach ($presences as &$presence) {
-        $presence['present_matin'] = (bool)$presence['present_matin'];
-        $presence['present_soir'] = (bool)$presence['present_soir'];
+        $presence['present_matin'] = is_null($presence['present_matin']) ? null : (bool)$presence['present_matin'];
+        $presence['present_soir'] = is_null($presence['present_soir']) ? null : (bool)$presence['present_soir'];
     }
     
     echo json_encode([

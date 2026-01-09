@@ -29,8 +29,9 @@ export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
       setTuteur(tuteurData);
 
       // Charger les données en arrière-plan sans bloquer le rendu
+      const tuteurId = tuteurData.type_id || tuteurData.id;
       Promise.all([
-        loadNotifications(tuteurData.id).catch(err => {
+        loadNotifications(tuteurId).catch(err => {
           console.warn('Erreur chargement notifications dans Layout:', err);
         }),
         loadNewCounts(tuteurData).catch(err => {
@@ -48,7 +49,8 @@ export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
   // Rafraîchir les notifications quand on navigue vers la page des notifications
   useEffect(() => {
     if (tuteur && location.pathname === '/TuteurNotifications') {
-      loadNotifications(tuteur.id);
+      const tuteurId = tuteur.type_id || tuteur.id;
+      loadNotifications(tuteurId);
     }
   }, [location.pathname, tuteur]);
 
@@ -57,8 +59,9 @@ export default function TuteurLayout({ children, title = 'Espace Tuteur' }) {
     if (!tuteur) return;
 
     const loadAllData = async () => {
+      const tuteurId = tuteur.type_id || tuteur.id;
       await Promise.all([
-        loadNotifications(tuteur.id),
+        loadNotifications(tuteurId),
         loadNewCounts(tuteur)
       ]);
     };

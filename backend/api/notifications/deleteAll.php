@@ -21,8 +21,41 @@ if (!$userId || !$userType) {
 
 try {
     $pdo = getDBConnection();
-    $stmt = $pdo->prepare('DELETE FROM notifications WHERE destinataire_id = ? AND destinataire_type = ?');
-    $stmt->execute([$userId, $userType]);
+    
+    // Si le type est 'tuteur', on veut supprimer les notifications pour le tuteur_id et l'utilisateur_id
+    $idsToCheck = [$userId];
+    
+    if ($userType === 'tuteur') {
+        // Vérifier si l'ID fourni est un ID tuteur
+        $stmt = $pdo->prepare('SELECT id, utilisateur_id FROM tuteurs WHERE id = ?');
+        $stmt->execute([$userId]);
+        $tuteur = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($tuteur && $tuteur['utilisateur_id']) {
+            if (!in_array($tuteur['utilisateur_id'], $idsToCheck)) {
+                $idsToCheck[] = $tuteur['utilisateur_id'];
+            }
+        } else {
+            // Vérifier si c'est un ID utilisateur
+            $stmt = $pdo->prepare('SELECT id, utilisateur_id FROM tuteurs WHERE utilisateur_id = ?');
+            $stmt->execute([$userId]);
+            $tuteur = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($tuteur) {
+                if (!in_array($tuteur['id'], $idsToCheck)) {
+                    $idsToCheck[] = $tuteur['id'];
+                }
+            }
+        }
+    }
+    
+    $placeholders = implode(',', array_fill(0, count($idsToCheck), '?'));
+    $sql = "DELETE FROM notifications WHERE destinataire_type = ? AND destinataire_id IN ($placeholders)";
+    
+    $params = array_merge([$userType], $idsToCheck);
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     
     $deletedCount = $stmt->rowCount();
     

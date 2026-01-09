@@ -104,7 +104,7 @@ function TuteurDashboardContent() {
       // Charger toutes les données nécessaires
       const [elevesRes, notificationsRes, demandesRes, inscriptionsRes, paiementsRes] = await Promise.allSettled([
         elevesAPI.getAll(),
-        notificationsAPI.getByUser(userId, 'tuteur'),
+        notificationsAPI.getByUser(tuteurId, 'tuteur'),
         demandesAPI.getAll(),
         inscriptionsAPI.getAll(),
         paiementsAPI.getByTuteur(tuteurId)

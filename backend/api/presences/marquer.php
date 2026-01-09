@@ -98,8 +98,8 @@ try {
         $stmt->execute([
             $data['eleve_id'],
             $data['date'],
-            isset($data['present_matin']) ? ($data['present_matin'] ? 1 : 0) : 0,
-            isset($data['present_soir']) ? ($data['present_soir'] ? 1 : 0) : 0,
+            isset($data['present_matin']) ? ($data['present_matin'] ? 1 : 0) : null,
+            isset($data['present_soir']) ? ($data['present_soir'] ? 1 : 0) : null,
             $data['bus_id'] ?? null,
             $data['responsable_id'] ?? null,
             $data['chauffeur_id'] ?? null,

@@ -29,6 +29,7 @@ export default function TuteurInscription() {
   const [tuteur, setTuteur] = useState(null);
   const [photoIdentite, setPhotoIdentite] = useState(null); // State pour la photo
   const [existingElevesCount, setExistingElevesCount] = useState(0); // Nombre d'élèves déjà inscrits
+  const [debugEleves, setDebugEleves] = useState([]); // Pour le diagnostic
   const [currentStep, setCurrentStep] = useState(1);
   const [elevesList, setElevesList] = useState([{
     // Infos élève
@@ -80,16 +81,28 @@ export default function TuteurInscription() {
     // Charger les élèves existants pour le calcul de la réduction
     const loadExistingEleves = async () => {
       try {
-        const response = await tuteursAPI.getEleves(tuteurData.id || tuteurData.type_id);
+        // Utiliser type_id (ID tuteur) en priorité, sinon id (ID utilisateur)
+        const tuteurId = tuteurData.type_id || tuteurData.id;
+        console.log(`🔍 Chargement élèves pour Tuteur ID: ${tuteurId} (User ID: ${tuteurData.id})`);
+
+        const response = await tuteursAPI.getEleves(tuteurId);
+
         if (response && response.success && Array.isArray(response.data)) {
-          // Compter les élèves avec une inscription active OU en cours de validation/paiement
-          // Cela doit correspondre à la logique du backend (traiter.php)
+          // Log pour débogage
+          console.log('📋 Élèves récupérés:', response.data);
+          setDebugEleves(response.data); // Stocker pour affichage debug
+
           const validStatuses = ['Active', 'Inscrit', 'Validée', 'Payée', 'En attente de paiement'];
-          const activeEleves = response.data.filter(e =>
-            (e.inscription_statut && e.inscription_statut === 'Active') ||
-            (e.statut_demande && validStatuses.includes(e.statut_demande))
-          );
-          console.log('Nombre d\'élèves déjà inscrits (pour réduction):', activeEleves.length);
+          const activeEleves = response.data.filter(e => {
+            const hasActiveInscription = e.inscription_statut && (e.inscription_statut === 'Active' || e.inscription_statut === 'active');
+            const hasValidDemand = e.statut_demande && validStatuses.includes(e.statut_demande);
+
+            console.log(`  - Élève ${e.prenom} ${e.nom}: Inscrip=${e.inscription_statut}, Demande=${e.statut_demande} => ${hasActiveInscription || hasValidDemand ? 'COMPTÉ' : 'IGNORÉ'}`);
+
+            return hasActiveInscription || hasValidDemand;
+          });
+
+          console.log('✅ Nombre d\'élèves déjà inscrits (pour réduction):', activeEleves.length);
           setExistingElevesCount(activeEleves.length);
         }
       } catch (err) {
@@ -1003,12 +1016,11 @@ export default function TuteurInscription() {
                             <span className="font-medium text-gray-800">{elevesList.length}</span>
                           </div>
 
-                          {existingElevesCount > 0 && (
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-gray-600">Élèves déjà inscrits:</span>
-                              <span className="font-medium text-blue-600">{existingElevesCount}</span>
-                            </div>
-                          )}
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-gray-600">Élèves déjà inscrits:</span>
+                            <span className="font-medium text-blue-600">{existingElevesCount}</span>
+                          </div>
+
 
                           {(elevesList.length > 1 || existingElevesCount > 0) && (
                             <div className="text-xs text-lime-700 italic mb-2 mt-2 p-2 bg-lime-100 rounded-lg">
