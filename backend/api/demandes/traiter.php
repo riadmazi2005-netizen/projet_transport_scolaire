@@ -92,7 +92,7 @@ try {
                            AND d.type_demande = "inscription" 
                            AND d.statut IN ("Payée", "Validée", "Inscrit", "En attente de paiement")
                         ),
-                        -- OU Date de la demande ACTUELLE (seulement pour l'élève concerné)
+                        -- OU Date de la demande ACTUELLE (seulement pour l\'élève concerné)
                         CASE 
                             WHEN e.id = (SELECT eleve_id FROM demandes WHERE id = ?) 
                             THEN (SELECT date_creation FROM demandes WHERE id = ?) 
