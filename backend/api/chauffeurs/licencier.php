@@ -50,25 +50,25 @@ try {
         $stmt->execute([$busId]);
     }
     
-    // Supprimer le chauffeur (cela supprimera aussi l'utilisateur grâce à ON DELETE CASCADE si configuré)
-    $stmt = $pdo->prepare('DELETE FROM chauffeurs WHERE id = ?');
+    // Mettre à jour le statut du chauffeur (au lieu de supprimer)
+    $stmt = $pdo->prepare('UPDATE chauffeurs SET statut = "Licencié" WHERE id = ?');
     $stmt->execute([$chauffeur_id]);
     
-    // Supprimer l'utilisateur associé
+    // Bloquer l'accès utilisateur (au lieu de supprimer)
     if ($chauffeurData['utilisateur_id']) {
-        $stmt = $pdo->prepare('DELETE FROM utilisateurs WHERE id = ?');
+        $stmt = $pdo->prepare('UPDATE utilisateurs SET statut = "Inactif" WHERE id = ?');
         $stmt->execute([$chauffeurData['utilisateur_id']]);
     }
     
     // Notifier le responsable si il y en a un
     if ($responsableId) {
-        // Trouver un nouveau chauffeur disponible pour le bus (optionnel)
+        // ... (Logique de recherche de remplaçant inchangée) ...
         $stmt = $pdo->prepare('
             SELECT c.id, u.nom, u.prenom
             FROM chauffeurs c
             INNER JOIN utilisateurs u ON c.utilisateur_id = u.id
             LEFT JOIN bus b ON c.id = b.chauffeur_id
-            WHERE b.chauffeur_id IS NULL
+            WHERE b.chauffeur_id IS NULL AND c.statut = "Actif"
             LIMIT 1
         ');
         $stmt->execute();
@@ -80,7 +80,7 @@ try {
         $responsableData = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($responsableData) {
-            $message = "Le chauffeur " . $chauffeurNom . " du bus " . $busNumero . " a été licencié suite à 3 accidents.\n\n";
+            $message = "Le chauffeur " . $chauffeurNom . " du bus " . $busNumero . " a été licencié par l'administration.\n\n";
             if ($nouveauChauffeur) {
                 $message .= "Un nouveau chauffeur vous sera assigné : " . $nouveauChauffeur['prenom'] . " " . $nouveauChauffeur['nom'] . ".\n";
                 $message .= "Vous serez informé dès que l'assignation sera effectuée.";

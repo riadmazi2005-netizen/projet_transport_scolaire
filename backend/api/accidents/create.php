@@ -169,6 +169,33 @@ try {
                                 'Suite à votre 3ème accident, vous avez été licencié conformément au règlement de l\'entreprise.',
                                 'alerte'
                             ]);
+
+                            // Notifier le responsable du bus si assigné
+                            // Récupérer le responsable du bus du chauffeur
+                            $stmt = $pdo->prepare('SELECT responsable_id FROM bus WHERE chauffeur_id = ?');
+                            $stmt->execute([$chauffeur_id]);
+                            $busInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                            if ($busInfo && $busInfo['responsable_id']) {
+                                // Récupérer l'utilisateur_id du responsable
+                                $stmt = $pdo->prepare('SELECT utilisateur_id FROM responsables_bus WHERE id = ?');
+                                $stmt->execute([$busInfo['responsable_id']]);
+                                $respUser = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                                if ($respUser) {
+                                    $stmt = $pdo->prepare('
+                                        INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
+                                        VALUES (?, ?, ?, ?, ?, FALSE)
+                                    ');
+                                    $stmt->execute([
+                                        $respUser['utilisateur_id'],
+                                        'responsable',
+                                        'Licenciement Chauffeur',
+                                        'Le chauffeur de votre bus a été licencié automatiquement suite à son 3ème accident. Veuillez contacter l\'administration.',
+                                        'alerte'
+                                    ]);
+                                }
+                            }
                         }
                     }
                 }
