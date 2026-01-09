@@ -284,8 +284,29 @@ export default function TuteurInscription() {
 
       // Créer tous les élèves et leurs demandes
       const results = [];
+      let totalElevesCount = existingElevesCount; // Pour le calcul de la réduction cumulative
+      const basePrice = calculerMontantFacture(formData.type_transport, formData.abonnement);
+
       for (const eleveData of elevesList) {
         console.log(`- Traitement élève: ${eleveData.prenom} ${eleveData.nom}`);
+
+        // Calcul de la réduction spécifique pour cet élève (rang actuel)
+        let reduction = 0;
+        let rangTexte = '';
+        if (totalElevesCount === 0) {
+          reduction = 0;
+          rangTexte = '1er enfant';
+        } else if (totalElevesCount === 1) {
+          reduction = 0.10; // 10%
+          rangTexte = '2ème enfant';
+        } else {
+          reduction = 0.20; // 20%
+          rangTexte = `${totalElevesCount + 1}ème enfant`;
+        }
+
+        const montantFacture = basePrice * (1 - reduction);
+        const montantReduction = basePrice * reduction;
+
         // Create eleve
         const eleveResponse = await elevesAPI.create({
           nom: eleveData.nom,
@@ -314,6 +335,7 @@ export default function TuteurInscription() {
           tuteur_id: tuteurId,
           type_demande: 'inscription',
           zone_geographique: eleveData.zone,
+          montant_facture: montantFacture, // Nouveau: On passe le montant calculé
           description: JSON.stringify({
             type_transport: formData.type_transport,
             abonnement: formData.abonnement,
@@ -321,10 +343,18 @@ export default function TuteurInscription() {
             zone: eleveData.zone,
             niveau: eleveData.niveau,
             lien_parente: lienParenteFinal,
-            sexe: eleveData.sexe
+            sexe: eleveData.sexe,
+            // Infos réduction pour l'admin
+            montant_avant_reduction: basePrice,
+            taux_reduction: reduction,
+            montant_reduction: montantReduction,
+            rang_eleve: totalElevesCount + 1,
+            rang_eleve_texte: rangTexte
           }),
           statut: 'En attente'
         });
+
+        totalElevesCount++; // Incrémenter pour le prochain élève
 
         if (!demandeResponse || !demandeResponse.success) {
           const errorMsg = demandeResponse?.message || 'Erreur lors de la création de la demande';

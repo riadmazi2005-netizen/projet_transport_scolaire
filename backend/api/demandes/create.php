@@ -53,8 +53,8 @@ try {
     $zoneGeographique = $data['zone_geographique'] ?? null;
     
     $stmt = $pdo->prepare('
-        INSERT INTO demandes (eleve_id, tuteur_id, type_demande, description, zone_geographique, statut)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO demandes (eleve_id, tuteur_id, type_demande, description, zone_geographique, statut, montant_facture)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ');
     
     $stmt->execute([
@@ -63,7 +63,8 @@ try {
         $data['type_demande'],
         $description,
         $zoneGeographique,
-        $data['statut'] ?? 'En attente'
+        $data['statut'] ?? 'En attente',
+        $data['montant_facture'] ?? null
     ]);
     
     $id = $pdo->lastInsertId();
