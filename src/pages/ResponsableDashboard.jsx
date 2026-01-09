@@ -822,12 +822,8 @@ export default function ResponsableDashboard() {
                           <span className="font-bold text-purple-700">{bus.numero.toString().replace(/^#\s*/, '')}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Marque:</span>
-                          <span className="font-semibold">{bus.marque}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Modèle:</span>
-                          <span className="font-semibold">{bus.modele}</span>
+                          <span className="text-gray-600">Capacité:</span>
+                          <span className="font-semibold">{bus.capacite} places</span>
                         </div>
                         {chauffeur && (
                           <div className="flex justify-between">
@@ -1149,13 +1145,10 @@ export default function ResponsableDashboard() {
                   <div className="space-y-4">
                     <div className="bg-purple-50 rounded-2xl p-6 text-center">
                       <p className="text-5xl font-bold text-purple-600">{bus.numero.toString().replace(/^#\s*/, '')}</p>
-                      <p className="text-gray-500 mt-2">{bus.marque} {bus.modele}</p>
+                      <p className="text-gray-500 mt-2">{bus.capacite} Places</p>
                     </div>
                     <div className="space-y-3">
-                      <div className="flex justify-between py-2 border-b">
-                        <span className="text-gray-500">Capacité</span>
-                        <span className="font-medium">{bus.capacite} places</span>
-                      </div>
+
                       <div className="flex justify-between py-2 border-b">
                         <span className="text-gray-500">Places occupées</span>
                         <span className="font-medium">{eleves.length}</span>

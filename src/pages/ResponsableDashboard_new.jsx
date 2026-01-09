@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
+import {
   UserCog, Bell, LogOut, Bus, Users, AlertCircle,
   DollarSign, User, Edit, CheckCircle, Plus, X, MessageSquare, Send, Navigation, MapPin, Image as ImageIcon, Trash2, Phone, Check, Calendar, Mail, Clock, Users as UsersIcon, AlertTriangle, FileText, ZoomIn, UserCircle, Save
 } from 'lucide-react';
@@ -33,18 +33,18 @@ export default function ResponsableDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(null); // null = dashboard avec stats seulement
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  
+
   // États pour les filtres de la liste des élèves
   const [elevesDateFilter, setElevesDateFilter] = useState('today');
   const [elevesCustomDate, setElevesCustomDate] = useState('');
   const [elevesGroupFilter, setElevesGroupFilter] = useState('all');
   const [elevesSearchTerm, setElevesSearchTerm] = useState('');
-  
+
   // États pour les filtres de présence
   const [presencePeriodFilter, setPresencePeriodFilter] = useState('auto'); // 'auto', 'matin', 'soir'
   const [processedStudents, setProcessedStudents] = useState(new Set()); // Élèves dont la présence a été enregistrée
   const [showNotificationButtons, setShowNotificationButtons] = useState(new Set()); // Élèves avec bouton notification visible
-  
+
   const [accidents, setAccidents] = useState([]);
   const [showAccidentForm, setShowAccidentForm] = useState(false);
   const [editingAccident, setEditingAccident] = useState(null);
@@ -62,7 +62,7 @@ export default function ResponsableDashboard() {
     nombre_blesses: '0'
   });
   const [accidentPhotos, setAccidentPhotos] = useState([]); // Array of File objects or base64 strings
-  
+
   // États pour Communication avec parents
   const [showCommunicationForm, setShowCommunicationForm] = useState(false);
   const [communicationForm, setCommunicationForm] = useState({
@@ -74,16 +74,16 @@ export default function ResponsableDashboard() {
     type: 'info' // info, alerte, urgence
   });
   const [tuteurs, setTuteurs] = useState([]);
-  
+
   // États pour trajets
   const [trajet, setTrajet] = useState(null);
-  
+
   // État pour les messages envoyés
   const [sentMessages, setSentMessages] = useState([]);
-  
+
   // État pour la confirmation de suppression
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, messageId: null });
-  
+
   // État pour le formulaire de profil
   const [profileForm, setProfileForm] = useState({
     nom: '',
@@ -91,11 +91,11 @@ export default function ResponsableDashboard() {
     email: '',
     telephone: ''
   });
-  
+
   // États pour les notifications toast
   const [toastMessage, setToastMessage] = useState(null);
   const [toastType, setToastType] = useState('success'); // 'success', 'error', 'info'
-  
+
   // Fonction pour afficher un toast
   const showToast = (message, type = 'success') => {
     setToastMessage(message);
@@ -108,23 +108,23 @@ export default function ResponsableDashboard() {
   // Fonctions pour gérer les présences avec effets visuels
   const handleMarkPresent = async (eleveId, periode) => {
     try {
-      const existingPresence = presences.find(p => 
+      const existingPresence = presences.find(p =>
         p.eleve_id === eleveId && p.date === selectedDate
       );
-      
+
       let presenceData;
-      
+
       if (existingPresence) {
         const updateData = {
           ...existingPresence,
           [periode === 'matin' ? 'present_matin' : 'present_soir']: true
         };
-        
+
         const response = await presencesAPI.marquer(updateData);
         presenceData = response?.data || response;
-        
-        setPresences(prev => prev.map(p => 
-          p.id === existingPresence.id 
+
+        setPresences(prev => prev.map(p =>
+          p.id === existingPresence.id
             ? { ...p, ...presenceData }
             : p
         ));
@@ -137,13 +137,13 @@ export default function ResponsableDashboard() {
           bus_id: bus?.id,
           responsable_id: responsable?.type_id || responsable?.id
         };
-        
+
         const response = await presencesAPI.marquer(newPresenceData);
         presenceData = response?.data || response;
-        
+
         setPresences(prev => [...prev, presenceData]);
       }
-      
+
       // Ajouter l'élève à la liste des traités et masquer notification
       setProcessedStudents(prev => new Set([...prev, `${eleveId}_${periode}`]));
       setShowNotificationButtons(prev => {
@@ -151,7 +151,7 @@ export default function ResponsableDashboard() {
         newSet.delete(`${eleveId}_${periode}`);
         return newSet;
       });
-      
+
       showToast('Présence enregistrée avec succès', 'success');
     } catch (err) {
       console.error('Erreur lors de l\'enregistrement de la présence:', err);
@@ -161,23 +161,23 @@ export default function ResponsableDashboard() {
 
   const handleMarkAbsent = async (eleveId, periode) => {
     try {
-      const existingPresence = presences.find(p => 
+      const existingPresence = presences.find(p =>
         p.eleve_id === eleveId && p.date === selectedDate
       );
-      
+
       let presenceData;
-      
+
       if (existingPresence) {
         const updateData = {
           ...existingPresence,
           [periode === 'matin' ? 'present_matin' : 'present_soir']: false
         };
-        
+
         const response = await presencesAPI.marquer(updateData);
         presenceData = response?.data || response;
-        
-        setPresences(prev => prev.map(p => 
-          p.id === existingPresence.id 
+
+        setPresences(prev => prev.map(p =>
+          p.id === existingPresence.id
             ? { ...p, ...presenceData }
             : p
         ));
@@ -190,17 +190,17 @@ export default function ResponsableDashboard() {
           bus_id: bus?.id,
           responsable_id: responsable?.type_id || responsable?.id
         };
-        
+
         const response = await presencesAPI.marquer(newPresenceData);
         presenceData = response?.data || response;
-        
+
         setPresences(prev => [...prev, presenceData]);
       }
-      
+
       // Ajouter l'élève à la liste des traités et afficher notification
       setProcessedStudents(prev => new Set([...prev, `${eleveId}_${periode}`]));
       setShowNotificationButtons(prev => new Set([...prev, `${eleveId}_${periode}`]));
-      
+
       // Envoyer notification automatique au tuteur
       const eleve = eleves.find(e => e.id === eleveId);
       if (eleve && eleve.tuteur_id) {
@@ -217,7 +217,7 @@ export default function ResponsableDashboard() {
           console.warn('Erreur envoi notification:', notifErr);
         }
       }
-      
+
       showToast('Absence enregistrée avec succès', 'success');
     } catch (err) {
       console.error('Erreur lors de l\'enregistrement de l\'absence:', err);
@@ -234,7 +234,7 @@ export default function ResponsableDashboard() {
 
       setActiveTab('communication');
       setShowCommunicationForm(true);
-      
+
       setCommunicationForm({
         destinataire: 'eleve',
         bus_id: bus?.id || null,
@@ -271,7 +271,7 @@ export default function ResponsableDashboard() {
       const responsableId = responsableData.type_id || responsableData.id;
       const myBus = allBuses.find(b => b.responsable_id === responsableId);
       setBus(myBus || null);
-      
+
       // Si le responsable a un bus
       if (myBus) {
         // Charger le chauffeur du bus
@@ -284,7 +284,7 @@ export default function ResponsableDashboard() {
             console.warn('Chauffeur non trouvé:', err);
           }
         }
-        
+
         // Charger tous les élèves assignés au bus du responsable
         try {
           const elevesResponse = await elevesAPI.getByBus(myBus.id);
@@ -295,7 +295,7 @@ export default function ResponsableDashboard() {
           setEleves([]);
         }
       }
-      
+
       // Charger les présences pour le bus du responsable
       try {
         const presencesResponse = await presencesAPI.getByDate(selectedDate, myBus?.id);
@@ -305,12 +305,12 @@ export default function ResponsableDashboard() {
         console.warn('Présences non disponibles:', err);
         setPresences([]);
       }
-      
+
       // Charger les notifications reçues
       const notificationsResponse = await notificationsAPI.getByUser(responsableId, 'responsable');
       const notificationsData = notificationsResponse?.data || notificationsResponse || [];
       setNotifications(notificationsData.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)));
-      
+
       // Charger les tuteurs pour la communication
       try {
         const tuteursResponse = await tuteursAPI.getAll();
@@ -331,7 +331,7 @@ export default function ResponsableDashboard() {
       navigate(createPageUrl('ResponsableLogin'));
       return;
     }
-    
+
     const responsableData = JSON.parse(session);
     setResponsable(responsableData);
     loadData(responsableData);
@@ -358,13 +358,12 @@ export default function ResponsableDashboard() {
         setActiveTab={setActiveTab}
         onCollapseChange={setSidebarCollapsed}
       />
-      
-      <main className={`min-h-screen p-4 md:p-8 pt-20 lg:pt-8 transition-all duration-300 ${
-        sidebarCollapsed ? 'lg:ml-[80px]' : 'lg:ml-[280px]'
-      }`}>
+
+      <main className={`min-h-screen p-4 md:p-8 pt-20 lg:pt-8 transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-[80px]' : 'lg:ml-[280px]'
+        }`}>
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-3xl shadow-xl p-6 mb-8"
@@ -387,28 +386,28 @@ export default function ResponsableDashboard() {
             <>
               {/* Stats */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <StatCard 
-                  title="Mon Bus" 
-                  value={bus?.numero ? bus.numero.toString().replace(/^#\s*/, '') : '-'} 
-                  icon={Bus} 
+                <StatCard
+                  title="Mon Bus"
+                  value={bus?.numero ? bus.numero.toString().replace(/^#\s*/, '') : '-'}
+                  icon={Bus}
                   color="purple"
                 />
-                <StatCard 
-                  title="Élèves" 
-                  value={eleves.length} 
-                  icon={Users} 
+                <StatCard
+                  title="Élèves"
+                  value={eleves.length}
+                  icon={Users}
                   color="purple"
                 />
-                <StatCard 
-                  title="Accidents chauffeur" 
-                  value={totalAccidents} 
-                  icon={AlertCircle} 
+                <StatCard
+                  title="Accidents chauffeur"
+                  value={totalAccidents}
+                  icon={AlertCircle}
                   color={totalAccidents >= 3 ? 'red' : 'purple'}
                 />
-                <StatCard 
-                  title="Mon Salaire" 
-                  value={`${responsable?.salaire || 0} DH`} 
-                  icon={DollarSign} 
+                <StatCard
+                  title="Mon Salaire"
+                  value={`${responsable?.salaire || 0} DH`}
+                  icon={DollarSign}
                   color="purple"
                 />
               </div>
@@ -432,12 +431,8 @@ export default function ResponsableDashboard() {
                           <span className="font-bold text-purple-700">{bus.numero.toString().replace(/^#\s*/, '')}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Marque:</span>
-                          <span className="font-semibold">{bus.marque}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Modèle:</span>
-                          <span className="font-semibold">{bus.modele}</span>
+                          <span className="text-gray-600">Capacité:</span>
+                          <span className="font-semibold">{bus.capacite} places</span>
                         </div>
                         {chauffeur && (
                           <div className="flex justify-between">
@@ -485,7 +480,7 @@ export default function ResponsableDashboard() {
                   <Users className="w-6 h-6" />
                   Gestion des Présences
                 </h2>
-                
+
                 {/* Filtres */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -499,8 +494,8 @@ export default function ResponsableDashboard() {
                   </div>
                   <div>
                     <Label className="text-white text-sm mb-2 block">Période</Label>
-                    <Select 
-                      value={presencePeriodFilter} 
+                    <Select
+                      value={presencePeriodFilter}
                       onValueChange={setPresencePeriodFilter}
                     >
                       <SelectTrigger className="bg-white/90 border-0 rounded-xl focus:ring-purple-500 focus:border-purple-500">
@@ -516,7 +511,7 @@ export default function ResponsableDashboard() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Liste des élèves avec présence */}
               <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
                 {eleves
@@ -526,11 +521,11 @@ export default function ResponsableDashboard() {
                     const presentMatin = presence?.present_matin === true || presence?.present_matin === 1 || presence?.present_matin === '1';
                     const presentSoir = presence?.present_soir === true || presence?.present_soir === 1 || presence?.present_soir === '1';
                     const hasRecord = !!presence;
-                    
-                    const currentPeriod = presencePeriodFilter === 'auto' 
+
+                    const currentPeriod = presencePeriodFilter === 'auto'
                       ? (new Date().getHours() < 13 ? 'matin' : 'soir')
                       : presencePeriodFilter;
-                    
+
                     return (
                       <motion.div
                         key={eleve.id}
@@ -548,7 +543,7 @@ export default function ResponsableDashboard() {
                               <p className="text-sm text-gray-600">{eleve.classe || 'N/A'} • Groupe {eleve.groupe || 'N/A'}</p>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-3">
                             {/* Boutons pour Matin */}
                             {(currentPeriod === 'matin' || currentPeriod === 'tous') && (
@@ -559,31 +554,29 @@ export default function ResponsableDashboard() {
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => handleMarkPresent(eleve.id, 'matin')}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${
-                                      hasRecord && presentMatin 
-                                        ? 'bg-green-500' 
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${hasRecord && presentMatin
+                                        ? 'bg-green-500'
                                         : 'bg-gray-200 hover:bg-green-500 hover:text-white'
-                                    }`}
+                                      }`}
                                     title="Marquer présent"
                                   >
                                     <Check className="w-5 h-5" strokeWidth={3} />
                                   </motion.button>
-                                  
+
                                   <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => handleMarkAbsent(eleve.id, 'matin')}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${
-                                      hasRecord && !presentMatin 
-                                        ? 'bg-red-500 text-white' 
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${hasRecord && !presentMatin
+                                        ? 'bg-red-500 text-white'
                                         : 'bg-gray-200 hover:bg-red-500 hover:text-white'
-                                    }`}
+                                      }`}
                                     title="Marquer absent"
                                   >
                                     <X className="w-5 h-5" strokeWidth={3} />
                                   </motion.button>
                                 </div>
-                                
+
                                 {/* Bouton notification qui apparaît après avoir cliqué sur X */}
                                 <AnimatePresence>
                                   {showNotificationButtons.has(`${eleve.id}_matin`) && (
@@ -601,7 +594,7 @@ export default function ResponsableDashboard() {
                                 </AnimatePresence>
                               </div>
                             )}
-                            
+
                             {/* Boutons pour Soir */}
                             {(currentPeriod === 'soir' || currentPeriod === 'tous') && (
                               <div className="flex flex-col items-center gap-2">
@@ -611,31 +604,29 @@ export default function ResponsableDashboard() {
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => handleMarkPresent(eleve.id, 'soir')}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${
-                                      hasRecord && presentSoir 
-                                        ? 'bg-green-500 text-white' 
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${hasRecord && presentSoir
+                                        ? 'bg-green-500 text-white'
                                         : 'bg-gray-200 hover:bg-green-500 hover:text-white'
-                                    }`}
+                                      }`}
                                     title="Marquer présent"
                                   >
                                     <Check className="w-5 h-5" strokeWidth={3} />
                                   </motion.button>
-                                  
+
                                   <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => handleMarkAbsent(eleve.id, 'soir')}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${
-                                      hasRecord && !presentSoir 
-                                        ? 'bg-red-500 text-white' 
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center shadow-md transition-all ${hasRecord && !presentSoir
+                                        ? 'bg-red-500 text-white'
                                         : 'bg-gray-200 hover:bg-red-500 hover:text-white'
-                                    }`}
+                                      }`}
                                     title="Marquer absent"
                                   >
                                     <X className="w-5 h-5" strokeWidth={3} />
                                   </motion.button>
                                 </div>
-                                
+
                                 {/* Bouton notification qui apparaît après avoir cliqué sur X */}
                                 <AnimatePresence>
                                   {showNotificationButtons.has(`${eleve.id}_soir`) && (
@@ -670,7 +661,7 @@ export default function ResponsableDashboard() {
           )}
         </div>
       </main>
-      
+
       {/* Toast notifications */}
       <AnimatePresence>
         {toastMessage && (
@@ -678,10 +669,9 @@ export default function ResponsableDashboard() {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white z-50 ${
-              toastType === 'success' ? 'bg-green-500' : 
-              toastType === 'error' ? 'bg-red-500' : 'bg-blue-500'
-            }`}
+            className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white z-50 ${toastType === 'success' ? 'bg-green-500' :
+                toastType === 'error' ? 'bg-red-500' : 'bg-blue-500'
+              }`}
           >
             {toastMessage}
           </motion.div>
