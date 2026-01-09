@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from '../components/AdminLayout';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import {
-  Fuel, Calendar, Bus, User, ArrowLeft, TrendingUp, TrendingDown, Filter, Image as ImageIcon, ZoomIn, X, Trash2
+  Fuel, Calendar, Bus, User, ArrowLeft, TrendingUp, TrendingDown, Filter, Image as ImageIcon, ZoomIn, X, Trash2, Plus, Upload, Save
 } from 'lucide-react';
+
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -26,6 +27,21 @@ export default function AdminEssence() {
   const [filterPeriode, setFilterPeriode] = useState('mois'); // mois, semaine, jour, tous
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, id: null });
+
+  // État pour la création
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    chauffeur_id: '',
+    bus_id: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    heure: format(new Date(), 'HH:mm'),
+    quantite_litres: '',
+    prix_total: '',
+    station_service: '',
+    photo_ticket: null
+  });
+  const [ticketPhotoPreview, setTicketPhotoPreview] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -151,6 +167,66 @@ export default function AdminEssence() {
     };
   }, [filteredPrises]);
 
+  // Gestion de l'image
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("L'image est trop volumineuse (max 5Mo)");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTicketPhotoPreview(reader.result);
+        setCreateForm(prev => ({ ...prev, photo_ticket: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!createForm.bus_id || !createForm.chauffeur_id || !createForm.quantite_litres || !createForm.prix_total) {
+      alert("Veuillez remplir tous les champs obligatoires");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        ...createForm,
+        quantite_litres: parseFloat(createForm.quantite_litres),
+        prix_total: parseFloat(createForm.prix_total)
+      };
+
+      const response = await essenceAPI.create(payload);
+      if (response && (response.success || response.data)) {
+        // Recharger les données
+        loadData();
+        setShowCreateModal(false);
+        // Reset form
+        setCreateForm({
+          chauffeur_id: '',
+          bus_id: '',
+          date: format(new Date(), 'yyyy-MM-dd'),
+          heure: format(new Date(), 'HH:mm'),
+          quantite_litres: '',
+          prix_total: '',
+          station_service: '',
+          photo_ticket: null
+        });
+        setTicketPhotoPreview(null);
+        alert('Prise d\'essence enregistrée avec succès');
+      }
+    } catch (err) {
+      console.error('Erreur création:', err);
+      alert('Erreur lors de l\'enregistrement: ' + (err.message || 'Erreur inconnue'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -171,6 +247,20 @@ export default function AdminEssence() {
           <ArrowLeft className="w-4 h-4" />
           Retour au tableau de bord
         </button>
+      </div>
+
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <Fuel className="w-8 h-8 text-amber-600" />
+          Gestion Essence
+        </h1>
+        <Button
+          onClick={() => setShowCreateModal(true)}
+          className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          Nouvelle prise d'essence
+        </Button>
       </div>
 
       {/* Filtres */}
@@ -600,6 +690,154 @@ export default function AdminEssence() {
         cancelText="Annuler"
         variant="destructive"
       />
+
+      {/* Modal Création */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-amber-500 to-orange-500 text-white flex justify-between items-center">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Fuel className="w-6 h-6" />
+                Nouvelle prise d'essence
+              </h2>
+              <button onClick={() => setShowCreateModal(false)} className="hover:bg-white/20 rounded-full p-1 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreate} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <Input
+                    type="date"
+                    value={createForm.date}
+                    onChange={e => setCreateForm({ ...createForm, date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Heure</label>
+                  <Input
+                    type="time"
+                    value={createForm.heure}
+                    onChange={e => setCreateForm({ ...createForm, heure: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bus</label>
+                  <Select
+                    value={createForm.bus_id.toString()}
+                    onValueChange={val => setCreateForm({ ...createForm, bus_id: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir un bus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {buses.map(b => (
+                        <SelectItem key={b.id} value={b.id.toString()}>{b.numero}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Chauffeur</label>
+                  <Select
+                    value={createForm.chauffeur_id.toString()}
+                    onValueChange={val => setCreateForm({ ...createForm, chauffeur_id: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir un chauffeur" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {chauffeurs.map(c => (
+                        <SelectItem key={c.id} value={c.id.toString()}>{c.prenom} {c.nom}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantité (L)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={createForm.quantite_litres}
+                    onChange={e => setCreateForm({ ...createForm, quantite_litres: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prix Total (DH)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={createForm.prix_total}
+                    onChange={e => setCreateForm({ ...createForm, prix_total: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Station Service</label>
+                <Input
+                  type="text"
+                  placeholder="Nom de la station"
+                  value={createForm.station_service}
+                  onChange={e => setCreateForm({ ...createForm, station_service: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Photo du ticket</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => document.getElementById('ticket-upload').click()}>
+                  <input
+                    id="ticket-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                  />
+                  {ticketPhotoPreview ? (
+                    <div className="relative">
+                      <img src={ticketPhotoPreview} alt="Aperçu" className="max-h-40 mx-auto rounded-lg" />
+                      <p className="text-xs text-green-600 mt-2">Image chargée</p>
+                    </div>
+                  ) : (
+                    <div className="py-4">
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">Cliquez pour ajouter une photo</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={submitting} className="bg-amber-600 hover:bg-amber-700 text-white">
+                  {submitting ? 'Enregistrement...' : 'Enregistrer'}
+                </Button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

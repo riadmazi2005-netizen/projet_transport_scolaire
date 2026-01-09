@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
-import { 
+import {
   Users, UserCog, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle, ArrowLeft, Bus
 } from 'lucide-react';
 
@@ -27,6 +27,7 @@ export default function AdminChauffeur() {
   const [error, setError] = useState(null);
   const [deleteChauffeurConfirm, setDeleteChauffeurConfirm] = useState({ show: false, id: null });
   const [deleteResponsableConfirm, setDeleteResponsableConfirm] = useState({ show: false, id: null });
+  const [licencierConfirm, setLicencierConfirm] = useState({ show: false, id: null, nom: '' });
 
   const [chauffeurForm, setChauffeurForm] = useState({
     nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: ''
@@ -49,23 +50,23 @@ export default function AdminChauffeur() {
         responsablesAPI.getAll(),
         busAPI.getAll()
       ]);
-      
+
       const chauffeursData = chauffeursRes?.data || chauffeursRes || [];
       const responsablesData = responsablesRes?.data || responsablesRes || [];
       const busesData = busesRes?.data || busesRes || [];
-      
+
       // Enrichir les chauffeurs avec l'info du bus assigné
       const chauffeursEnrichis = Array.isArray(chauffeursData) ? chauffeursData.map(c => {
         const busAssigne = Array.isArray(busesData) ? busesData.find(b => b.chauffeur_id === c.id) : null;
         return { ...c, bus: busAssigne };
       }) : [];
-      
+
       // Enrichir les responsables avec l'info du bus assigné
       const responsablesEnrichis = Array.isArray(responsablesData) ? responsablesData.map(r => {
         const busAssigne = Array.isArray(busesData) ? busesData.find(b => b.responsable_id === r.id) : null;
         return { ...r, bus: busAssigne };
       }) : [];
-      
+
       setChauffeurs(chauffeursEnrichis);
       setResponsables(responsablesEnrichis);
       setBuses(Array.isArray(busesData) ? busesData : []);
@@ -80,25 +81,25 @@ export default function AdminChauffeur() {
   const handleSaveChauffeur = async (e) => {
     e.preventDefault();
     setError(null);
-    
+
     try {
       let data;
-      
+
       if (editingChauffeur) {
         data = {
           email: chauffeurForm.email,
           telephone: chauffeurForm.telephone
         };
-        
+
         if (chauffeurForm.mot_de_passe) {
           data.mot_de_passe = chauffeurForm.mot_de_passe;
         }
-        
+
         if (chauffeurForm.salaire !== '' && chauffeurForm.salaire !== null && chauffeurForm.salaire !== undefined) {
           data.salaire = parseFloat(chauffeurForm.salaire) || 0;
         }
       } else {
-        data = { 
+        data = {
           nom: chauffeurForm.nom,
           prenom: chauffeurForm.prenom,
           email: chauffeurForm.email,
@@ -110,13 +111,13 @@ export default function AdminChauffeur() {
           statut: 'Actif'
         };
       }
-      
+
       if (editingChauffeur) {
         await chauffeursAPI.update(editingChauffeur.id, data);
       } else {
         await chauffeursAPI.create(data);
       }
-      
+
       resetChauffeurForm();
       await loadData();
     } catch (err) {
@@ -128,25 +129,25 @@ export default function AdminChauffeur() {
   const handleSaveResponsable = async (e) => {
     e.preventDefault();
     setError(null);
-    
+
     try {
       let data;
-      
+
       if (editingResponsable) {
         data = {
           email: responsableForm.email,
           telephone: responsableForm.telephone
         };
-        
+
         if (responsableForm.mot_de_passe) {
           data.mot_de_passe = responsableForm.mot_de_passe;
         }
-        
+
         if (responsableForm.salaire !== '' && responsableForm.salaire !== null && responsableForm.salaire !== undefined) {
           data.salaire = parseFloat(responsableForm.salaire) || 0;
         }
       } else {
-        data = { 
+        data = {
           nom: responsableForm.nom,
           prenom: responsableForm.prenom,
           email: responsableForm.email,
@@ -157,13 +158,13 @@ export default function AdminChauffeur() {
           statut: 'Actif'
         };
       }
-      
+
       if (editingResponsable) {
         await responsablesAPI.update(editingResponsable.id, data);
       } else {
         await responsablesAPI.create(data);
       }
-      
+
       resetResponsableForm();
       await loadData();
     } catch (err) {
@@ -178,7 +179,7 @@ export default function AdminChauffeur() {
 
   const handleDeleteChauffeur = async () => {
     if (!deleteChauffeurConfirm.id) return;
-    
+
     try {
       await chauffeursAPI.delete(deleteChauffeurConfirm.id);
       await loadData();
@@ -196,15 +197,31 @@ export default function AdminChauffeur() {
 
   const handleDeleteResponsable = async () => {
     if (!deleteResponsableConfirm.id) return;
-    
+
     try {
       await responsablesAPI.delete(deleteResponsableConfirm.id);
       await loadData();
       setDeleteResponsableConfirm({ show: false, id: null });
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
-      setError('Erreur lors de la suppression du responsable');
       setDeleteResponsableConfirm({ show: false, id: null });
+    }
+  };
+
+  const handleLicencierClick = (item) => {
+    setLicencierConfirm({ show: true, id: item.id, nom: `${item.prenom} ${item.nom}` });
+  };
+
+  const handleLicencier = async () => {
+    if (!licencierConfirm.id) return;
+    try {
+      await chauffeursAPI.licencier(licencierConfirm.id);
+      await loadData();
+      setLicencierConfirm({ show: false, id: null, nom: '' });
+    } catch (err) {
+      console.error('Erreur licenciement:', err);
+      setError('Erreur lors du licenciement du chauffeur');
+      setLicencierConfirm({ show: false, id: null, nom: '' });
     }
   };
 
@@ -271,7 +288,7 @@ export default function AdminChauffeur() {
           Retour au tableau de bord
         </button>
       </div>
-      
+
       {error && (
         <div className="bg-red-50 border-l-4 border-red-400 text-red-700 px-6 py-4 rounded-lg mb-6 shadow-sm">
           <p className="font-medium">{error}</p>
@@ -283,11 +300,10 @@ export default function AdminChauffeur() {
         <Button
           variant={activeTab === 'chauffeurs' ? 'default' : 'outline'}
           onClick={() => setActiveTab('chauffeurs')}
-          className={`rounded-xl font-semibold transition-all duration-300 ${
-            activeTab === 'chauffeurs' 
-              ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg shadow-emerald-200' 
-              : 'border-2 border-emerald-200 hover:border-emerald-300 text-emerald-700 hover:bg-emerald-50'
-          }`}
+          className={`rounded-xl font-semibold transition-all duration-300 ${activeTab === 'chauffeurs'
+            ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg shadow-emerald-200'
+            : 'border-2 border-emerald-200 hover:border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+            }`}
         >
           <Users className="w-5 h-5 mr-2" />
           Chauffeurs ({chauffeurs.length})
@@ -295,11 +311,10 @@ export default function AdminChauffeur() {
         <Button
           variant={activeTab === 'responsables' ? 'default' : 'outline'}
           onClick={() => setActiveTab('responsables')}
-          className={`rounded-xl font-semibold transition-all duration-300 ${
-            activeTab === 'responsables' 
-              ? 'bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white shadow-lg shadow-violet-200' 
-              : 'border-2 border-violet-200 hover:border-violet-300 text-violet-700 hover:bg-violet-50'
-          }`}
+          className={`rounded-xl font-semibold transition-all duration-300 ${activeTab === 'responsables'
+            ? 'bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 text-white shadow-lg shadow-violet-200'
+            : 'border-2 border-violet-200 hover:border-violet-300 text-violet-700 hover:bg-violet-50'
+            }`}
         >
           <UserCog className="w-5 h-5 mr-2" />
           Responsables Bus ({responsables.length})
@@ -460,8 +475,8 @@ export default function AdminChauffeur() {
 
           <div className="divide-y divide-emerald-100">
             {chauffeurs.map((item) => (
-              <motion.div 
-                key={item.id} 
+              <motion.div
+                key={item.id}
                 className="p-8 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-white transition-all duration-300"
                 whileHover={{ x: 4 }}
               >
@@ -483,11 +498,10 @@ export default function AdminChauffeur() {
                             {item.bus.numero}
                           </span>
                         )}
-                        <span className={`px-4 py-2 rounded-xl font-semibold shadow-md ${
-                          item.nombre_accidents >= 3 
-                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
-                            : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
-                        }`}>
+                        <span className={`px-4 py-2 rounded-xl font-semibold shadow-md ${item.nombre_accidents >= 3
+                          ? 'bg-gradient-to-r from-red-500 to-red-600 text-white'
+                          : 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
+                          }`}>
                           {item.nombre_accidents || 0} accident(s)
                         </span>
                         {item.nombre_accidents >= 3 && (
@@ -520,9 +534,23 @@ export default function AdminChauffeur() {
                     <Button variant="outline" size="icon" onClick={() => editChauffeur(item)} className="rounded-xl border-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 w-11 h-11 shadow-md">
                       <Edit className="w-5 h-5" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeurClick(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
-                      <Trash2 className="w-5 h-5" />
-                    </Button>
+
+                    {/* Bouton Licencier si >= 3 accidents */}
+                    {item.nombre_accidents >= 3 ? (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleLicencierClick(item)}
+                        className="rounded-xl border-2 border-red-500 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-600 w-11 h-11 shadow-md"
+                        title="Licencier ce chauffeur"
+                      >
+                        <AlertCircle className="w-5 h-5" />
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeurClick(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                        <Trash2 className="w-5 h-5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -688,10 +716,10 @@ export default function AdminChauffeur() {
               const isPasswordVisible = showPassword[item.id] || false;
               const passwordValue = item.mot_de_passe_plain || item.user_password || item.mot_de_passe || 'N/A';
               const passwordDisplay = isPasswordVisible ? passwordValue : '••••••••';
-              
+
               return (
-                <motion.div 
-                  key={item.id} 
+                <motion.div
+                  key={item.id}
                   className="p-8 hover:bg-gradient-to-r hover:from-violet-50 hover:to-white transition-all duration-300"
                   whileHover={{ x: 4 }}
                 >
@@ -771,6 +799,18 @@ export default function AdminChauffeur() {
         onConfirm={handleDeleteChauffeur}
         onCancel={() => setDeleteChauffeurConfirm({ show: false, id: null })}
         confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
+
+      {/* Dialog de confirmation de licenciement */}
+      <ConfirmDialog
+        isOpen={licencierConfirm.show}
+        title="Licencier le chauffeur"
+        message={`Êtes-vous sûr de vouloir licencier ${licencierConfirm.nom || 'ce chauffeur'} ? Cette action est irréversible : le chauffeur sera supprimé, ses données nettoyées et le responsable sera notifié.`}
+        onConfirm={handleLicencier}
+        onCancel={() => setLicencierConfirm({ show: false, id: null, nom: '' })}
+        confirmText="LICENCIER DÉFINITIVEMENT"
         cancelText="Annuler"
         variant="destructive"
       />

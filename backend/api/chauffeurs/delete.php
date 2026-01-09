@@ -30,8 +30,37 @@ try {
         exit;
     }
     
-    // Supprimer le chauffeur (cela supprimera aussi l'utilisateur grâce à ON DELETE CASCADE si configuré dans l'autre sens)
-    // Mais pour être sûr, on supprime d'abord le chauffeur, puis l'utilisateur
+    // Nettoyer les données liées avant suppression pour éviter les erreurs FK
+    
+    // 1. Désaffecter le bus
+    $stmt = $pdo->prepare('UPDATE bus SET chauffeur_id = NULL WHERE chauffeur_id = ?');
+    $stmt->execute([$data['id']]);
+
+    // 2. Supprimer les accidents
+    $stmt = $pdo->prepare('DELETE FROM accidents WHERE chauffeur_id = ?');
+    $stmt->execute([$data['id']]);
+
+    // 3. Supprimer les prises d'essence
+    $stmt = $pdo->prepare('DELETE FROM prise_essence WHERE chauffeur_id = ?');
+    $stmt->execute([$data['id']]);
+
+    // 4. Supprimer les signalements
+    $stmt = $pdo->prepare('DELETE FROM signalements WHERE chauffeur_id = ?');
+    $stmt->execute([$data['id']]);
+
+    // 5. Supprimer les rapports
+    $stmt = $pdo->prepare('DELETE FROM rapports_trajets WHERE chauffeur_id = ?');
+    $stmt->execute([$data['id']]);
+
+    // 6. Supprimer les checklists
+    $stmt = $pdo->prepare('DELETE FROM checklist_depart WHERE chauffeur_id = ?');
+    $stmt->execute([$data['id']]);
+
+    // 7. Mettre à jour les présences (nullifier chauffeur_id)
+    $stmt = $pdo->prepare('UPDATE presences SET chauffeur_id = NULL WHERE chauffeur_id = ?');
+    $stmt->execute([$data['id']]);
+
+    // Supprimer le chauffeur
     $stmt = $pdo->prepare('DELETE FROM chauffeurs WHERE id = ?');
     $stmt->execute([$data['id']]);
     

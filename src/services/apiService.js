@@ -484,6 +484,10 @@ export const essenceAPI = {
     body: JSON.stringify(data),
   }),
   getByChauffeur: (chauffeurId) => fetchAPI(`/essence/getByChauffeur.php?chauffeur_id=${chauffeurId}`),
+  update: (id, data) => fetchAPI('/essence/update.php', {
+    method: 'PUT',
+    body: JSON.stringify({ id, ...data }),
+  }),
   delete: (id) => fetchAPI('/essence/delete.php', {
     method: 'DELETE',
     body: JSON.stringify({ id }),

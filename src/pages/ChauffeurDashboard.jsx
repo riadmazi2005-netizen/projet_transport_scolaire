@@ -80,6 +80,8 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
   const [essenceTicketPhoto, setEssenceTicketPhoto] = useState(null);
   const [selectedEssenceTicketPhoto, setSelectedEssenceTicketPhoto] = useState(null);
   const [signalementToDelete, setSignalementToDelete] = useState(null);
+  const [editingEssence, setEditingEssence] = useState(null);
+  const [deleteEssenceConfirm, setDeleteEssenceConfirm] = useState({ show: false, id: null });
 
   // État pour le formulaire de profil
   const [profileForm, setProfileForm] = useState({
@@ -232,7 +234,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
       const allBusesResponse = await busAPI.getAll();
       const allBuses = allBusesResponse?.data || allBusesResponse || [];
       const chauffeurId = chauffeurData.type_id || chauffeurData.id;
-      const chauffeurBus = allBuses.find(b => b.chauffeur_id === chauffeurId);
+      const chauffeurBus = allBuses.find(b => b.chauffeur_id == chauffeurId);
 
       if (chauffeurBus) {
         setBus(chauffeurBus);
@@ -1060,7 +1062,18 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                     <span className="ml-3 text-sm font-normal text-gray-500">({priseEssence.length} prises)</span>
                   </h2>
                   <Button
-                    onClick={() => setShowEssenceForm(true)}
+                    onClick={() => {
+                      setEditingEssence(null);
+                      setEssenceForm({
+                        date: format(new Date(), 'yyyy-MM-dd'),
+                        heure: format(new Date(), 'HH:mm'),
+                        quantite_litres: '',
+                        prix_total: '',
+                        station_service: ''
+                      });
+                      setEssenceTicketPhoto(null);
+                      setShowEssenceForm(true);
+                    }}
                     className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -1478,6 +1491,55 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                                     </div>
                                   );
                                 })()}
+                              </div>
+
+                              {/* Boutons Modifier et Supprimer */}
+                              <div className="mt-4 flex gap-2 justify-end pt-4 border-t border-green-100">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingEssence(essence);
+                                    let formattedDate = '';
+                                    try {
+                                      formattedDate = essence.date ? format(new Date(essence.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+                                    } catch (e) {
+                                      formattedDate = format(new Date(), 'yyyy-MM-dd');
+                                    }
+
+                                    setEssenceForm({
+                                      date: formattedDate,
+                                      heure: essence.heure || format(new Date(), 'HH:mm'),
+                                      quantite_litres: essence.quantite_litres !== null && essence.quantite_litres !== undefined ? String(essence.quantite_litres) : '',
+                                      prix_total: essence.prix_total !== null && essence.prix_total !== undefined ? String(essence.prix_total) : '',
+                                      station_service: essence.station_service || ''
+                                    });
+                                    // Gérer la photo ticket existante
+                                    if (essence.photo_ticket) {
+                                      // Traiter la photo pour l'affichage (similaire à la logique d'affichage dans la liste)
+                                      let photoSrc = essence.photo_ticket;
+                                      // ... logique de nettoyage si nécessaire ...
+                                      // Pour faire simple ici, on passe la valeur brute, le composant d'affichage gérera
+                                      setEssenceTicketPhoto({ preview: photoSrc, file: null });
+                                    } else {
+                                      setEssenceTicketPhoto(null);
+                                    }
+                                    setShowEssenceForm(true);
+                                  }}
+                                  className="rounded-xl text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+                                >
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Modifier
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setDeleteEssenceConfirm({ show: true, id: essence.id })}
+                                  className="rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Supprimer
+                                </Button>
                               </div>
                             </motion.div>
                           );
@@ -2207,7 +2269,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <Fuel className="w-6 h-6" />
-                  Prise d'Essence
+                  {editingEssence ? 'Modifier Prise d\'Essence' : 'Prise d\'Essence'}
                 </h2>
                 <button onClick={() => setShowEssenceForm(false)} className="text-white hover:text-green-100">
                   <X className="w-6 h-6" />
@@ -2217,9 +2279,9 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
             <form onSubmit={async (e) => {
               e.preventDefault();
               try {
-                // Compresser la photo si elle existe
+                // Compresser la photo si elle existe ET si c'est une nouvelle photo (avec fichier)
                 let photoTicketBase64 = null;
-                if (essenceTicketPhoto) {
+                if (essenceTicketPhoto && essenceTicketPhoto.file) {
                   try {
                     const compressed = await compressImage(essenceTicketPhoto.file);
                     photoTicketBase64 = compressed.data;
@@ -2236,33 +2298,52 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                   heure: essenceForm.heure,
                   quantite_litres: parseFloat(essenceForm.quantite_litres),
                   prix_total: parseFloat(essenceForm.prix_total),
-                  station_service: essenceForm.station_service || null,
-                  photo_ticket: photoTicketBase64
+                  station_service: essenceForm.station_service || null
                 };
 
-                const response = await essenceAPI.create(essenceData);
-                if (response.success) {
-                  // Nettoyer la photo
-                  if (essenceTicketPhoto) {
-                    URL.revokeObjectURL(essenceTicketPhoto.preview);
-                    setEssenceTicketPhoto(null);
-                  }
-
-                  // Recharger les données
-                  const essenceResponse = await essenceAPI.getByChauffeur(chauffeur?.id || chauffeur?.type_id);
-                  const essenceData = essenceResponse?.data || essenceResponse || [];
-                  setPriseEssence(essenceData);
-
-                  showToast('Prise d\'essence enregistrée avec succès ! L\'administrateur a été notifié.', 'success');
-                  setShowEssenceForm(false);
-                  setEssenceForm({
-                    date: format(new Date(), 'yyyy-MM-dd'),
-                    heure: format(new Date(), 'HH:mm'),
-                    quantite_litres: '',
-                    prix_total: '',
-                    station_service: ''
-                  });
+                if (!essenceData.bus_id) {
+                  showToast('Erreur: Aucun bus associé. Impossible d\'enregistrer.', 'error');
+                  return;
                 }
+
+                // N'envoyer la photo que si elle a été modifiée (nouvelle photo)
+
+                // N'envoyer la photo que si elle a été modifiée (nouvelle photo)
+                // Si photoTicketBase64 est null (pas de nouvelle photo), on n'envoie pas le champ pour ne pas écraser l'existante
+                if (photoTicketBase64) {
+                  essenceData.photo_ticket = photoTicketBase64;
+                }
+
+                if (editingEssence) {
+                  const response = await essenceAPI.update(editingEssence.id, essenceData);
+                  if (response && (response.success || response.data)) {
+                    showToast('Prise d\'essence modifiée avec succès', 'success');
+                  }
+                } else {
+                  await essenceAPI.create(essenceData);
+                  showToast('Prise d\'essence enregistrée avec succès ! L\'administrateur a été notifié.', 'success');
+                }
+
+                // Nettoyer la photo
+                if (essenceTicketPhoto) {
+                  URL.revokeObjectURL(essenceTicketPhoto.preview);
+                  setEssenceTicketPhoto(null);
+                }
+
+                // Recharger les données
+                const essenceResponse = await essenceAPI.getByChauffeur(chauffeur?.id || chauffeur?.type_id);
+                const newData = essenceResponse?.data || essenceResponse || [];
+                setPriseEssence(newData);
+
+                setShowEssenceForm(false);
+                setEditingEssence(null);
+                setEssenceForm({
+                  date: format(new Date(), 'yyyy-MM-dd'),
+                  heure: format(new Date(), 'HH:mm'),
+                  quantite_litres: '',
+                  prix_total: '',
+                  station_service: ''
+                });
               } catch (err) {
                 showToast('Erreur: ' + (err.message || 'Erreur inconnue'), 'error');
               }
@@ -2603,6 +2684,34 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
           }
         }}
         onCancel={() => setDeleteAccidentConfirm({ show: false, id: null })}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
+
+      {/* ConfirmDialog pour la suppression d'essence */}
+      <ConfirmDialog
+        isOpen={deleteEssenceConfirm.show}
+        title="Supprimer la prise d'essence"
+        message="Êtes-vous sûr de vouloir supprimer cette prise d'essence ? Cette action est irréversible."
+        onConfirm={async () => {
+          try {
+            await essenceAPI.delete(deleteEssenceConfirm.id);
+            setDeleteEssenceConfirm({ show: false, id: null });
+
+            // Recharger les données
+            const essenceResponse = await essenceAPI.getByChauffeur(chauffeur?.id || chauffeur?.type_id);
+            const newData = essenceResponse?.data || essenceResponse || [];
+            setPriseEssence(newData);
+
+            showToast('Prise d\'essence supprimée avec succès', 'success');
+          } catch (err) {
+            console.error('Erreur lors de la suppression:', err);
+            showToast('Erreur lors de la suppression: ' + (err.message || 'Erreur inconnue'), 'error');
+            setDeleteEssenceConfirm({ show: false, id: null });
+          }
+        }}
+        onCancel={() => setDeleteEssenceConfirm({ show: false, id: null })}
         confirmText="Supprimer"
         cancelText="Annuler"
         variant="destructive"
