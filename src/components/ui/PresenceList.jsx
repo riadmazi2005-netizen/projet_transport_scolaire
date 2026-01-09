@@ -53,14 +53,7 @@ export default function PresenceList({
   };
 
   // Filtrer les élèves : inclure tous ceux qui correspondent au groupe et à la recherche
-  // On ne retire plus les élèves "faits" pour que l'utilisateur puisse voir toute la liste
-  // et corriger si besoin.
-  const filteredEleves = (eleves.length > 0 ? eleves : [
-    { id: 'sim-1', nom: 'Kettani', prenom: 'Amine', classe: 'CE1', groupe: 'A', sexe: 'Masculin' },
-    { id: 'sim-2', nom: 'Benani', prenom: 'Sara', classe: 'CE2', groupe: 'B', sexe: 'Féminin' },
-    { id: 'sim-3', nom: 'Alaoui', prenom: 'Yassine', classe: 'CM1', groupe: 'A', sexe: 'Masculin' },
-    { id: 'sim-4', nom: 'Zahiri', prenom: 'Lina', classe: 'CP', groupe: 'B', sexe: 'Féminin' }
-  ]).filter(eleve => {
+  const filteredEleves = eleves.filter(eleve => {
     const matchGroup = groupFilter === 'all' || eleve.groupe === groupFilter;
     const matchSearch = eleve.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
       eleve.prenom.toLowerCase().includes(searchTerm.toLowerCase());
@@ -312,10 +305,10 @@ export default function PresenceList({
         )}
 
         {eleves.length === 0 && (
-          <div className="text-center py-6 text-purple-400 bg-purple-50/50 rounded-2xl border-2 border-dashed border-purple-200 mx-4 mt-4">
+          <div className="text-center py-6 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl mx-4 mt-4">
             <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p className="font-semibold italic">Mode Simulation Activé</p>
-            <p className="text-xs">Aucun élève réel assigné à ce bus. Affichage d'exemples.</p>
+            <p className="font-semibold">Aucun élève assigné</p>
+            <p className="text-xs">Aucun élève n'est inscrit pour ce bus.</p>
           </div>
         )}
       </div>

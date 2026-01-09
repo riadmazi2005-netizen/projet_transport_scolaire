@@ -632,26 +632,6 @@ export default function ResponsableDashboard() {
   };
 
   const handleTogglePresence = async (eleveId, periode, value) => {
-    // Gérer les élèves de simulation
-    if (typeof eleveId === 'string' && eleveId.startsWith('sim-')) {
-      showToast(`Simulation: Présence ${value ? 'marquée' : 'absente'} pour l'élève fictif (${periode})`, 'info');
-
-      // Simuler la mise à jour locale des présences pour que l'UI réagisse
-      const simPresence = {
-        eleve_id: eleveId,
-        date: selectedDate,
-        present_matin: periode === 'matin' ? value : null,
-        present_soir: periode === 'soir' ? value : null,
-        is_simulation: true
-      };
-
-      setPresences(prev => {
-        const filtered = prev.filter(p => p.eleve_id !== eleveId || p.date !== selectedDate);
-        return [...filtered, simPresence];
-      });
-      return;
-    }
-
     try {
       const existingPresence = presences.find(p =>
         p.eleve_id === eleveId && p.date === selectedDate
