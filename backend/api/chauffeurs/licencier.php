@@ -24,7 +24,7 @@ try {
     
     // Récupérer les informations du chauffeur avant suppression
     $stmt = $pdo->prepare('
-        SELECT c.id, c.utilisateur_id, c.bus_id, u.nom, u.prenom, b.responsable_id, b.numero as bus_numero
+        SELECT c.id, c.utilisateur_id, b.id as bus_id, u.nom, u.prenom, b.responsable_id, b.numero as bus_numero
         FROM chauffeurs c
         INNER JOIN utilisateurs u ON c.utilisateur_id = u.id
         LEFT JOIN bus b ON c.id = b.chauffeur_id
@@ -52,6 +52,10 @@ try {
     
     // Mettre à jour le statut du chauffeur (au lieu de supprimer)
     $stmt = $pdo->prepare('UPDATE chauffeurs SET statut = "Licencié" WHERE id = ?');
+    $stmt->execute([$chauffeur_id]);
+
+    // Supprimer les accidents liés à ce chauffeur (comme demandé)
+    $stmt = $pdo->prepare('DELETE FROM accidents WHERE chauffeur_id = ?');
     $stmt->execute([$chauffeur_id]);
     
     // Bloquer l'accès utilisateur (au lieu de supprimer)

@@ -8,7 +8,7 @@ import AdminLayout from '../components/AdminLayout';
 import AlertDialog from '../components/ui/AlertDialog';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
+import {
   AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X, BookOpen, Filter, Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -57,8 +57,8 @@ export default function AdminAccidents() {
         inscriptionsAPI.getAll(),
         tuteursAPI.getAll()
       ]);
-      
-      const accidentsData = results[0].status === 'fulfilled' 
+
+      const accidentsData = results[0].status === 'fulfilled'
         ? (results[0].value?.data || results[0].value || [])
         : [];
       const busesData = results[1].status === 'fulfilled'
@@ -76,13 +76,13 @@ export default function AdminAccidents() {
       const tuteursData = results[5].status === 'fulfilled'
         ? (results[5].value?.data || results[5].value || [])
         : [];
-      
-      const sortedAccidents = Array.isArray(accidentsData) 
+
+      const sortedAccidents = Array.isArray(accidentsData)
         ? accidentsData.sort((a, b) => {
-            const dateA = a.date ? new Date(a.date) : new Date(0);
-            const dateB = b.date ? new Date(b.date) : new Date(0);
-            return dateB - dateA;
-          })
+          const dateA = a.date ? new Date(a.date) : new Date(0);
+          const dateB = b.date ? new Date(b.date) : new Date(0);
+          return dateB - dateA;
+        })
         : [];
       setAccidents(sortedAccidents);
       setBuses(Array.isArray(busesData) ? busesData : []);
@@ -90,7 +90,7 @@ export default function AdminAccidents() {
       setEleves(Array.isArray(elevesData) ? elevesData : []);
       setInscriptions(Array.isArray(inscriptionsData) ? inscriptionsData : []);
       setTuteurs(Array.isArray(tuteursData) ? tuteursData : []);
-      
+
       // Afficher un avertissement si certaines données n'ont pas pu être chargées
       const failedCount = results.filter(r => r.status === 'rejected').length;
       if (failedCount > 0) {
@@ -133,7 +133,7 @@ export default function AdminAccidents() {
 
   const handleDelete = async () => {
     if (!accidentToDelete) return;
-    
+
     try {
       const response = await accidentsAPI.delete(accidentToDelete.id);
       if (response && response.success) {
@@ -156,28 +156,28 @@ export default function AdminAccidents() {
       setError('Aucun bus associé à cet accident');
       return;
     }
-    
+
     try {
       // Trouver tous les élèves dans le bus au moment de l'accident
-      const activeInscriptions = inscriptions.filter(i => 
+      const activeInscriptions = inscriptions.filter(i =>
         i.bus_id === accident.bus_id && i.statut === 'Active'
       );
-      const elevesInBus = eleves.filter(e => 
+      const elevesInBus = eleves.filter(e =>
         activeInscriptions.some(i => i.eleve_id === e.id)
       );
-      
+
       // Trouver les tuteurs uniques
       const tuteursIds = [...new Set(elevesInBus.map(e => e.tuteur_id).filter(Boolean))];
       const tuteursToNotify = tuteurs.filter(t => tuteursIds.includes(t.id));
-      
+
       if (tuteursToNotify.length === 0) {
         setError('Aucun tuteur trouvé pour les élèves de ce bus');
         return;
       }
-      
+
       const bus = buses.find(b => b.id === accident.bus_id);
       const busNumero = bus?.numero || 'Inconnu';
-      
+
       // Créer un message de notification
       let message = `Un accident a été déclaré concernant le bus ${busNumero}.\n\n`;
       message += `Date: ${format(new Date(accident.date), 'dd/MM/yyyy', { locale: fr })}`;
@@ -196,20 +196,20 @@ export default function AdminAccidents() {
       if (accident.nombre_blesses !== null && accident.nombre_blesses !== undefined && accident.nombre_blesses > 0) {
         message += `Nombre de blessés: ${accident.nombre_blesses}\n`;
       }
-      
+
       // Ajouter les noms des élèves concernés si disponibles
       if (accident.eleves_concernees && Array.isArray(accident.eleves_concernees) && accident.eleves_concernees.length > 0) {
         message += `\nÉlèves présents dans le bus:\n`;
         accident.eleves_concernees.forEach((eleve, index) => {
-          const nomComplet = typeof eleve === 'object' && eleve.nom 
-            ? `${eleve.prenom} ${eleve.nom}` 
+          const nomComplet = typeof eleve === 'object' && eleve.nom
+            ? `${eleve.prenom} ${eleve.nom}`
             : eleve;
           message += `- ${nomComplet}\n`;
         });
       }
-      
+
       message += `\nVeuillez contacter l'école pour plus d'informations.`;
-      
+
       // Envoyer les notifications
       const notificationPromises = tuteursToNotify.map(tuteur => {
         // Trouver l'utilisateur_id du tuteur
@@ -222,7 +222,7 @@ export default function AdminAccidents() {
           type: 'alerte'
         });
       });
-      
+
       await Promise.all(notificationPromises);
       setAlertDialog({ show: true, message: `Notifications envoyées à ${tuteursToNotify.length} tuteur(s)`, type: 'success' });
     } catch (err) {
@@ -244,23 +244,23 @@ export default function AdminAccidents() {
   // Filtrer les accidents selon les critères
   const filteredAccidents = useMemo(() => {
     if (!Array.isArray(accidents)) return [];
-    
+
     return accidents.filter(accident => {
       // Filtre par statut
       if (filters.statut !== 'all' && accident.statut !== filters.statut) {
         return false;
       }
-      
+
       // Filtre par gravité
       if (filters.gravite !== 'all' && accident.gravite !== filters.gravite) {
         return false;
       }
-      
+
       // Filtre par bus
       if (filters.bus !== 'all' && accident.bus_id?.toString() !== filters.bus) {
         return false;
       }
-      
+
       // Filtre par date début
       if (filters.dateDebut) {
         const accidentDate = new Date(accident.date);
@@ -269,7 +269,7 @@ export default function AdminAccidents() {
           return false;
         }
       }
-      
+
       // Filtre par date fin
       if (filters.dateFin) {
         const accidentDate = new Date(accident.date);
@@ -279,7 +279,7 @@ export default function AdminAccidents() {
           return false;
         }
       }
-      
+
       return true;
     });
   }, [accidents, filters]);
@@ -307,7 +307,7 @@ export default function AdminAccidents() {
               Retour au tableau de bord
             </button>
           </div>
-          
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center justify-between">
               <span>{error}</span>
@@ -339,7 +339,7 @@ export default function AdminAccidents() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
-                  <Select value={filters.statut} onValueChange={(value) => setFilters({...filters, statut: value})}>
+                  <Select value={filters.statut} onValueChange={(value) => setFilters({ ...filters, statut: value })}>
                     <SelectTrigger className="rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
@@ -352,7 +352,7 @@ export default function AdminAccidents() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Gravité</label>
-                  <Select value={filters.gravite} onValueChange={(value) => setFilters({...filters, gravite: value})}>
+                  <Select value={filters.gravite} onValueChange={(value) => setFilters({ ...filters, gravite: value })}>
                     <SelectTrigger className="rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
@@ -366,7 +366,7 @@ export default function AdminAccidents() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Bus</label>
-                  <Select value={filters.bus} onValueChange={(value) => setFilters({...filters, bus: value})}>
+                  <Select value={filters.bus} onValueChange={(value) => setFilters({ ...filters, bus: value })}>
                     <SelectTrigger className="rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
@@ -385,7 +385,7 @@ export default function AdminAccidents() {
                   <Input
                     type="date"
                     value={filters.dateDebut}
-                    onChange={(e) => setFilters({...filters, dateDebut: e.target.value})}
+                    onChange={(e) => setFilters({ ...filters, dateDebut: e.target.value })}
                     className="rounded-xl"
                   />
                 </div>
@@ -394,7 +394,7 @@ export default function AdminAccidents() {
                   <Input
                     type="date"
                     value={filters.dateFin}
-                    onChange={(e) => setFilters({...filters, dateFin: e.target.value})}
+                    onChange={(e) => setFilters({ ...filters, dateFin: e.target.value })}
                     className="rounded-xl"
                   />
                 </div>
@@ -433,176 +433,176 @@ export default function AdminAccidents() {
                     const chauffeur = accident.chauffeur_id ? chauffeurs.find(c => c.id === accident.chauffeur_id) : null;
                     const chauffeurAccidents = accident.chauffeur_id ? accidents.filter(a => a.chauffeur_id === accident.chauffeur_id) : [];
                     const has3Accidents = chauffeurAccidents.length >= 3;
-                    
+
                     return (
-                    <div key={accident.id} className="p-6 hover:bg-red-50/50 transition-colors">
-                      <div className="flex flex-col lg:flex-row justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3 flex-wrap">
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getGraviteBadge(accident.gravite)}`}>
-                              {accident.gravite}
-                            </span>
-                            {accident.statut === 'En attente' && (
-                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-700">
-                                En attente
+                      <div key={accident.id} className="p-6 hover:bg-red-50/50 transition-colors">
+                        <div className="flex flex-col gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3 flex-wrap">
+                              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getGraviteBadge(accident.gravite)}`}>
+                                {accident.gravite}
                               </span>
-                            )}
-                            {accident.statut === 'Validé' && (
-                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
-                                Validé
-                              </span>
-                            )}
-                            {accident.blesses && (
-                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
-                                Blessés
-                              </span>
-                            )}
-                            {has3Accidents && accident.chauffeur_id && (
-                              <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-500 text-white font-bold">
-                                ⚠️ À LICENCIER (3 accidents)
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4 text-gray-400" />
-                              {format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr })}
-                              {accident.heure && ` à ${accident.heure}`}
+                              {accident.statut === 'En attente' && (
+                                <span className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-700">
+                                  En attente
+                                </span>
+                              )}
+                              {accident.statut === 'Validé' && (
+                                <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700">
+                                  Validé
+                                </span>
+                              )}
+                              {accident.blesses && (
+                                <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700">
+                                  Blessés
+                                </span>
+                              )}
+                              {has3Accidents && accident.chauffeur_id && (
+                                <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-500 text-white font-bold">
+                                  ⚠️ À LICENCIER (3 accidents)
+                                </span>
+                              )}
                             </div>
-                            {bus && (
-                              <div className="flex items-center gap-1">
-                                <Bus className="w-4 h-4 text-amber-500" />
-                                {bus.numero}
-                              </div>
-                            )}
-                            {(accident.chauffeur_prenom || accident.chauffeur_nom) && (
-                              <div className="flex items-center gap-1">
-                                <User className="w-4 h-4 text-green-500" />
-                                {accident.chauffeur_prenom || ''} {accident.chauffeur_nom || ''}
-                              </div>
-                            )}
-                            {(accident.responsable_prenom || accident.responsable_nom) && (
-                              <div className="flex items-center gap-1">
-                                <User className="w-4 h-4 text-blue-500" />
-                                {accident.responsable_prenom || ''} {accident.responsable_nom || ''} (Responsable)
-                              </div>
-                            )}
-                            {accident.lieu && (
-                              <div className="flex items-center gap-1">
-                                <MapPin className="w-4 h-4 text-red-500" />
-                                {accident.lieu}
-                              </div>
-                            )}
-                            {accident.nombre_eleves !== null && accident.nombre_eleves !== undefined && (
-                              <div className="flex items-center gap-1">
-                                <Users className="w-4 h-4 text-blue-500" />
-                                {accident.nombre_eleves} élève(s)
-                              </div>
-                            )}
-                            {accident.nombre_blesses !== null && accident.nombre_blesses !== undefined && accident.nombre_blesses > 0 && (
-                              <div className="flex items-center gap-1 text-red-600 font-semibold">
-                                <AlertCircle className="w-4 h-4" />
-                                {accident.nombre_blesses} blessé(s)
-                              </div>
-                            )}
-                          </div>
 
-                          <h3 className="font-semibold text-gray-800 mb-2">{accident.description}</h3>
-                          {accident.degats && (
-                            <p className="text-sm text-gray-500 mb-2">
-                              <strong>Dégâts:</strong> {accident.degats}
-                            </p>
-                          )}
-                          {accident.photos && (() => {
-                            try {
-                              let hasPhotos = false;
-                              if (Array.isArray(accident.photos) && accident.photos.length > 0) {
-                                hasPhotos = true;
-                              } else if (typeof accident.photos === 'string' && accident.photos.trim() !== '') {
-                                if (accident.photos.startsWith('data:image')) {
+                            <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4 text-gray-400" />
+                                {format(new Date(accident.date), 'dd MMMM yyyy', { locale: fr })}
+                                {accident.heure && ` à ${accident.heure}`}
+                              </div>
+                              {bus && (
+                                <div className="flex items-center gap-1">
+                                  <Bus className="w-4 h-4 text-amber-500" />
+                                  {bus.numero}
+                                </div>
+                              )}
+                              {(accident.chauffeur_prenom || accident.chauffeur_nom) && (
+                                <div className="flex items-center gap-1">
+                                  <User className="w-4 h-4 text-green-500" />
+                                  {accident.chauffeur_prenom || ''} {accident.chauffeur_nom || ''}
+                                </div>
+                              )}
+                              {(accident.responsable_prenom || accident.responsable_nom) && (
+                                <div className="flex items-center gap-1">
+                                  <User className="w-4 h-4 text-blue-500" />
+                                  {accident.responsable_prenom || ''} {accident.responsable_nom || ''} (Responsable)
+                                </div>
+                              )}
+                              {accident.lieu && (
+                                <div className="flex items-center gap-1">
+                                  <MapPin className="w-4 h-4 text-red-500" />
+                                  {accident.lieu}
+                                </div>
+                              )}
+                              {accident.nombre_eleves !== null && accident.nombre_eleves !== undefined && (
+                                <div className="flex items-center gap-1">
+                                  <Users className="w-4 h-4 text-blue-500" />
+                                  {accident.nombre_eleves} élève(s)
+                                </div>
+                              )}
+                              {accident.nombre_blesses !== null && accident.nombre_blesses !== undefined && accident.nombre_blesses > 0 && (
+                                <div className="flex items-center gap-1 text-red-600 font-semibold">
+                                  <AlertCircle className="w-4 h-4" />
+                                  {accident.nombre_blesses} blessé(s)
+                                </div>
+                              )}
+                            </div>
+
+                            <h3 className="font-semibold text-gray-800 mb-2">{accident.description}</h3>
+                            {accident.degats && (
+                              <p className="text-sm text-gray-500 mb-2">
+                                <strong>Dégâts:</strong> {accident.degats}
+                              </p>
+                            )}
+                            {accident.photos && (() => {
+                              try {
+                                let hasPhotos = false;
+                                if (Array.isArray(accident.photos) && accident.photos.length > 0) {
                                   hasPhotos = true;
-                                } else {
-                                  try {
-                                    const parsed = JSON.parse(accident.photos);
-                                    hasPhotos = Array.isArray(parsed) && parsed.length > 0;
-                                  } catch (e) {
-                                    hasPhotos = false;
+                                } else if (typeof accident.photos === 'string' && accident.photos.trim() !== '') {
+                                  if (accident.photos.startsWith('data:image')) {
+                                    hasPhotos = true;
+                                  } else {
+                                    try {
+                                      const parsed = JSON.parse(accident.photos);
+                                      hasPhotos = Array.isArray(parsed) && parsed.length > 0;
+                                    } catch (e) {
+                                      hasPhotos = false;
+                                    }
                                   }
                                 }
+                                return hasPhotos ? (
+                                  <div className="flex items-center gap-2 text-blue-600 text-sm mt-2">
+                                    <Camera className="w-4 h-4" />
+                                    <span>Photos disponibles</span>
+                                  </div>
+                                ) : null;
+                              } catch (e) {
+                                return null;
                               }
-                              return hasPhotos ? (
-                                <div className="flex items-center gap-2 text-blue-600 text-sm mt-2">
-                                  <Camera className="w-4 h-4" />
-                                  <span>Photos disponibles</span>
-                                </div>
-                              ) : null;
-                            } catch (e) {
-                              return null;
-                            }
-                          })()}
-                        </div>
-                        
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedAccident(accident);
-                              setShowDetailsModal(true);
-                            }}
-                            className="rounded-xl"
-                          >
-                            <Eye className="w-4 h-4 mr-2" />
-                            Détails
-                          </Button>
-                          {accident.statut === 'En attente' && (
+                            })()}
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 justify-end pt-4 border-t border-gray-100 mt-2">
                             <Button
-                              onClick={() => handleValidate(accident.id)}
-                              className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedAccident(accident);
+                                setShowDetailsModal(true);
+                              }}
+                              className="rounded-xl"
                             >
-                              <BookOpen className="w-4 h-4 mr-2" />
-                              Marquer comme lu
+                              <Eye className="w-4 h-4 mr-2" />
+                              Détails
                             </Button>
-                          )}
-                          {accident.bus_id && (
-                            <Button
-                              onClick={() => handleNotifyTuteurs(accident)}
-                              className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
-                            >
-                              <Mail className="w-4 h-4 mr-2" />
-                              Informer les tuteurs
-                            </Button>
-                          )}
-                          {has3Accidents && accident.chauffeur_id && (
+                            {accident.statut === 'En attente' && (
+                              <Button
+                                onClick={() => handleValidate(accident.id)}
+                                className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                              >
+                                <BookOpen className="w-4 h-4 mr-2" />
+                                Marquer comme lu
+                              </Button>
+                            )}
+                            {accident.bus_id && (
+                              <Button
+                                onClick={() => handleNotifyTuteurs(accident)}
+                                className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                              >
+                                <Mail className="w-4 h-4 mr-2" />
+                                Informer les tuteurs
+                              </Button>
+                            )}
+                            {has3Accidents && accident.chauffeur_id && (
+                              <Button
+                                onClick={() => {
+                                  setChauffeurToLicencier({
+                                    id: accident.chauffeur_id,
+                                    nom: accident.chauffeur_nom || chauffeur?.nom || '',
+                                    prenom: accident.chauffeur_prenom || chauffeur?.prenom || ''
+                                  });
+                                  setShowLicencierModal(true);
+                                }}
+                                className="bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
+                              >
+                                <AlertCircle className="w-4 h-4 mr-2" />
+                                Licencier
+                              </Button>
+                            )}
                             <Button
                               onClick={() => {
-                                setChauffeurToLicencier({
-                                  id: accident.chauffeur_id,
-                                  nom: accident.chauffeur_nom || chauffeur?.nom || '',
-                                  prenom: accident.chauffeur_prenom || chauffeur?.prenom || ''
-                                });
-                                setShowLicencierModal(true);
+                                setAccidentToDelete(accident);
+                                setShowDeleteModal(true);
                               }}
-                              className="bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
+                              variant="outline"
+                              className="border-red-300 text-red-600 hover:bg-red-50 rounded-xl"
                             >
-                              <AlertCircle className="w-4 h-4 mr-2" />
-                              Licencier
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Supprimer
                             </Button>
-                          )}
-                          <Button
-                            onClick={() => {
-                              setAccidentToDelete(accident);
-                              setShowDeleteModal(true);
-                            }}
-                            variant="outline"
-                            className="border-red-300 text-red-600 hover:bg-red-50 rounded-xl"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Supprimer
-                          </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     );
                   })}
                 </>
@@ -629,7 +629,7 @@ export default function AdminAccidents() {
                 <p className="text-sm text-gray-500">Cette action est irréversible</p>
               </div>
             </div>
-            
+
             <div className="mb-6 p-4 bg-red-50 rounded-xl border border-red-200">
               <p className="text-gray-800 mb-2">
                 <strong>Chauffeur:</strong> {chauffeurToLicencier.prenom} {chauffeurToLicencier.nom}
@@ -638,7 +638,7 @@ export default function AdminAccidents() {
                 Le chauffeur sera supprimé de la base de données, le bus sera désaffecté et le responsable sera notifié.
               </p>
             </div>
-            
+
             <div className="flex gap-3">
               <Button
                 onClick={() => {
@@ -678,7 +678,7 @@ export default function AdminAccidents() {
                 <p className="text-sm text-gray-500">Cette action est irréversible</p>
               </div>
             </div>
-            
+
             <div className="mb-6 p-4 bg-red-50 rounded-xl border border-red-200">
               <p className="text-gray-800 mb-2">
                 <strong>Date:</strong> {format(new Date(accidentToDelete.date), 'dd MMMM yyyy', { locale: fr })}
@@ -699,7 +699,7 @@ export default function AdminAccidents() {
                 ⚠️ Attention : Cette action supprimera définitivement l'accident de la base de données.
               </p>
             </div>
-            
+
             <div className="flex gap-3">
               <Button
                 onClick={() => {
@@ -758,7 +758,7 @@ export default function AdminAccidents() {
                     {selectedAccident.heure && ` à ${selectedAccident.heure}`}
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-600 mb-1">Gravité</label>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium inline-block ${getGraviteBadge(selectedAccident.gravite)}`}>
@@ -792,7 +792,7 @@ export default function AdminAccidents() {
                     </p>
                   </div>
                 )}
-                
+
                 {((selectedAccident.responsable_prenom || selectedAccident.responsable_nom) || selectedAccident.responsable_id) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-1">Responsable</label>
@@ -857,7 +857,7 @@ export default function AdminAccidents() {
                   try {
                     let photosArray = [];
                     const photosField = selectedAccident.photos;
-                    
+
                     // Si les photos sont null ou undefined
                     if (!photosField) {
                       return (
@@ -867,11 +867,11 @@ export default function AdminAccidents() {
                         </div>
                       );
                     }
-                    
+
                     // Si c'est déjà un tableau (déjà décodé par le backend)
                     if (Array.isArray(photosField)) {
                       photosArray = photosField;
-                    } 
+                    }
                     // Si c'est une chaîne JSON
                     else if (typeof photosField === 'string' && photosField.trim() !== '') {
                       try {
@@ -884,7 +884,7 @@ export default function AdminAccidents() {
                             // Si c'est un objet avec une propriété photos
                             if (Array.isArray(parsed.photos)) {
                               photosArray = parsed.photos;
-                            } 
+                            }
                             // Si l'objet contient directement les données
                             else if (parsed.data && Array.isArray(parsed.data)) {
                               photosArray = parsed.data;
@@ -906,7 +906,7 @@ export default function AdminAccidents() {
                         }
                       }
                     }
-                    
+
                     // Filtrer et normaliser les photos valides
                     const validPhotos = photosArray
                       .map((photo, idx) => {
@@ -920,12 +920,12 @@ export default function AdminAccidents() {
                         return null;
                       })
                       .filter(photoSrc => {
-                        return photoSrc && 
-                               typeof photoSrc === 'string' && 
-                               photoSrc.trim() !== '' && 
-                               (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'));
+                        return photoSrc &&
+                          typeof photoSrc === 'string' &&
+                          photoSrc.trim() !== '' &&
+                          (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'));
                       });
-                    
+
                     if (validPhotos.length === 0) {
                       return (
                         <div className="bg-gray-50 rounded-xl p-6 text-center">
@@ -935,7 +935,7 @@ export default function AdminAccidents() {
                         </div>
                       );
                     }
-                    
+
                     return (
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {validPhotos.map((photoSrc, index) => (
@@ -947,8 +947,8 @@ export default function AdminAccidents() {
                             onClick={() => setSelectedPhoto(photoSrc)}
                           >
                             <div className="relative overflow-hidden rounded-xl border-2 border-gray-200 group-hover:border-red-400 transition-colors bg-gray-100">
-                              <img 
-                                src={photoSrc} 
+                              <img
+                                src={photoSrc}
                                 alt={`Photo ${index + 1}`}
                                 className="w-full h-32 object-cover"
                                 onError={(e) => {
@@ -1037,7 +1037,7 @@ export default function AdminAccidents() {
       {/* Modal pour voir les photos en grand */}
       <AnimatePresence>
         {selectedPhoto && (
-          <div 
+          <div
             className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[60] p-4"
             onClick={() => setSelectedPhoto(null)}
           >
