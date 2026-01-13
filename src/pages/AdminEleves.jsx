@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import {
-  GraduationCap, Search, User, ArrowLeft, Filter, Bus, MapPin, Phone, Calendar, Key, Edit, Trash2, XCircle
+  GraduationCap, Search, User, ArrowLeft, Filter, Bus, MapPin, Phone, Calendar, Key, Edit, Trash2, XCircle, Mail, FileText
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from 'date-fns';
@@ -443,22 +443,40 @@ export default function AdminEleves() {
                           </div>
                         )}
 
-                        {/* Tuteur - Nom et Téléphone */}
+                        {/* Tuteur Info Complète */}
                         {eleve.tuteur && (
-                          <>
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <User className="w-4 h-4 text-purple-500" />
-                              <span className="font-medium">Tuteur:</span>
-                              <span>{eleve.tuteur.prenom} {eleve.tuteur.nom}</span>
-                            </div>
-                            {eleve.tuteur.telephone && (
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Phone className="w-4 h-4 text-indigo-500" />
-                                <span className="font-medium">Tél:</span>
-                                <span>{eleve.tuteur.telephone}</span>
+                          <div className="mt-3 pt-3 border-t border-blue-100 w-full">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Informations Tuteur</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                              <div className="flex items-center gap-2 text-sm text-gray-700">
+                                <User className="w-4 h-4 text-purple-500" />
+                                <span className="font-semibold">{eleve.tuteur.prenom} {eleve.tuteur.nom}</span>
                               </div>
-                            )}
-                          </>
+                              {eleve.tuteur.cin && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <span className="font-medium text-purple-600 text-xs bg-purple-50 px-2 py-0.5 rounded">CIN: {eleve.tuteur.cin}</span>
+                                </div>
+                              )}
+                              {eleve.tuteur.telephone && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <Phone className="w-4 h-4 text-indigo-500" />
+                                  <span>{eleve.tuteur.telephone}</span>
+                                </div>
+                              )}
+                              {eleve.tuteur.email && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <span className="text-gray-400">@</span>
+                                  <span>{eleve.tuteur.email}</span>
+                                </div>
+                              )}
+                              {eleve.tuteur.adresse && (
+                                <div className="col-span-1 sm:col-span-2 flex items-start gap-2 text-sm text-gray-600 mt-1">
+                                  <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                                  <span>{eleve.tuteur.adresse}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         )}
 
                         {/* Bus affecté */}

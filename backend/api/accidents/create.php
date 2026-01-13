@@ -280,9 +280,15 @@ try {
                     $responsableNom = $respInfo['prenom'] . ' ' . $respInfo['nom'];
                 }
 
-                $messageChauffeur = "Un accident a été signalé pour votre bus {$busData['numero']} par {$responsableNom}.\n";
-                $messageChauffeur .= "Date: " . $date . "\n";
-                $messageChauffeur .= "Description: " . $description;
+                $messageChauffeur = "⚠️ SIGNALEMENT D'ACCIDENT\n\n";
+                $messageChauffeur .= "Un accident a été signalé pour votre bus {$busData['numero']} par {$responsableNom}.\n\n";
+                $messageChauffeur .= "📅 Date: " . $date . ($heure ? " à " . $heure : "") . "\n";
+                $messageChauffeur .= "📍 Lieu: " . ($lieu ?: "Non précisé") . "\n";
+                $messageChauffeur .= "⚡ Gravité: " . $gravite . "\n";
+                if ($degats) $messageChauffeur .= "💥 Dégâts: " . $degats . "\n";
+                if ($nombre_eleves !== null) $messageChauffeur .= "👥 Élèves à bord: " . $nombre_eleves . "\n";
+                if ($blesses) $messageChauffeur .= "🚑 Blessés: " . ($nombre_blesses ?: "Oui") . "\n";
+                $messageChauffeur .= "\n📝 Description:\n" . $description;
 
                 $stmt = $pdo->prepare('
                     INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
@@ -345,14 +351,18 @@ try {
     }
     
     foreach ($admins as $admin) {
-        $message = "Un nouvel accident a été déclaré.\n\n";
-        $message .= "Déclaré par: " . $declarant . "\n";
-        $message .= "Date: " . $date . ($heure ? " à " . $heure : "") . "\n";
+        $message = "⚠️ NOUVEL ACCIDENT DÉCLARÉ\n\n";
+        $message .= "👤 Déclaré par: " . $declarant . "\n";
+        $message .= "📅 Date: " . $date . ($heure ? " à " . $heure : "") . "\n";
         if ($busNumero) {
-            $message .= "Bus: " . $busNumero . "\n";
+            $message .= "🚌 Bus: " . $busNumero . "\n";
         }
-        $message .= "Gravité: " . $gravite . "\n";
-        $message .= "Description: " . $description;
+        $message .= "📍 Lieu: " . ($lieu ?: "Non précisé") . "\n";
+        $message .= "⚡ Gravité: " . $gravite . "\n";
+        if ($degats) $message .= "💥 Dégâts: " . $degats . "\n";
+        if ($nombre_eleves !== null) $message .= "👥 Élèves à bord: " . $nombre_eleves . "\n";
+        if ($blesses) $message .= "🚑 Blessés: " . ($nombre_blesses ?: "Oui") . "\n";
+        $message .= "\n📝 Description:\n" . $description;
         
         $stmt = $pdo->prepare('
             INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)

@@ -122,22 +122,34 @@ export default function AdminAccidents() {
     }
   };
 
-  const handleAvertir = async (chauffeurId, accidentCount) => {
+  const handleAvertir = async (chauffeurId, accidentCount, source = 'system', accident = null) => {
     try {
       const chauffeur = chauffeurs.find(c => c.id === chauffeurId);
       if (!chauffeur) throw new Error("Chauffeur introuvable");
 
-      const message = `Attention, ceci est votre ${accidentCount === 1 ? '1er' : accidentCount + 'ème'} accident rapporté. Soyez plus vigilant.`;
+      let message = "";
+      let titre = "Avertissement - Accident";
+
+      if (source === 'responsable' && accident) {
+        const responsableNom = accident.responsable_prenom ? `${accident.responsable_prenom} ${accident.responsable_nom}` : "un responsable";
+        const dateAccident = format(new Date(accident.date), 'dd/MM/yyyy');
+        titre = "Avertissement - Rapport Responsable";
+        message = `Un accident a été signalé par le responsable ${responsableNom} le ${dateAccident} concernant votre bus.`;
+        message += `\n\nMotif/Description: ${accident.description}`;
+        message += `\n\nMerci de prendre contact avec l'administration pour clarifier la situation.`;
+      } else {
+        message = `Attention, ceci est votre ${accidentCount === 1 ? '1er' : accidentCount + 'ème'} accident rapporté. Soyez plus vigilant.`;
+      }
 
       await notificationsAPI.create({
         destinataire_id: chauffeur.utilisateur_id || chauffeur.id, // Fallback si utilisateur_id n'est pas direct
         destinataire_type: 'chauffeur',
-        titre: 'Avertissement - Accident',
+        titre: titre,
         message: message,
         type: 'alerte'
       });
 
-      setAlertDialog({ show: true, message: `Avertissement envoyé au chauffeur (${accidentCount}${accidentCount === 1 ? 'er' : 'ème'} accident).`, type: 'success' });
+      setAlertDialog({ show: true, message: `Avertissement envoyé au chauffeur avec succès.`, type: 'success' });
     } catch (err) {
       console.error('Erreur lors de l\'envoi de l\'avertissement:', err);
       setAlertDialog({ show: true, message: 'Erreur lors de l\'envoi de l\'avertissement', type: 'error' });
@@ -598,7 +610,7 @@ export default function AdminAccidents() {
                             {(accident.isLatestForChauffeur || accident.responsable_id) && accident.chauffeur_id && (
                               <Button
                                 size="sm"
-                                onClick={() => handleAvertir(accident.chauffeur_id, chauffeurAccidents.length)}
+                                onClick={() => handleAvertir(accident.chauffeur_id, chauffeurAccidents.length, accident.responsable_id ? 'responsable' : 'system', accident)}
                                 className={`text-white font-semibold shadow-sm ${accident.responsable_id
                                   ? 'bg-orange-500 hover:bg-orange-600'
                                   : 'bg-amber-500 hover:bg-amber-600'

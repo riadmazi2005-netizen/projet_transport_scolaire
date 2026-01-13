@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from '../components/AdminLayout';
 import {
   ClipboardList, Search, CheckCircle, XCircle, AlertCircle,
-  Eye, User, Bus, MapPin, Filter, Calendar, ArrowLeft, FileText, Copy, Check, X
+  Eye, User, Bus, MapPin, Filter, Calendar, ArrowLeft, FileText, Copy, Check, X, Phone, Mail
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -663,9 +663,22 @@ export default function AdminInscriptions() {
                         )}
                       </div>
                       {eleve.tuteur && (
-                        <p className="text-sm text-gray-400 mt-1">
-                          Tuteur: {eleve.tuteur.prenom} {eleve.tuteur.nom} • {eleve.tuteur.telephone || eleve.tuteur.email}
-                        </p>
+                        <div className="mt-2 pt-2 border-t border-blue-50">
+                          <p className="text-xs font-semibold text-gray-500 mb-1">Responsable</p>
+                          <div className="text-sm">
+                            <span className="font-medium text-gray-800">{eleve.tuteur.prenom} {eleve.tuteur.nom}</span>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-gray-600 text-xs">
+                              {eleve.tuteur.telephone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {eleve.tuteur.telephone}</span>}
+                              {eleve.tuteur.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {eleve.tuteur.email}</span>}
+                              {eleve.tuteur.cin && <span className="flex items-center gap-1"><FileText className="w-3 h-3" /> CIN: {eleve.tuteur.cin}</span>}
+                            </div>
+                            {eleve.tuteur.adresse && (
+                              <p className="text-xs text-gray-500 mt-1 flex items-start gap-1">
+                                <MapPin className="w-3 h-3 mt-0.5" /> {eleve.tuteur.adresse}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       )}
                       {eleve.bus && (
                         <p className="text-sm text-blue-600 mt-1 flex items-center gap-1">
