@@ -205,6 +205,49 @@ try {
         }
     }
     
+    // Si c'est un responsable qui déclare, notifier le chauffeur du bus assigné
+    if ($responsable_id && $bus_id) {
+        $stmt = $pdo->prepare('SELECT chauffeur_id, numero FROM bus WHERE id = ?');
+        $stmt->execute([$bus_id]);
+        $busData = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($busData && $busData['chauffeur_id']) {
+            $chauffeurIdAssigne = $busData['chauffeur_id'];
+            
+            // Récupérer l'utilisateur ID du chauffeur
+            $stmt = $pdo->prepare('SELECT utilisateur_id FROM chauffeurs WHERE id = ?');
+            $stmt->execute([$chauffeurIdAssigne]);
+            $chauffeurUser = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($chauffeurUser) {
+                // Nom du responsable pour le message
+                $responsableNom = "un responsable";
+                $stmt = $pdo->prepare('SELECT u.nom, u.prenom FROM responsables_bus Rb JOIN utilisateurs u ON Rb.utilisateur_id = u.id WHERE Rb.id = ?');
+                $stmt->execute([$responsable_id]);
+                $respInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($respInfo) {
+                    $responsableNom = $respInfo['prenom'] . ' ' . $respInfo['nom'];
+                }
+
+                $messageChauffeur = "Un accident a été signalé pour votre bus {$busData['numero']} par {$responsableNom}.\n";
+                $messageChauffeur .= "Date: " . $date . "\n";
+                $messageChauffeur .= "Description: " . substr($description, 0, 100) . "...";
+
+                $stmt = $pdo->prepare('
+                    INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
+                    VALUES (?, ?, ?, ?, ?, FALSE)
+                ');
+                $stmt->execute([
+                    $chauffeurUser['utilisateur_id'],
+                    'chauffeur',
+                    'Accident signalé par responsable',
+                    $messageChauffeur,
+                    'alerte'
+                ]);
+            }
+        }
+    }
+
     // Envoyer une notification à tous les admins
     $stmt = $pdo->query('
         SELECT u.id 

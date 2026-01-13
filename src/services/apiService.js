@@ -158,6 +158,9 @@ export const chauffeursAPI = {
     method: 'POST',
     body: JSON.stringify({ chauffeur_id: chauffeurId }),
   }),
+  deleteTerminated: () => fetchAPI('/chauffeurs/deleteTerminated.php', {
+    method: 'DELETE',
+  }),
 };
 
 // ============================================

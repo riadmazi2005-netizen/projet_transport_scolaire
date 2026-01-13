@@ -82,14 +82,17 @@ try {
     $stmt = $pdo->prepare('DELETE FROM chauffeurs WHERE id = ?');
     $stmt->execute([$chauffeur_id]);
     
+    // Supprimer les demandes associées (congés, etc.)
+    // Note: tuteur_id dans la table demandes peut contenir l'ID utilisateur du chauffeur
+    $stmt = $pdo->prepare('DELETE FROM demandes WHERE tuteur_id = ?');
+    $stmt->execute([$utilisateurId]);
+
     // 5. Supprimer l'utilisateur associé
     if ($utilisateurId) {
         // Supprimer aussi les notifications reçues
         $stmt = $pdo->prepare('DELETE FROM notifications WHERE destinataire_id = ? AND destinataire_type = "chauffeur"');
-        $stmt->execute([$utilisateurId]); // Attention: utilisateur_id peut être différent de chauffeur_id selon le type destinataire stocké.
-        // Si destinataire_type='chauffeur', souvent c'est l'id chauffeur ou user_id. Vérifions d'après le reste du code.
-        // Dans AdminAccidents.jsx : destinataire_id: chauffeur.utilisateur_id || chauffeur.id
-        // On va essayer de supprimer pour les deux cas pour être sûr.
+        $stmt->execute([$utilisateurId]); 
+        
         $stmt = $pdo->prepare('DELETE FROM notifications WHERE (destinataire_id = ? OR destinataire_id = ?) AND destinataire_type = "chauffeur"');
         $stmt->execute([$utilisateurId, $chauffeur_id]);
 

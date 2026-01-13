@@ -159,6 +159,30 @@ export default function AdminAccidents() {
     }
   };
 
+  const handleLastChance = async (chauffeurId) => {
+    try {
+      const chauffeur = chauffeurs.find(c => c.id === chauffeurId);
+      if (!chauffeur) throw new Error("Chauffeur introuvable");
+
+      const message = "C'est votre dernière chance. Au prochain accident, vous serez licencié définitivement.";
+
+      await notificationsAPI.create({
+        destinataire_id: chauffeur.utilisateur_id || chauffeur.id,
+        destinataire_type: 'chauffeur',
+        titre: 'Avis de licenciement - Dernière chance',
+        message: message,
+        type: 'alerte'
+      });
+
+      setShowLicencierModal(false);
+      setChauffeurToLicencier(null);
+      setAlertDialog({ show: true, message: 'Notification "Dernière chance" envoyée au chauffeur.', type: 'success' });
+    } catch (err) {
+      console.error('Erreur lors de l\'envoi de la notification dernière chance:', err);
+      setAlertDialog({ show: true, message: 'Erreur lors de l\'envoi de la notification', type: 'error' });
+    }
+  };
+
   const handleDelete = async () => {
     if (!accidentToDelete) return;
 
@@ -683,7 +707,11 @@ export default function AdminAccidents() {
                 <strong>Chauffeur:</strong> {chauffeurToLicencier.prenom} {chauffeurToLicencier.nom}
               </p>
               <p className="text-sm text-gray-600">
-                Le chauffeur sera supprimé de la base de données, le bus sera désaffecté et le responsable sera notifié.
+                Le chauffeur a atteint 3 accidents. Voulez-vous le licencier définitivement ?
+                <br /><br />
+                <strong>Oui :</strong> Le chauffeur sera supprimé et le responsable notifié.
+                <br />
+                <strong>Non :</strong> Le chauffeur recevra un avertissement "Dernière chance".
               </p>
             </div>
 
@@ -693,394 +721,405 @@ export default function AdminAccidents() {
                   setShowLicencierModal(false);
                   setChauffeurToLicencier(null);
                 }}
-                variant="outline"
-                className="flex-1 rounded-xl"
+                variant="ghost"
+                className="flex-1 rounded-xl text-gray-500 hover:text-gray-700"
               >
                 Annuler
+              </Button>
+              <Button
+                onClick={() => handleLastChance(chauffeurToLicencier.id)}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold"
+              >
+                Non (Dernière chance)
               </Button>
               <Button
                 onClick={() => handleLicencier(chauffeurToLicencier.id)}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
               >
-                Confirmer le licenciement
+                Oui (Licencier)
               </Button>
             </div>
           </motion.div>
-        </div>
-      )}
+        </div >
+      )
+      }
 
       {/* Modal Supprimer Accident */}
-      {showDeleteModal && accidentToDelete && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <Trash2 className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-800">Supprimer l'accident</h3>
-                <p className="text-sm text-gray-500">Cette action est irréversible</p>
-              </div>
-            </div>
-
-            <div className="mb-6 p-4 bg-red-50 rounded-xl border border-red-200">
-              <p className="text-gray-800 mb-2">
-                <strong>Date:</strong> {format(new Date(accidentToDelete.date), 'dd MMMM yyyy', { locale: fr })}
-                {accidentToDelete.heure && ` à ${accidentToDelete.heure}`}
-              </p>
-              <p className="text-gray-800 mb-2">
-                <strong>Description:</strong> {accidentToDelete.description}
-              </p>
-              {(() => {
-                const bus = buses.find(b => b.id === accidentToDelete.bus_id);
-                return bus ? (
-                  <p className="text-gray-800 mb-2">
-                    <strong>Bus:</strong> {bus.numero}
-                  </p>
-                ) : null;
-              })()}
-              <p className="text-sm text-red-600 font-medium mt-3">
-                ⚠️ Attention : Cette action supprimera définitivement l'accident de la base de données.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  setAccidentToDelete(null);
-                }}
-                variant="outline"
-                className="flex-1 rounded-xl"
-              >
-                Annuler
-              </Button>
-              <Button
-                onClick={handleDelete}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Confirmer la suppression
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Modal Détails */}
-      {showDetailsModal && selectedAccident && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-          >
-            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-red-500 to-rose-500">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <AlertCircle className="w-6 h-6" />
-                  Détails de l'Accident
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowDetailsModal(false);
-                    setSelectedAccident(null);
-                  }}
-                  className="text-white hover:text-red-100 transition-colors"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Date</label>
-                  <p className="text-gray-800">
-                    {format(new Date(selectedAccident.date), 'dd MMMM yyyy', { locale: fr })}
-                    {selectedAccident.heure && ` à ${selectedAccident.heure}`}
-                  </p>
+      {
+        showDeleteModal && accidentToDelete && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-6 h-6 text-red-600" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Gravité</label>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium inline-block ${getGraviteBadge(selectedAccident.gravite)}`}>
-                    {selectedAccident.gravite}
-                  </span>
+                  <h3 className="text-xl font-bold text-gray-800">Supprimer l'accident</h3>
+                  <p className="text-sm text-gray-500">Cette action est irréversible</p>
                 </div>
+              </div>
 
-                {selectedAccident.lieu && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Lieu</label>
-                    <p className="text-gray-800">{selectedAccident.lieu}</p>
-                  </div>
-                )}
-
+              <div className="mb-6 p-4 bg-red-50 rounded-xl border border-red-200">
+                <p className="text-gray-800 mb-2">
+                  <strong>Date:</strong> {format(new Date(accidentToDelete.date), 'dd MMMM yyyy', { locale: fr })}
+                  {accidentToDelete.heure && ` à ${accidentToDelete.heure}`}
+                </p>
+                <p className="text-gray-800 mb-2">
+                  <strong>Description:</strong> {accidentToDelete.description}
+                </p>
                 {(() => {
-                  const bus = buses.find(b => b.id === selectedAccident.bus_id);
+                  const bus = buses.find(b => b.id === accidentToDelete.bus_id);
                   return bus ? (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Bus</label>
-                      <p className="text-gray-800">{bus.numero}</p>
-                    </div>
+                    <p className="text-gray-800 mb-2">
+                      <strong>Bus:</strong> {bus.numero}
+                    </p>
                   ) : null;
                 })()}
-
-                {((selectedAccident.chauffeur_prenom || selectedAccident.chauffeur_nom) || selectedAccident.chauffeur_id) && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Chauffeur</label>
-                    <p className="text-gray-800">
-                      {selectedAccident.chauffeur_prenom || ''} {selectedAccident.chauffeur_nom || ''}
-                      {!selectedAccident.chauffeur_prenom && !selectedAccident.chauffeur_nom && selectedAccident.chauffeur_id && 'Chauffeur ID: ' + selectedAccident.chauffeur_id}
-                    </p>
-                  </div>
-                )}
-
-                {((selectedAccident.responsable_prenom || selectedAccident.responsable_nom) || selectedAccident.responsable_id) && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Responsable</label>
-                    <p className="text-gray-800">
-                      {selectedAccident.responsable_prenom || ''} {selectedAccident.responsable_nom || ''}
-                      {!selectedAccident.responsable_prenom && !selectedAccident.responsable_nom && selectedAccident.responsable_id && 'Responsable ID: ' + selectedAccident.responsable_id}
-                    </p>
-                  </div>
-                )}
-
-                {selectedAccident.nombre_eleves !== null && selectedAccident.nombre_eleves !== undefined && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Nombre d'élèves</label>
-                    <p className="text-gray-800">{selectedAccident.nombre_eleves}</p>
-                  </div>
-                )}
-
-                {selectedAccident.nombre_blesses !== null && selectedAccident.nombre_blesses !== undefined && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Nombre de blessés</label>
-                    <p className="text-red-600 font-semibold">{selectedAccident.nombre_blesses}</p>
-                  </div>
-                )}
+                <p className="text-sm text-red-600 font-medium mt-3">
+                  ⚠️ Attention : Cette action supprimera définitivement l'accident de la base de données.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
-                <p className="text-gray-800">{selectedAccident.description}</p>
-              </div>
-
-              {selectedAccident.degats && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Dégâts</label>
-                  <p className="text-gray-800">{selectedAccident.degats}</p>
-                </div>
-              )}
-
-              {selectedAccident.eleves_concernees && Array.isArray(selectedAccident.eleves_concernees) && selectedAccident.eleves_concernees.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
-                    <Users className="w-4 h-4" />
-                    Élèves présents dans le bus
-                  </label>
-                  <div className="bg-blue-50 rounded-xl p-4">
-                    <ul className="space-y-2">
-                      {selectedAccident.eleves_concernees.map((eleve, index) => (
-                        <li key={index} className="text-gray-800">
-                          {typeof eleve === 'object' && eleve.nom ? `${eleve.prenom} ${eleve.nom}` : eleve}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
-                  <Camera className="w-4 h-4" />
-                  Photos
-                </label>
-                {(() => {
-                  try {
-                    let photosArray = [];
-                    const photosField = selectedAccident.photos;
-
-                    // Si les photos sont null ou undefined
-                    if (!photosField) {
-                      return (
-                        <div className="bg-gray-50 rounded-xl p-6 text-center">
-                          <Camera className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                          <p className="text-gray-500 text-sm">Aucune photo disponible</p>
-                        </div>
-                      );
-                    }
-
-                    // Si c'est déjà un tableau (déjà décodé par le backend)
-                    if (Array.isArray(photosField)) {
-                      photosArray = photosField;
-                    }
-                    // Si c'est une chaîne JSON
-                    else if (typeof photosField === 'string' && photosField.trim() !== '') {
-                      try {
-                        // Vérifier si la chaîne commence par [ ou {
-                        if (photosField.trim().startsWith('[') || photosField.trim().startsWith('{')) {
-                          const parsed = JSON.parse(photosField);
-                          if (Array.isArray(parsed)) {
-                            photosArray = parsed;
-                          } else if (parsed && typeof parsed === 'object') {
-                            // Si c'est un objet avec une propriété photos
-                            if (Array.isArray(parsed.photos)) {
-                              photosArray = parsed.photos;
-                            }
-                            // Si l'objet contient directement les données
-                            else if (parsed.data && Array.isArray(parsed.data)) {
-                              photosArray = parsed.data;
-                            }
-                            // Si c'est un objet unique avec une propriété data/base64
-                            else if (parsed.data || parsed.src || parsed.url) {
-                              photosArray = [parsed.data || parsed.src || parsed.url];
-                            }
-                          }
-                        } else if (photosField.startsWith('data:image')) {
-                          // Si c'est une seule photo en base64 directe
-                          photosArray = [photosField];
-                        }
-                      } catch (parseError) {
-                        console.error('Erreur parsing photos:', parseError, photosField);
-                        // Si le parsing échoue, essayer de traiter comme une seule photo
-                        if (photosField.startsWith('data:image')) {
-                          photosArray = [photosField];
-                        }
-                      }
-                    }
-
-                    // Filtrer et normaliser les photos valides
-                    const validPhotos = photosArray
-                      .map((photo, idx) => {
-                        if (typeof photo === 'string') {
-                          // Vérifier que c'est bien une URL base64 valide
-                          return photo.trim() !== '' && (photo.startsWith('data:image') || photo.startsWith('http')) ? photo : null;
-                        } else if (photo && typeof photo === 'object') {
-                          // Extraire l'URL depuis l'objet
-                          return photo.data || photo.src || photo.url || photo.base64 || null;
-                        }
-                        return null;
-                      })
-                      .filter(photoSrc => {
-                        return photoSrc &&
-                          typeof photoSrc === 'string' &&
-                          photoSrc.trim() !== '' &&
-                          (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'));
-                      });
-
-                    if (validPhotos.length === 0) {
-                      return (
-                        <div className="bg-gray-50 rounded-xl p-6 text-center">
-                          <Camera className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                          <p className="text-gray-500 text-sm">Aucune photo valide</p>
-                          <p className="text-xs text-gray-400 mt-1">Les photos peuvent être corrompues ou dans un format non supporté</p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {validPhotos.map((photoSrc, index) => (
-                          <motion.div
-                            key={index}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            className="relative group cursor-pointer"
-                            onClick={() => setSelectedPhoto(photoSrc)}
-                          >
-                            <div className="relative overflow-hidden rounded-xl border-2 border-gray-200 group-hover:border-red-400 transition-colors bg-gray-100">
-                              <img
-                                src={photoSrc}
-                                alt={`Photo ${index + 1}`}
-                                className="w-full h-32 object-cover"
-                                onError={(e) => {
-                                  console.error('Erreur chargement image:', index, photoSrc?.substring(0, 50));
-                                  e.target.parentElement.style.display = 'none';
-                                }}
-                                onLoad={() => {
-                                  console.log('Image chargée avec succès:', index);
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                              <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                                Photo {index + 1}
-                              </div>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    );
-                  } catch (e) {
-                    console.error('Erreur traitement photos:', e, selectedAccident.photos);
-                    return (
-                      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                        <p className="text-red-600 text-sm font-medium">Erreur lors du chargement des photos</p>
-                        <p className="text-red-500 text-xs mt-1">{e.message}</p>
-                      </div>
-                    );
-                  }
-                })()}
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  setSelectedAccident(null);
-                }}
-                className="rounded-xl"
-              >
-                Fermer
-              </Button>
-              {selectedAccident.statut === 'En attente' && (
+              <div className="flex gap-3">
                 <Button
                   onClick={() => {
-                    handleValidate(selectedAccident.id);
+                    setShowDeleteModal(false);
+                    setAccidentToDelete(null);
+                  }}
+                  variant="outline"
+                  className="flex-1 rounded-xl"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleDelete}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Confirmer la suppression
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )
+      }
+
+      {/* Modal Détails */}
+      {
+        showDetailsModal && selectedAccident && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-red-500 to-rose-500">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <AlertCircle className="w-6 h-6" />
+                    Détails de l'Accident
+                  </h2>
+                  <button
+                    onClick={() => {
+                      setShowDetailsModal(false);
+                      setSelectedAccident(null);
+                    }}
+                    className="text-white hover:text-red-100 transition-colors"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Date</label>
+                    <p className="text-gray-800">
+                      {format(new Date(selectedAccident.date), 'dd MMMM yyyy', { locale: fr })}
+                      {selectedAccident.heure && ` à ${selectedAccident.heure}`}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Gravité</label>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium inline-block ${getGraviteBadge(selectedAccident.gravite)}`}>
+                      {selectedAccident.gravite}
+                    </span>
+                  </div>
+
+                  {selectedAccident.lieu && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Lieu</label>
+                      <p className="text-gray-800">{selectedAccident.lieu}</p>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const bus = buses.find(b => b.id === selectedAccident.bus_id);
+                    return bus ? (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Bus</label>
+                        <p className="text-gray-800">{bus.numero}</p>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {((selectedAccident.chauffeur_prenom || selectedAccident.chauffeur_nom) || selectedAccident.chauffeur_id) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Chauffeur</label>
+                      <p className="text-gray-800">
+                        {selectedAccident.chauffeur_prenom || ''} {selectedAccident.chauffeur_nom || ''}
+                        {!selectedAccident.chauffeur_prenom && !selectedAccident.chauffeur_nom && selectedAccident.chauffeur_id && 'Chauffeur ID: ' + selectedAccident.chauffeur_id}
+                      </p>
+                    </div>
+                  )}
+
+                  {((selectedAccident.responsable_prenom || selectedAccident.responsable_nom) || selectedAccident.responsable_id) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Responsable</label>
+                      <p className="text-gray-800">
+                        {selectedAccident.responsable_prenom || ''} {selectedAccident.responsable_nom || ''}
+                        {!selectedAccident.responsable_prenom && !selectedAccident.responsable_nom && selectedAccident.responsable_id && 'Responsable ID: ' + selectedAccident.responsable_id}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedAccident.nombre_eleves !== null && selectedAccident.nombre_eleves !== undefined && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Nombre d'élèves</label>
+                      <p className="text-gray-800">{selectedAccident.nombre_eleves}</p>
+                    </div>
+                  )}
+
+                  {selectedAccident.nombre_blesses !== null && selectedAccident.nombre_blesses !== undefined && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Nombre de blessés</label>
+                      <p className="text-red-600 font-semibold">{selectedAccident.nombre_blesses}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
+                  <p className="text-gray-800">{selectedAccident.description}</p>
+                </div>
+
+                {selectedAccident.degats && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">Dégâts</label>
+                    <p className="text-gray-800">{selectedAccident.degats}</p>
+                  </div>
+                )}
+
+                {selectedAccident.eleves_concernees && Array.isArray(selectedAccident.eleves_concernees) && selectedAccident.eleves_concernees.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Élèves présents dans le bus
+                    </label>
+                    <div className="bg-blue-50 rounded-xl p-4">
+                      <ul className="space-y-2">
+                        {selectedAccident.eleves_concernees.map((eleve, index) => (
+                          <li key={index} className="text-gray-800">
+                            {typeof eleve === 'object' && eleve.nom ? `${eleve.prenom} ${eleve.nom}` : eleve}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2 flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Photos
+                  </label>
+                  {(() => {
+                    try {
+                      let photosArray = [];
+                      const photosField = selectedAccident.photos;
+
+                      // Si les photos sont null ou undefined
+                      if (!photosField) {
+                        return (
+                          <div className="bg-gray-50 rounded-xl p-6 text-center">
+                            <Camera className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                            <p className="text-gray-500 text-sm">Aucune photo disponible</p>
+                          </div>
+                        );
+                      }
+
+                      // Si c'est déjà un tableau (déjà décodé par le backend)
+                      if (Array.isArray(photosField)) {
+                        photosArray = photosField;
+                      }
+                      // Si c'est une chaîne JSON
+                      else if (typeof photosField === 'string' && photosField.trim() !== '') {
+                        try {
+                          // Vérifier si la chaîne commence par [ ou {
+                          if (photosField.trim().startsWith('[') || photosField.trim().startsWith('{')) {
+                            const parsed = JSON.parse(photosField);
+                            if (Array.isArray(parsed)) {
+                              photosArray = parsed;
+                            } else if (parsed && typeof parsed === 'object') {
+                              // Si c'est un objet avec une propriété photos
+                              if (Array.isArray(parsed.photos)) {
+                                photosArray = parsed.photos;
+                              }
+                              // Si l'objet contient directement les données
+                              else if (parsed.data && Array.isArray(parsed.data)) {
+                                photosArray = parsed.data;
+                              }
+                              // Si c'est un objet unique avec une propriété data/base64
+                              else if (parsed.data || parsed.src || parsed.url) {
+                                photosArray = [parsed.data || parsed.src || parsed.url];
+                              }
+                            }
+                          } else if (photosField.startsWith('data:image')) {
+                            // Si c'est une seule photo en base64 directe
+                            photosArray = [photosField];
+                          }
+                        } catch (parseError) {
+                          console.error('Erreur parsing photos:', parseError, photosField);
+                          // Si le parsing échoue, essayer de traiter comme une seule photo
+                          if (photosField.startsWith('data:image')) {
+                            photosArray = [photosField];
+                          }
+                        }
+                      }
+
+                      // Filtrer et normaliser les photos valides
+                      const validPhotos = photosArray
+                        .map((photo, idx) => {
+                          if (typeof photo === 'string') {
+                            // Vérifier que c'est bien une URL base64 valide
+                            return photo.trim() !== '' && (photo.startsWith('data:image') || photo.startsWith('http')) ? photo : null;
+                          } else if (photo && typeof photo === 'object') {
+                            // Extraire l'URL depuis l'objet
+                            return photo.data || photo.src || photo.url || photo.base64 || null;
+                          }
+                          return null;
+                        })
+                        .filter(photoSrc => {
+                          return photoSrc &&
+                            typeof photoSrc === 'string' &&
+                            photoSrc.trim() !== '' &&
+                            (photoSrc.startsWith('data:image') || photoSrc.startsWith('http'));
+                        });
+
+                      if (validPhotos.length === 0) {
+                        return (
+                          <div className="bg-gray-50 rounded-xl p-6 text-center">
+                            <Camera className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                            <p className="text-gray-500 text-sm">Aucune photo valide</p>
+                            <p className="text-xs text-gray-400 mt-1">Les photos peuvent être corrompues ou dans un format non supporté</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {validPhotos.map((photoSrc, index) => (
+                            <motion.div
+                              key={index}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              className="relative group cursor-pointer"
+                              onClick={() => setSelectedPhoto(photoSrc)}
+                            >
+                              <div className="relative overflow-hidden rounded-xl border-2 border-gray-200 group-hover:border-red-400 transition-colors bg-gray-100">
+                                <img
+                                  src={photoSrc}
+                                  alt={`Photo ${index + 1}`}
+                                  className="w-full h-32 object-cover"
+                                  onError={(e) => {
+                                    console.error('Erreur chargement image:', index, photoSrc?.substring(0, 50));
+                                    e.target.parentElement.style.display = 'none';
+                                  }}
+                                  onLoad={() => {
+                                    console.log('Image chargée avec succès:', index);
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                  <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                                <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                                  Photo {index + 1}
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      );
+                    } catch (e) {
+                      console.error('Erreur traitement photos:', e, selectedAccident.photos);
+                      return (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                          <p className="text-red-600 text-sm font-medium">Erreur lors du chargement des photos</p>
+                          <p className="text-red-500 text-xs mt-1">{e.message}</p>
+                        </div>
+                      );
+                    }
+                  })()}
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
                     setShowDetailsModal(false);
                     setSelectedAccident(null);
                   }}
-                  className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                  className="rounded-xl"
                 >
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  Marquer comme lu
+                  Fermer
                 </Button>
-              )}
-              {selectedAccident.bus_id && (
+                {selectedAccident.statut === 'En attente' && (
+                  <Button
+                    onClick={() => {
+                      handleValidate(selectedAccident.id);
+                      setShowDetailsModal(false);
+                      setSelectedAccident(null);
+                    }}
+                    className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                  >
+                    <BookOpen className="w-4 h-4 mr-2" />
+                    Marquer comme lu
+                  </Button>
+                )}
+                {selectedAccident.bus_id && (
+                  <Button
+                    onClick={() => handleNotifyTuteurs(selectedAccident)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                  >
+                    <Mail className="w-4 h-4 mr-2" />
+                    Informer les tuteurs
+                  </Button>
+                )}
                 <Button
-                  onClick={() => handleNotifyTuteurs(selectedAccident)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                  onClick={() => {
+                    setAccidentToDelete(selectedAccident);
+                    setShowDetailsModal(false);
+                    setSelectedAccident(null);
+                    setShowDeleteModal(true);
+                  }}
+                  variant="outline"
+                  className="border-red-300 text-red-600 hover:bg-red-50 rounded-xl"
                 >
-                  <Mail className="w-4 h-4 mr-2" />
-                  Informer les tuteurs
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Supprimer
                 </Button>
-              )}
-              <Button
-                onClick={() => {
-                  setAccidentToDelete(selectedAccident);
-                  setShowDetailsModal(false);
-                  setSelectedAccident(null);
-                  setShowDeleteModal(true);
-                }}
-                variant="outline"
-                className="border-red-300 text-red-600 hover:bg-red-50 rounded-xl"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Supprimer
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+              </div>
+            </motion.div>
+          </div>
+        )
+      }
 
       {/* Modal pour voir les photos en grand */}
       <AnimatePresence>
@@ -1119,6 +1158,6 @@ export default function AdminAccidents() {
         type={alertDialog.type}
         onClose={() => setAlertDialog({ show: false, message: '', type: 'success' })}
       />
-    </AdminLayout>
+    </AdminLayout >
   );
 }

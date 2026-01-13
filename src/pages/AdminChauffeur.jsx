@@ -28,6 +28,7 @@ export default function AdminChauffeur() {
   const [deleteChauffeurConfirm, setDeleteChauffeurConfirm] = useState({ show: false, id: null });
   const [deleteResponsableConfirm, setDeleteResponsableConfirm] = useState({ show: false, id: null });
   const [licencierConfirm, setLicencierConfirm] = useState({ show: false, id: null, nom: '' });
+  const [cleanTerminatedConfirm, setCleanTerminatedConfirm] = useState(false);
 
   const [chauffeurForm, setChauffeurForm] = useState({
     nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: ''
@@ -186,7 +187,7 @@ export default function AdminChauffeur() {
       setDeleteChauffeurConfirm({ show: false, id: null });
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
-      setError('Erreur lors de la suppression du chauffeur');
+      setError('Erreur lors de la suppression du chauffeur: ' + (err.message || 'Erreur inconnue'));
       setDeleteChauffeurConfirm({ show: false, id: null });
     }
   };
@@ -215,15 +216,24 @@ export default function AdminChauffeur() {
   const handleLicencier = async () => {
     if (!licencierConfirm.id) return;
     try {
+      // Le backend (licencier.php) gère déjà la suppression totale (chauffeur, auth, accidents, etc.)
       await chauffeursAPI.licencier(licencierConfirm.id);
-      await loadData();
+
+      // On met à jour l'état local pour retirer immédiatement le chauffeur de la liste
+      setChauffeurs(prev => prev.filter(c => c.id !== licencierConfirm.id));
+
       setLicencierConfirm({ show: false, id: null, nom: '' });
+      // Optionnel: Ajouter un feedback visuel si nécessaire, mais le retrait de la liste est explicite
     } catch (err) {
       console.error('Erreur licenciement:', err);
+      // Si erreur, on recharge les données pour être sûr de l'état
+      await loadData();
       setError('Erreur lors du licenciement du chauffeur');
       setLicencierConfirm({ show: false, id: null, nom: '' });
     }
   };
+
+
 
   const resetChauffeurForm = () => {
     setChauffeurForm({ nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: '' });
@@ -335,13 +345,16 @@ export default function AdminChauffeur() {
               </div>
               Gestion des Chauffeurs
             </h2>
-            <Button
-              onClick={() => setShowChauffeurForm(true)}
-              className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6 py-3"
-            >
-              <Plus className="w-5 h-5 mr-2" />
-              Ajouter un chauffeur
-            </Button>
+            <div className="flex gap-3">
+
+              <Button
+                onClick={() => setShowChauffeurForm(true)}
+                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 px-6 py-3"
+              >
+                <Plus className="w-5 h-5 mr-2" />
+                Ajouter un chauffeur
+              </Button>
+            </div>
           </div>
 
           {showChauffeurForm && (
@@ -535,8 +548,14 @@ export default function AdminChauffeur() {
                       <Edit className="w-5 h-5" />
                     </Button>
 
-                    {/* Bouton Licencier si >= 3 accidents */}
-                    {item.nombre_accidents >= 3 ? (
+                    {/* Logic pour afficher bouton Delete ou Licencier */}
+                    {item.statut === 'Licencié' ? (
+                      // Si déjà licencié, bouton supprimer pour nettoyer
+                      <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeurClick(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md" title="Supprimer définitivement">
+                        <Trash2 className="w-5 h-5" />
+                      </Button>
+                    ) : item.nombre_accidents >= 3 ? (
+                      // Si >= 3 accidents et pas encore licencié
                       <Button
                         variant="outline"
                         size="icon"
@@ -547,6 +566,7 @@ export default function AdminChauffeur() {
                         <AlertCircle className="w-5 h-5" />
                       </Button>
                     ) : (
+                      // Sinon bouton supprimer standard
                       <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeurClick(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
                         <Trash2 className="w-5 h-5" />
                       </Button>
@@ -826,6 +846,7 @@ export default function AdminChauffeur() {
         cancelText="Annuler"
         variant="destructive"
       />
+
     </AdminLayout>
   );
 }
