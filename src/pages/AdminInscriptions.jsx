@@ -116,9 +116,36 @@ export default function AdminInscriptions() {
 
           // Fallback: Essayer de trouver le tuteur via le demandeur (utilisateur) si pas de lien direct
           if (!tuteur && demandeInscription) {
+            // 1. Via ID utilisateur
             const userId = demandeInscription.demandeur_id || demandeInscription.utilisateur_id;
             if (userId && Array.isArray(tuteursArray)) {
               tuteur = tuteursArray.find(t => t.utilisateur_id == userId);
+            }
+
+            // 2. Via description JSON (infos manuelles) si toujours pas trouvé
+            if (!tuteur) {
+              try {
+                const desc = typeof demandeInscription.description === 'string'
+                  ? JSON.parse(demandeInscription.description)
+                  : demandeInscription.description || {};
+
+                // Créer un objet tuteur temporaire avec les infos disponibles
+                // On cherche des clés courantes (nom_tuteur, tuteur_nom, nom, etc.)
+                const nom = desc.nom_tuteur || desc.tuteur_nom || desc.nom || desc.nom_famille || 'Non renseigné';
+                const prenom = desc.prenom_tuteur || desc.tuteur_prenom || desc.prenom || '';
+
+                // Si on a au moins un nom ou prénom, on crée l'objet
+                if (nom !== 'Non renseigné' || prenom) {
+                  tuteur = {
+                    id: 'temp_' + e.id,
+                    nom: nom,
+                    prenom: prenom,
+                    telephone: desc.telephone_tuteur || desc.tuteur_telephone || desc.telephone || '-',
+                    email: desc.email_tuteur || desc.tuteur_email || desc.email || '-',
+                    adresse: desc.adresse_tuteur || desc.tuteur_adresse || desc.adresse || '-'
+                  };
+                }
+              } catch (err) { console.error("Erreur parsing description tuteur", err); }
             }
           }
 
