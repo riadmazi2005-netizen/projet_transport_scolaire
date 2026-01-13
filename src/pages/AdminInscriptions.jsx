@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, busAPI, trajetsAPI, tuteursAPI, inscriptionsAPI, notificationsAPI, demandesAPI } from '../services/apiService';
+import { elevesAPI, busAPI, trajetsAPI, tuteursAPI, inscriptionsAPI, notificationsAPI, demandesAPI, chauffeursAPI } from '../services/apiService';
+
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +69,8 @@ export default function AdminInscriptions() {
         trajetsAPI.getAll(),
         inscriptionsAPI.getAll(),
         tuteursAPI.getAll(),
-        demandesAPI.getAll()
+        demandesAPI.getAll(),
+        chauffeursAPI.getAll()
       ]);
 
       // Extraire les données avec gestion de différents formats de réponse
@@ -90,6 +92,9 @@ export default function AdminInscriptions() {
       const demandesArray = results[5].status === 'fulfilled'
         ? (Array.isArray(results[5].value?.data) ? results[5].value.data : (Array.isArray(results[5].value) ? results[5].value : []))
         : [];
+      const chauffeursArray = results[6].status === 'fulfilled'
+        ? (Array.isArray(results[6].value?.data) ? results[6].value.data : (Array.isArray(results[6].value) ? results[6].value : []))
+        : [];
 
       // Filtrer uniquement les demandes d'inscription
       const demandesInscription = Array.isArray(demandesArray) ? demandesArray.filter(d => d.type_demande === 'inscription') : [];
@@ -102,19 +107,31 @@ export default function AdminInscriptions() {
           return demandesInscription.some(d => d.eleve_id === e.id);
         })
         .map(e => {
-          const tuteur = Array.isArray(tuteursArray) ? tuteursArray.find(t => t.id == e.tuteur_id) : null;
-          const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut !== 'Terminée') : null;
-          const bus = inscription?.bus_id && Array.isArray(busesArray) ? busesArray.find(b => b.id === inscription.bus_id) : null;
           // Trouver la demande d'inscription pour cet élève (la plus récente)
           const demandeInscription = Array.isArray(demandesInscription) ? demandesInscription
             .filter(d => d.eleve_id === e.id)
             .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
+
+          let tuteur = Array.isArray(tuteursArray) ? tuteursArray.find(t => t.id == e.tuteur_id) : null;
+
+          // Fallback: Essayer de trouver le tuteur via le demandeur (utilisateur) si pas de lien direct
+          if (!tuteur && demandeInscription) {
+            const userId = demandeInscription.demandeur_id || demandeInscription.utilisateur_id;
+            if (userId && Array.isArray(tuteursArray)) {
+              tuteur = tuteursArray.find(t => t.utilisateur_id == userId);
+            }
+          }
+
+          const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut !== 'Terminée') : null;
+          const bus = inscription?.bus_id && Array.isArray(busesArray) ? busesArray.find(b => b.id === inscription.bus_id) : null;
+          const chauffeur = bus?.chauffeur_id && Array.isArray(chauffeursArray) ? chauffeursArray.find(c => c.id == bus.chauffeur_id) : null;
 
           return {
             ...e,
             tuteur,
             inscription,
             bus,
+            chauffeur,
             demande_inscription: demandeInscription,
             // Utiliser le statut de la demande d'inscription au lieu de Actif/Inactif
             statut_demande: demandeInscription?.statut || 'En attente'
@@ -998,94 +1015,123 @@ export default function AdminInscriptions() {
                           selectedEleve.statut_demande === 'Inscrit') && (
                           <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-600 mb-1">Code de vérification du paiement</label>
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 px-4 py-3 bg-amber-50 border-2 border-amber-200 rounded-xl">
-                                <p className="text-xs text-gray-600 mb-1">Code à donner au tuteur pour valider le paiement:</p>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono font-bold text-xl text-amber-800">{selectedEleve.demande_inscription.code_verification}</span>
-                                  <button
-                                    onClick={() => handleCopyCode(selectedEleve.demande_inscription.code_verification, selectedEleve.id)}
-                                    className="p-2 hover:bg-amber-100 rounded-lg transition-colors"
-                                    title="Copier le code"
-                                  >
-                                    {copiedCode === selectedEleve.id ? (
-                                      <Check className="w-5 h-5 text-green-600" />
-                                    ) : (
-                                      <Copy className="w-5 h-5 text-amber-700" />
-                                    )}
-                                  </button>
-                                </div>
-                                {copiedCode === selectedEleve.id && (
-                                  <p className="text-xs text-green-600 mt-1">✓ Code copié dans le presse-papiers</p>
+                            <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                              <span className="font-mono font-bold text-lg text-amber-800 tracking-wider">
+                                {selectedEleve.demande_inscription.code_verification}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleCopyCode(selectedEleve.demande_inscription.code_verification, selectedEleve.id)}
+                                className="ml-auto"
+                              >
+                                {copiedCode === selectedEleve.id ? (
+                                  <Check className="w-4 h-4 text-green-600" />
+                                ) : (
+                                  <Copy className="w-4 h-4 text-gray-400" />
                                 )}
-                              </div>
+                              </Button>
                             </div>
                           </div>
                         )}
-                      {/* Afficher le montant de la facture avec détails de réduction si disponible */}
-                      {selectedEleve.demande_inscription.montant_facture && (() => {
-                        try {
-                          const desc = typeof selectedEleve.demande_inscription.description === 'string'
-                            ? JSON.parse(selectedEleve.demande_inscription.description)
-                            : selectedEleve.demande_inscription.description || {};
-                          const montantAvantReduction = desc.montant_avant_reduction;
-                          const tauxReduction = desc.taux_reduction || 0;
-                          const montantReduction = desc.montant_reduction || 0;
-                          const montantFacture = parseFloat(selectedEleve.demande_inscription.montant_facture);
-
-                          if (tauxReduction > 0 && montantAvantReduction) {
-                            return (
-                              <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-600 mb-2">Détails de la facture</label>
-                                <div className="bg-gray-50 rounded-xl p-4 space-y-2 border border-gray-200">
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-600">Prix initial:</span>
-                                    <span className="text-sm text-gray-400 line-through">
-                                      {parseFloat(montantAvantReduction).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between items-center">
-                                    <span className="text-sm font-medium text-green-600">Réduction ({Math.round(tauxReduction * 100)}%):</span>
-                                    <span className="text-sm font-medium text-green-600">
-                                      -{parseFloat(montantReduction).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
-                                    </span>
-                                  </div>
-                                  <div className="border-t border-gray-300 pt-2 flex justify-between items-center">
-                                    <span className="text-base font-semibold text-gray-800">Prix final à payer:</span>
-                                    <span className="text-xl font-bold text-amber-600">
-                                      {montantFacture.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          return (
-                            <div>
-                              <label className="block text-sm font-medium text-gray-600 mb-1">Montant de la facture</label>
-                              <p className="text-gray-800 font-semibold text-lg">
-                                {montantFacture.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
-                              </p>
-                            </div>
-                          );
-                        } catch (err) {
-                          return (
-                            <div>
-                              <label className="block text-sm font-medium text-gray-600 mb-1">Montant de la facture</label>
-                              <p className="text-gray-800 font-semibold text-lg">
-                                {parseFloat(selectedEleve.demande_inscription.montant_facture).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
-                              </p>
-                            </div>
-                          );
-                        }
-                      })()}
                     </div>
                   </div>
                 );
               })()}
 
-              {/* Bus disponibles pour la zone de l'élève */}
-              {(selectedEleve.statut_demande === 'En attente' || selectedEleve.statut_demande === 'En cours de traitement') && !selectedEleve.inscription && (
+              {/* Informations du Chauffeur */}
+              {selectedEleve.chauffeur && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5 text-amber-600" />
+                    Informations du Chauffeur
+                  </h3>
+                  <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-xs text-gray-500 uppercase tracking-wider">Nom complet</span>
+                        <p className="font-medium text-gray-900">{selectedEleve.chauffeur.prenom} {selectedEleve.chauffeur.nom}</p>
+                      </div>
+                      {selectedEleve.chauffeur.telephone && (
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase tracking-wider">Téléphone</span>
+                          <p className="font-medium text-gray-900">{selectedEleve.chauffeur.telephone}</p>
+                        </div>
+                      )}
+                      {selectedEleve.bus && (
+                        <div>
+                          <span className="text-xs text-gray-500 uppercase tracking-wider">Bus assigné</span>
+                          <p className="font-medium text-gray-900">Bus N°{selectedEleve.bus.numero}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Afficher le montant de la facture avec détails de réduction si disponible */}
+              {selectedEleve.demande_inscription.montant_facture && (() => {
+                try {
+                  const desc = typeof selectedEleve.demande_inscription.description === 'string'
+                    ? JSON.parse(selectedEleve.demande_inscription.description)
+                    : selectedEleve.demande_inscription.description || {};
+                  const montantAvantReduction = desc.montant_avant_reduction;
+                  const tauxReduction = desc.taux_reduction || 0;
+                  const montantReduction = desc.montant_reduction || 0;
+                  const montantFacture = parseFloat(selectedEleve.demande_inscription.montant_facture);
+
+                  if (tauxReduction > 0 && montantAvantReduction) {
+                    return (
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-2">Détails de la facture</label>
+                        <div className="bg-gray-50 rounded-xl p-4 space-y-2 border border-gray-200">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Prix initial:</span>
+                            <span className="text-sm text-gray-400 line-through">
+                              {parseFloat(montantAvantReduction).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-green-600">Réduction ({Math.round(tauxReduction * 100)}%):</span>
+                            <span className="text-sm font-medium text-green-600">
+                              -{parseFloat(montantReduction).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                            </span>
+                          </div>
+                          <div className="border-t border-gray-300 pt-2 flex justify-between items-center">
+                            <span className="text-base font-semibold text-gray-800">Prix final à payer:</span>
+                            <span className="text-xl font-bold text-amber-600">
+                              {montantFacture.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Montant de la facture</label>
+                      <p className="text-gray-800 font-semibold text-lg">
+                        {montantFacture.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                      </p>
+                    </div>
+                  );
+                } catch (err) {
+                  return (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">Montant de la facture</label>
+                      <p className="text-gray-800 font-semibold text-lg">
+                        {parseFloat(selectedEleve.demande_inscription.montant_facture).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH
+                      </p>
+                    </div>
+                  );
+                }
+              })()}
+
+            </div>
+
+            {/* Bus disponibles pour la zone de l'élève */}
+            {
+              (selectedEleve.statut_demande === 'En attente' || selectedEleve.statut_demande === 'En cours de traitement') && !selectedEleve.inscription && (
                 <div className="border-t border-gray-200 pt-6">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                     <Bus className="w-5 h-5 text-blue-500" />
@@ -1234,10 +1280,12 @@ export default function AdminInscriptions() {
                     </div>
                   )}
                 </div>
-              )}
+              )
+            }
 
-              {/* Formulaire de validation (seulement si pas encore validé) */}
-              {(selectedEleve.statut_demande === 'En attente' || selectedEleve.statut_demande === 'En cours de traitement') && !selectedEleve.inscription && (
+            {/* Formulaire de validation (seulement si pas encore validé) */}
+            {
+              (selectedEleve.statut_demande === 'En attente' || selectedEleve.statut_demande === 'En cours de traitement') && !selectedEleve.inscription && (
                 <div className="border-t border-gray-200 pt-6">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                     <CheckCircle className="w-5 h-5 text-green-500" />
@@ -1372,8 +1420,9 @@ export default function AdminInscriptions() {
 
                   </div>
                 </div>
-              )}
-            </div>
+              )
+            }
+
 
             <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
               <Button
@@ -1401,207 +1450,212 @@ export default function AdminInscriptions() {
                 </Button>
               )}
             </div>
-          </motion.div>
-        </div>
-      )}
+          </motion.div >
+        </div >
+      )
+      }
 
       {/* Modal Affect Bus */}
-      {showVerifyModal && selectedEleve && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
-          >
-            <div className="p-6 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-gray-800">
-                Affectation de bus
-              </h2>
-              <div className="mt-2 space-y-1">
-                <p className="text-gray-700">
-                  <span className="font-medium">Nom:</span> {selectedEleve.nom}
-                </p>
-                <p className="text-gray-700">
-                  <span className="font-medium">Prénom:</span> {selectedEleve.prenom}
-                </p>
-                {selectedEleve.demande_inscription?.zone_geographique && (
+      {
+        showVerifyModal && selectedEleve && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+            >
+              <div className="p-6 border-b border-gray-100">
+                <h2 className="text-xl font-bold text-gray-800">
+                  Affectation de bus
+                </h2>
+                <div className="mt-2 space-y-1">
                   <p className="text-gray-700">
-                    <span className="font-medium">Zone:</span> {selectedEleve.demande_inscription.zone_geographique}
+                    <span className="font-medium">Nom:</span> {selectedEleve.nom}
                   </p>
-                )}
-                {selectedEleve.adresse && (
-                  <p className="text-gray-700 flex items-center gap-1">
-                    <MapPin className="w-4 h-4" />
-                    <span className="font-medium">Adresse:</span> {selectedEleve.adresse}
+                  <p className="text-gray-700">
+                    <span className="font-medium">Prénom:</span> {selectedEleve.prenom}
                   </p>
-                )}
-              </div>
-            </div>
-
-            <div className="p-6">
-              {availableBuses.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <Bus className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="font-semibold text-gray-600">Aucun bus disponible</p>
-                  <p className="text-sm mt-1">
-                    Aucun bus avec des places disponibles n'est assigné à un trajet couvrant la zone "{selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || 'inconnue'}"
-                  </p>
-                  <p className="text-xs mt-2 text-gray-500">
-                    Vérifiez que des trajets couvrent cette zone et que des bus actifs y sont assignés
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="bg-blue-50 rounded-xl p-3 border border-blue-200 mb-4">
-                    <p className="text-sm text-blue-800 font-medium">
-                      Zone de l'élève: <span className="font-bold">{selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || 'Non spécifiée'}</span>
+                  {selectedEleve.demande_inscription?.zone_geographique && (
+                    <p className="text-gray-700">
+                      <span className="font-medium">Zone:</span> {selectedEleve.demande_inscription.zone_geographique}
                     </p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      Seuls les bus dont le trajet couvre cette zone sont affichés
+                  )}
+                  {selectedEleve.adresse && (
+                    <p className="text-gray-700 flex items-center gap-1">
+                      <MapPin className="w-4 h-4" />
+                      <span className="font-medium">Adresse:</span> {selectedEleve.adresse}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-6">
+                {availableBuses.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <Bus className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p className="font-semibold text-gray-600">Aucun bus disponible</p>
+                    <p className="text-sm mt-1">
+                      Aucun bus avec des places disponibles n'est assigné à un trajet couvrant la zone "{selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || 'inconnue'}"
+                    </p>
+                    <p className="text-xs mt-2 text-gray-500">
+                      Vérifiez que des trajets couvrent cette zone et que des bus actifs y sont assignés
                     </p>
                   </div>
-                  <p className="text-sm text-gray-600 mb-4">
-                    {availableBuses.length} bus disponible(s) pour cette zone:
-                  </p>
-                  {availableBuses.map((bus) => {
-                    // Extraire les zones du trajet pour affichage
-                    let trajetZones = [];
-                    if (bus.trajet_zones) {
-                      try {
-                        const decoded = JSON.parse(bus.trajet_zones);
-                        trajetZones = Array.isArray(decoded) ? decoded : [bus.trajet_zones];
-                      } catch {
-                        trajetZones = bus.trajet_zones.split(',').map(z => z.trim());
+                ) : (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 rounded-xl p-3 border border-blue-200 mb-4">
+                      <p className="text-sm text-blue-800 font-medium">
+                        Zone de l'élève: <span className="font-bold">{selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || 'Non spécifiée'}</span>
+                      </p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        Seuls les bus dont le trajet couvre cette zone sont affichés
+                      </p>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4">
+                      {availableBuses.length} bus disponible(s) pour cette zone:
+                    </p>
+                    {availableBuses.map((bus) => {
+                      // Extraire les zones du trajet pour affichage
+                      let trajetZones = [];
+                      if (bus.trajet_zones) {
+                        try {
+                          const decoded = JSON.parse(bus.trajet_zones);
+                          trajetZones = Array.isArray(decoded) ? decoded : [bus.trajet_zones];
+                        } catch {
+                          trajetZones = bus.trajet_zones.split(',').map(z => z.trim());
+                        }
                       }
-                    }
 
-                    return (
-                      <div
-                        key={bus.id}
-                        className="p-4 rounded-2xl border-2 border-gray-100 hover:border-amber-200 transition-colors"
-                      >
-                        <div className="flex justify-between items-center">
-                          <div className="flex-1">
-                            <h3 className="font-bold text-gray-800 text-lg">{bus.numero}</h3>
-                            <p className="text-sm text-gray-400">Trajet: {bus.trajet?.nom || bus.trajet_nom || 'Non assigné'}</p>
-                            {trajetZones.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                <span className="text-xs text-gray-500">Zones couvertes:</span>
-                                {trajetZones.map((zone, idx) => (
-                                  <span
-                                    key={idx}
-                                    className={`text-xs px-2 py-1 rounded-lg ${zone.trim().toLowerCase() === (selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || '').toLowerCase()
-                                      ? 'bg-green-100 text-green-700 font-medium'
-                                      : 'bg-gray-100 text-gray-600'
-                                      }`}
-                                  >
-                                    {zone.trim()}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1">
-                              Capacité: {bus.elevesInscrits || bus.eleves_inscrits || 0}/{bus.capacite}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className={`text-2xl font-bold ${(bus.placesRestantes || bus.places_restantes || 0) > 5 ? 'text-green-500' : 'text-orange-500'
-                              }`}>
-                              {bus.placesRestantes || bus.places_restantes || 0}
-                            </p>
-                            <p className="text-xs text-gray-400">places restantes</p>
-                            <Button
-                              onClick={() => handleAffectBus(bus.id)}
-                              className="mt-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
-                              size="sm"
-                            >
-                              Affecter
-                            </Button>
+                      return (
+                        <div
+                          key={bus.id}
+                          className="p-4 rounded-2xl border-2 border-gray-100 hover:border-amber-200 transition-colors"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1">
+                              <h3 className="font-bold text-gray-800 text-lg">{bus.numero}</h3>
+                              <p className="text-sm text-gray-400">Trajet: {bus.trajet?.nom || bus.trajet_nom || 'Non assigné'}</p>
+                              {trajetZones.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  <span className="text-xs text-gray-500">Zones couvertes:</span>
+                                  {trajetZones.map((zone, idx) => (
+                                    <span
+                                      key={idx}
+                                      className={`text-xs px-2 py-1 rounded-lg ${zone.trim().toLowerCase() === (selectedEleve?.demande_inscription?.zone_geographique || selectedEleve?.zone || '').toLowerCase()
+                                        ? 'bg-green-100 text-green-700 font-medium'
+                                        : 'bg-gray-100 text-gray-600'
+                                        }`}
+                                    >
+                                      {zone.trim()}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <p className="text-xs text-gray-400 mt-1">
+                                Capacité: {bus.elevesInscrits || bus.eleves_inscrits || 0}/{bus.capacite}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-2xl font-bold ${(bus.placesRestantes || bus.places_restantes || 0) > 5 ? 'text-green-500' : 'text-orange-500'
+                                }`}>
+                                {bus.placesRestantes || bus.places_restantes || 0}
+                              </p>
+                              <p className="text-xs text-gray-400">places restantes</p>
+                              <Button
+                                onClick={() => handleAffectBus(bus.id)}
+                                className="mt-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl"
+                                size="sm"
+                              >
+                                Affecter
+                              </Button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
-            <div className="p-6 border-t border-gray-100 flex justify-end">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowVerifyModal(false);
-                  setSelectedEleve(null);
-                }}
-                className="rounded-xl"
-              >
-                Fermer
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+              <div className="p-6 border-t border-gray-100 flex justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowVerifyModal(false);
+                    setSelectedEleve(null);
+                  }}
+                  className="rounded-xl"
+                >
+                  Fermer
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )
+      }
 
       {/* Modal Refus */}
-      {showRefuseModal && selectedEleve && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-md w-full"
-          >
-            <div className="p-6 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-gray-800">
-                Refuser l'inscription
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {selectedEleve.prenom} {selectedEleve.nom}
-              </p>
-            </div>
+      {
+        showRefuseModal && selectedEleve && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full"
+            >
+              <div className="p-6 border-b border-gray-100">
+                <h2 className="text-xl font-bold text-gray-800">
+                  Refuser l'inscription
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {selectedEleve.prenom} {selectedEleve.nom}
+                </p>
+              </div>
 
-            <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Motif du refus *
-              </label>
-              <textarea
-                value={refusalMotif}
-                onChange={(e) => setRefusalMotif(e.target.value)}
-                placeholder="Veuillez indiquer la raison du refus..."
-                className="w-full h-32 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 resize-none"
-                autoFocus
-              />
-            </div>
+              <div className="p-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Motif du refus *
+                </label>
+                <textarea
+                  value={refusalMotif}
+                  onChange={(e) => setRefusalMotif(e.target.value)}
+                  placeholder="Veuillez indiquer la raison du refus..."
+                  className="w-full h-32 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-red-500 focus:ring-2 focus:ring-red-200 resize-none"
+                  autoFocus
+                />
+              </div>
 
-            <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowRefuseModal(false);
-                  setRefusalMotif('');
-                  setSelectedEleve(null);
-                }}
-                className="rounded-xl"
-              >
-                Annuler
-              </Button>
-              <Button
-                onClick={() => {
-                  if (refusalMotif.trim()) {
-                    handleRefuse(selectedEleve, refusalMotif);
+              <div className="p-6 border-t border-gray-100 flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
                     setShowRefuseModal(false);
                     setRefusalMotif('');
-                  }
-                }}
-                disabled={!refusalMotif.trim()}
-                className="bg-red-500 hover:bg-red-600 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <XCircle className="w-4 h-4 mr-2" />
-                Confirmer le refus
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AdminLayout>
+                    setSelectedEleve(null);
+                  }}
+                  className="rounded-xl"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (refusalMotif.trim()) {
+                      handleRefuse(selectedEleve, refusalMotif);
+                      setShowRefuseModal(false);
+                      setRefusalMotif('');
+                    }
+                  }}
+                  disabled={!refusalMotif.trim()}
+                  className="bg-red-500 hover:bg-red-600 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Confirmer le refus
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )
+      }
+    </AdminLayout >
   );
 }
