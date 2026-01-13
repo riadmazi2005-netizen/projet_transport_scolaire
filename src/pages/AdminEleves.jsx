@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
-import { 
+import {
   GraduationCap, Search, User, ArrowLeft, Filter, Bus, MapPin, Phone, Calendar, Key, Edit, Trash2, XCircle
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,7 +46,7 @@ export default function AdminEleves() {
   const loadData = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Charger toutes les données nécessaires
       const results = await Promise.allSettled([
@@ -58,7 +58,7 @@ export default function AdminEleves() {
         demandesAPI.getAll(),
         zonesAPI.getAll()
       ]);
-      
+
       // Extraire les données avec gestion de différents formats
       const elevesArray = results[0].status === 'fulfilled'
         ? (Array.isArray(results[0].value?.data) ? results[0].value.data : (Array.isArray(results[0].value) ? results[0].value : []))
@@ -81,10 +81,10 @@ export default function AdminEleves() {
       const zonesArray = results[6].status === 'fulfilled'
         ? (Array.isArray(results[6].value?.data) ? results[6].value.data : (Array.isArray(results[6].value) ? results[6].value : []))
         : [];
-      
+
       // Filtrer uniquement les demandes d'inscription
       const demandesInscription = Array.isArray(demandesArray) ? demandesArray.filter(d => d.type_demande === 'inscription') : [];
-      
+
       // Filtrer les élèves qui ont une inscription active OU une demande avec statut "Inscrit", "Validée", "Payée" ou "En attente de paiement"
       // Exclure explicitement les élèves avec des demandes refusées
       const elevesInscrits = Array.isArray(elevesArray) ? elevesArray.filter(e => {
@@ -92,20 +92,20 @@ export default function AdminEleves() {
         const demandeInscription = Array.isArray(demandesInscription) ? demandesInscription
           .filter(d => d.eleve_id === e.id)
           .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
-        
+
         // Exclure si la demande la plus récente est refusée
         if (demandeInscription?.statut === 'Refusée') {
           return false;
         }
-        
+
         // Inclure si inscription active OU demande avec statut valide (Inscrit, Validée, Payée, En attente de paiement, etc.)
         const statutsValides = ['Inscrit', 'Validée', 'Payée', 'En attente de paiement', 'En cours de traitement'];
         return inscription !== null || (demandeInscription && statutsValides.includes(demandeInscription.statut));
       }) : [];
-      
+
       // Enrichir les élèves avec toutes les informations
       const elevesWithDetails = elevesInscrits.map(e => {
-        const tuteur = Array.isArray(tuteursArray) ? tuteursArray.find(t => t.id === e.tuteur_id) : null;
+        const tuteur = Array.isArray(tuteursArray) ? tuteursArray.find(t => t.id == e.tuteur_id) : null;
         const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut === 'Active') : null;
         const bus = inscription?.bus_id && Array.isArray(busesArray) ? busesArray.find(b => b.id === inscription.bus_id) : null;
         const trajet = bus?.trajet_id && Array.isArray(trajetsArray) ? trajetsArray.find(t => t.id === bus.trajet_id) : null;
@@ -113,10 +113,10 @@ export default function AdminEleves() {
         const demandeInscription = Array.isArray(demandesInscription) ? demandesInscription
           .filter(d => d.eleve_id === e.id)
           .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
-        
+
         // Déterminer le statut à afficher : "Inscrit" si la demande est "Inscrit", sinon utiliser le statut de l'inscription
         const statutAffiche = demandeInscription?.statut === 'Inscrit' ? 'Inscrit' : (inscription?.statut || e.statut);
-        
+
         return {
           ...e,
           tuteur,
@@ -131,7 +131,7 @@ export default function AdminEleves() {
           zone: demandeInscription?.zone_geographique || null
         };
       });
-      
+
       setEleves(elevesWithDetails);
       setTuteurs(tuteursArray);
       setZones(zonesArray.filter(z => z.actif !== false));
@@ -145,7 +145,7 @@ export default function AdminEleves() {
 
   const filteredEleves = eleves.filter(e => {
     // Recherche globale (nom, prénom, ID)
-    const matchSearch = searchTerm === '' || 
+    const matchSearch = searchTerm === '' ||
       e.id?.toString().includes(searchTerm) ||
       e.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -155,32 +155,32 @@ export default function AdminEleves() {
       e.tuteur?.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.tuteur?.prenom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       e.tuteur?.telephone?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     // Filtre par statut
     const matchStatus = statusFilter === 'all' || e.inscription?.statut === statusFilter || e.statut_affichage === statusFilter;
-    
+
     // Filtre par zone
     const matchZone = zoneFilter === 'all' || e.zone === zoneFilter || e.demande_inscription?.zone_geographique === zoneFilter;
-    
+
     // Filtre par classe
     const matchClasse = classeFilter === 'all' || e.classe === classeFilter;
-    
+
     // Filtre par groupe
     const matchGroupe = groupeFilter === 'all' || e.groupe === groupeFilter || e.demande_inscription?.groupe === groupeFilter;
-    
+
     // Filtre par type de transport
-    const matchTypeTransport = typeTransportFilter === 'all' || 
-      e.type_transport === typeTransportFilter || 
+    const matchTypeTransport = typeTransportFilter === 'all' ||
+      e.type_transport === typeTransportFilter ||
       e.demande_inscription?.type_transport === typeTransportFilter;
-    
+
     // Filtre par type d'abonnement
-    const matchTypeAbonnement = typeAbonnementFilter === 'all' || 
-      e.type_abonnement === typeAbonnementFilter || 
+    const matchTypeAbonnement = typeAbonnementFilter === 'all' ||
+      e.type_abonnement === typeAbonnementFilter ||
       e.demande_inscription?.abonnement === typeAbonnementFilter;
-    
+
     return matchSearch && matchStatus && matchZone && matchClasse && matchGroupe && matchTypeTransport && matchTypeAbonnement;
   });
-  
+
   // Extraire les valeurs uniques pour les filtres
   const classesUniques = [...new Set(eleves.map(e => e.classe).filter(Boolean))].sort();
   const groupesUniques = [...new Set(eleves.map(e => e.groupe || e.demande_inscription?.groupe).filter(Boolean))].sort();
@@ -213,7 +213,7 @@ export default function AdminEleves() {
 
   const handleSaveEdit = async () => {
     if (!selectedEleve) return;
-    
+
     setError(null);
     try {
       await elevesAPI.update(selectedEleve.id, {
@@ -222,7 +222,7 @@ export default function AdminEleves() {
         classe: editForm.classe,
         adresse: editForm.adresse
       });
-      
+
       setShowEditModal(false);
       setSelectedEleve(null);
       await loadData();
@@ -234,7 +234,7 @@ export default function AdminEleves() {
 
   const handleDelete = async () => {
     if (!deleteConfirm.eleve) return;
-    
+
     setError(null);
     try {
       await elevesAPI.delete(deleteConfirm.eleve.id);
@@ -308,7 +308,7 @@ export default function AdminEleves() {
                 className="pl-10 h-12 rounded-xl"
               />
             </div>
-            
+
             {/* Filtres avancés */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -324,7 +324,7 @@ export default function AdminEleves() {
                   <SelectItem value="Inscrit">Inscrit</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               <Select value={zoneFilter} onValueChange={setZoneFilter}>
                 <SelectTrigger className="h-12 rounded-xl">
                   <MapPin className="w-4 h-4 mr-2" />
@@ -337,7 +337,7 @@ export default function AdminEleves() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={classeFilter} onValueChange={setClasseFilter}>
                 <SelectTrigger className="h-12 rounded-xl">
                   <GraduationCap className="w-4 h-4 mr-2" />
@@ -350,7 +350,7 @@ export default function AdminEleves() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={groupeFilter} onValueChange={setGroupeFilter}>
                 <SelectTrigger className="h-12 rounded-xl">
                   <SelectValue placeholder="Groupe" />
@@ -362,7 +362,7 @@ export default function AdminEleves() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={typeTransportFilter} onValueChange={setTypeTransportFilter}>
                 <SelectTrigger className="h-12 rounded-xl">
                   <Bus className="w-4 h-4 mr-2" />
@@ -375,7 +375,7 @@ export default function AdminEleves() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={typeAbonnementFilter} onValueChange={setTypeAbonnementFilter}>
                 <SelectTrigger className="h-12 rounded-xl">
                   <SelectValue placeholder="Abonnement" />
@@ -410,7 +410,7 @@ export default function AdminEleves() {
                       <h3 className="font-semibold text-gray-800 text-lg">
                         {eleve.nom} {eleve.prenom}
                       </h3>
-                      
+
                       {/* Informations principales */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
                         {/* Classe et Groupe */}
@@ -609,8 +609,8 @@ export default function AdminEleves() {
                 </div>
                 <div>
                   <Label className="text-gray-700 font-semibold mb-2 block">Zone géographique</Label>
-                  <Select 
-                    value={editForm.zone} 
+                  <Select
+                    value={editForm.zone}
                     onValueChange={(value) => setEditForm({ ...editForm, zone: value })}
                   >
                     <SelectTrigger className="rounded-xl border-2 border-gray-200 focus:border-amber-500">

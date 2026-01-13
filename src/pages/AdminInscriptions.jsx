@@ -102,7 +102,7 @@ export default function AdminInscriptions() {
           return demandesInscription.some(d => d.eleve_id === e.id);
         })
         .map(e => {
-          const tuteur = Array.isArray(tuteursArray) ? tuteursArray.find(t => t.id === e.tuteur_id) : null;
+          const tuteur = Array.isArray(tuteursArray) ? tuteursArray.find(t => t.id == e.tuteur_id) : null;
           const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut !== 'Terminée') : null;
           const bus = inscription?.bus_id && Array.isArray(busesArray) ? busesArray.find(b => b.id === inscription.bus_id) : null;
           // Trouver la demande d'inscription pour cet élève (la plus récente)

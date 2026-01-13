@@ -667,6 +667,8 @@ export default function AdminStats() {
               </div>
             )}
           </div>
+
+        </div>
       </motion.div>
     </AdminLayout>
   );

@@ -27,8 +27,7 @@ export default function AdminAccidents() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [error, setError] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
-  const [showLicencierModal, setShowLicencierModal] = useState(false);
-  const [chauffeurToLicencier, setChauffeurToLicencier] = useState(null);
+  // Removed dismissal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [accidentToDelete, setAccidentToDelete] = useState(null);
   const [alertDialog, setAlertDialog] = useState({ show: false, message: '', type: 'success' });
@@ -123,20 +122,6 @@ export default function AdminAccidents() {
     }
   };
 
-  const handleLicencier = async (chauffeurId) => {
-    try {
-      await chauffeursAPI.licencier(chauffeurId);
-      await loadData();
-      setShowLicencierModal(false);
-      setChauffeurToLicencier(null);
-      setAlertDialog({ show: true, message: 'Chauffeur licencié avec succès. Le responsable a été notifié.', type: 'success' });
-    } catch (err) {
-      console.error('Erreur lors du licenciement:', err);
-      setError('Erreur lors du licenciement du chauffeur');
-      setAlertDialog({ show: true, message: 'Erreur lors du licenciement du chauffeur', type: 'error' });
-    }
-  };
-
   const handleAvertir = async (chauffeurId, accidentCount) => {
     try {
       const chauffeur = chauffeurs.find(c => c.id === chauffeurId);
@@ -159,29 +144,6 @@ export default function AdminAccidents() {
     }
   };
 
-  const handleLastChance = async (chauffeurId) => {
-    try {
-      const chauffeur = chauffeurs.find(c => c.id === chauffeurId);
-      if (!chauffeur) throw new Error("Chauffeur introuvable");
-
-      const message = "C'est votre dernière chance. Au prochain accident, vous serez licencié définitivement.";
-
-      await notificationsAPI.create({
-        destinataire_id: chauffeur.utilisateur_id || chauffeur.id,
-        destinataire_type: 'chauffeur',
-        titre: 'Avis de licenciement - Dernière chance',
-        message: message,
-        type: 'alerte'
-      });
-
-      setShowLicencierModal(false);
-      setChauffeurToLicencier(null);
-      setAlertDialog({ show: true, message: 'Notification "Dernière chance" envoyée au chauffeur.', type: 'success' });
-    } catch (err) {
-      console.error('Erreur lors de l\'envoi de la notification dernière chance:', err);
-      setAlertDialog({ show: true, message: 'Erreur lors de l\'envoi de la notification', type: 'error' });
-    }
-  };
 
   const handleDelete = async () => {
     if (!accidentToDelete) return;
@@ -632,36 +594,19 @@ export default function AdminAccidents() {
                               </Button>
                             )}
 
-                            {/* Actions Critiques - Uniquement sur le dernier accident */}
-                            {accident.isLatestForChauffeur && accident.chauffeur_id && (
-                              <>
-                                {has3Accidents ? (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => {
-                                      setChauffeurToLicencier({
-                                        id: accident.chauffeur_id,
-                                        nom: accident.chauffeur_nom || chauffeur?.nom || '',
-                                        prenom: accident.chauffeur_prenom || chauffeur?.prenom || ''
-                                      });
-                                      setShowLicencierModal(true);
-                                    }}
-                                    className="bg-red-600 hover:bg-red-700 text-white font-bold shadow-md hover:shadow-lg transition-all"
-                                  >
-                                    <AlertCircle className="w-4 h-4 mr-2" />
-                                    LICENCIER
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleAvertir(accident.chauffeur_id, chauffeurAccidents.length)}
-                                    className="bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
-                                  >
-                                    <AlertCircle className="w-4 h-4 mr-2" />
-                                    Avertir ({chauffeurAccidents.length})
-                                  </Button>
-                                )}
-                              </>
+                            {/* Actions Critiques - Dernier accident ou déclaré par responsable */}
+                            {(accident.isLatestForChauffeur || accident.responsable_id) && accident.chauffeur_id && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleAvertir(accident.chauffeur_id, chauffeurAccidents.length)}
+                                className={`text-white font-semibold shadow-sm ${accident.responsable_id
+                                  ? 'bg-orange-500 hover:bg-orange-600'
+                                  : 'bg-amber-500 hover:bg-amber-600'
+                                  }`}
+                              >
+                                <AlertCircle className="w-4 h-4 mr-2" />
+                                {accident.responsable_id ? 'Avertir (Resp.)' : `Avertir (${chauffeurAccidents.length})`}
+                              </Button>
                             )}
 
                             <Button
@@ -685,64 +630,7 @@ export default function AdminAccidents() {
       </div>
 
       {/* Modal Licencier */}
-      {showLicencierModal && chauffeurToLicencier && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-800">Licencier le chauffeur</h3>
-                <p className="text-sm text-gray-500">Cette action est irréversible</p>
-              </div>
-            </div>
 
-            <div className="mb-6 p-4 bg-red-50 rounded-xl border border-red-200">
-              <p className="text-gray-800 mb-2">
-                <strong>Chauffeur:</strong> {chauffeurToLicencier.prenom} {chauffeurToLicencier.nom}
-              </p>
-              <p className="text-sm text-gray-600">
-                Le chauffeur a atteint 3 accidents. Voulez-vous le licencier définitivement ?
-                <br /><br />
-                <strong>Oui :</strong> Le chauffeur sera supprimé et le responsable notifié.
-                <br />
-                <strong>Non :</strong> Le chauffeur recevra un avertissement "Dernière chance".
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  setShowLicencierModal(false);
-                  setChauffeurToLicencier(null);
-                }}
-                variant="ghost"
-                className="flex-1 rounded-xl text-gray-500 hover:text-gray-700"
-              >
-                Annuler
-              </Button>
-              <Button
-                onClick={() => handleLastChance(chauffeurToLicencier.id)}
-                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold"
-              >
-                Non (Dernière chance)
-              </Button>
-              <Button
-                onClick={() => handleLicencier(chauffeurToLicencier.id)}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold"
-              >
-                Oui (Licencier)
-              </Button>
-            </div>
-          </motion.div>
-        </div >
-      )
-      }
 
       {/* Modal Supprimer Accident */}
       {
