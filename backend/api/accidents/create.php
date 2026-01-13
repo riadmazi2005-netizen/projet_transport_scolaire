@@ -44,6 +44,23 @@ try {
         }
     }
     
+    // Si pas de bus_id mais qu'on a un chauffeur_id, essayer de trouver le bus assigné
+    if (!$bus_id && $chauffeur_id) {
+        $stmt = $pdo->prepare('SELECT id FROM bus WHERE chauffeur_id = ? LIMIT 1');
+        $stmt->execute([$chauffeur_id]);
+        $bus = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($bus) {
+            $bus_id = $bus['id'];
+        }
+    }
+
+    // Validation stricte : un accident doit être lié à un bus
+    if (!$bus_id) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Impossible de déclarer un accident sans être assigné à un bus.']);
+        exit;
+    }
+    
     $elevesConcernees = isset($data['eleves_concernees']) ? json_encode($data['eleves_concernees']) : null;
     
     // Vérifier quelles colonnes existent dans la table accidents

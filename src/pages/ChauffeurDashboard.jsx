@@ -811,7 +811,7 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                     <AlertCircle className="w-6 h-6 text-red-500" />
                     Historique des Accidents
                   </h2>
-                  {!isLicencie && (
+                  {!isLicencie && bus && (
                     <Button
                       onClick={() => setShowAccidentForm(true)}
                       className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
@@ -819,6 +819,11 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                       <Plus className="w-4 h-4 mr-2" />
                       Déclarer un accident
                     </Button>
+                  )}
+                  {!isLicencie && !bus && (
+                    <div className="text-sm text-gray-500 italic bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                      Vous devez être assigné à un bus pour déclarer un accident.
+                    </div>
                   )}
                 </div>
               </div>
