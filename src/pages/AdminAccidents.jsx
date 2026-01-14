@@ -9,7 +9,7 @@ import AlertDialog from '../components/ui/AlertDialog';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X, BookOpen, Filter, Trash2, FileText
+  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X, BookOpen, Filter, Trash2, FileText, UserX
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -27,9 +27,11 @@ export default function AdminAccidents() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [error, setError] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
-  // Removed dismissal states
+  // Removed dismissal states - Re-adding for clean implementation
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLicencierModal, setShowLicencierModal] = useState(false);
   const [accidentToDelete, setAccidentToDelete] = useState(null);
+  const [chauffeurToLicencier, setChauffeurToLicencier] = useState(null);
   const [alertDialog, setAlertDialog] = useState({ show: false, message: '', type: 'success' });
   const [filters, setFilters] = useState({
     statut: 'all',
@@ -174,6 +176,25 @@ export default function AdminAccidents() {
       console.error('Erreur lors de la suppression:', err);
       setError('Erreur lors de la suppression de l\'accident');
       setAlertDialog({ show: true, message: err.message || 'Erreur lors de la suppression de l\'accident', type: 'error' });
+    }
+  };
+
+  const handleLicencier = async () => {
+    if (!chauffeurToLicencier) return;
+
+    try {
+      const response = await chauffeursAPI.licencier(chauffeurToLicencier.id);
+      if (response && response.success) {
+        await loadData();
+        setShowLicencierModal(false);
+        setChauffeurToLicencier(null);
+        setAlertDialog({ show: true, message: 'Chauffeur licencié et supprimé avec succès', type: 'success' });
+      } else {
+        throw new Error(response?.message || 'Erreur lors du licenciement');
+      }
+    } catch (err) {
+      console.error('Erreur lors du licenciement:', err);
+      setAlertDialog({ show: true, message: err.message || 'Erreur lors du licenciement du chauffeur', type: 'error' });
     }
   };
 
@@ -625,17 +646,30 @@ export default function AdminAccidents() {
 
                             {/* Actions Critiques - Dernier accident ou déclaré par responsable */}
                             {(accident.isLatestForChauffeur || accident.responsable_id) && accident.chauffeur_id && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleAvertir(accident.chauffeur_id, chauffeurAccidents.length, accident.responsable_id ? 'responsable' : 'system', accident)}
-                                className={`text-white font-semibold shadow-sm ${accident.responsable_id
-                                  ? 'bg-orange-500 hover:bg-orange-600'
-                                  : 'bg-amber-500 hover:bg-amber-600'
-                                  }`}
-                              >
-                                <AlertCircle className="w-4 h-4 mr-2" />
-                                {accident.responsable_id ? 'Avertir Chauffeur' : `Avertir Chauffeur (${chauffeurAccidents.length})`}
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAvertir(accident.chauffeur_id, chauffeurAccidents.length, accident.responsable_id ? 'responsable' : 'system', accident)}
+                                  className={`text-white font-semibold shadow-sm ${accident.responsable_id
+                                    ? 'bg-orange-500 hover:bg-orange-600'
+                                    : 'bg-amber-500 hover:bg-amber-600'
+                                    }`}
+                                >
+                                  <AlertCircle className="w-4 h-4 mr-2" />
+                                  {accident.responsable_id ? 'Avertir Chauffeur' : `Avertir Chauffeur (${chauffeurAccidents.length})`}
+                                </Button>
+
+                                {has3Accidents && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => { setChauffeurToLicencier(chauffeur); setShowLicencierModal(true); }}
+                                    className="bg-red-600 hover:bg-red-700 text-white font-bold shadow-sm animate-pulse"
+                                  >
+                                    <UserX className="w-4 h-4 mr-2" />
+                                    LICENCIER
+                                  </Button>
+                                )}
+                              </div>
                             )}
 
                             <Button
@@ -659,6 +693,71 @@ export default function AdminAccidents() {
       </div>
 
       {/* Modal Licencier */}
+      {
+        showLicencierModal && chauffeurToLicencier && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <UserX className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Licencier le Chauffeur</h3>
+                  <p className="text-sm text-gray-500">Action irréversible - Suppression totale</p>
+                </div>
+              </div>
+
+              <div className="mb-6 p-4 bg-red-50 rounded-xl border border-red-200">
+                <p className="text-gray-800 mb-2 font-medium">
+                  Vous êtes sur le point de licencier :
+                </p>
+                <p className="text-xl font-bold text-gray-900 mb-4">
+                  {chauffeurToLicencier.prenom} {chauffeurToLicencier.nom}
+                </p>
+
+                <div className="space-y-2 text-sm text-red-700 bg-red-100/50 p-3 rounded-lg">
+                  <p className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    Le compte utilisateur sera supprimé
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    Toutes les données liées (essence, rapports, etc.) seront supprimées
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    Seuls les rapports d'accidents seront conservés (anonymisés)
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    setShowLicencierModal(false);
+                    setChauffeurToLicencier(null);
+                  }}
+                  variant="outline"
+                  className="flex-1 rounded-xl"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleLicencier}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold uppercase tracking-wide"
+                >
+                  <UserX className="w-4 h-4 mr-2" />
+                  Confirmer Licenciement
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )
+      }
 
 
       {/* Modal Supprimer Accident */}

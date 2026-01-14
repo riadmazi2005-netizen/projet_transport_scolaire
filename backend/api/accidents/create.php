@@ -2,6 +2,9 @@
 require_once '../../config/headers.php';
 require_once '../../config/database.php';
 
+error_reporting(0);
+ini_set('display_errors', 0);
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Méthode non autorisée']);
@@ -173,71 +176,27 @@ try {
                     ]);
                     
                     if ($nouveauNombreAccidents >= 3) {
-                        // 1. Désaffecter le bus (retirer le chauffeur_id)
-                        $stmt = $pdo->prepare('UPDATE bus SET chauffeur_id = NULL WHERE chauffeur_id = ?');
-                        $stmt->execute([$chauffeur_id]);
+                        // NE PAS supprimer le chauffeur automatiquement.
+                        // Au lieu de cela, on notifie les admins et le responsable qu'il FAUT le licencier.
 
-                        // 2. IMPORTANT: NE PAS SUPPRIMER LES ACCIDENTS.
-                        // On doit garder l'historique et le rapport du 3ème accident.
-                        // Cependant, comme on va supprimer le chauffeur, le lien chauffeur_id sera cassé (ou pointera vers rien).
-                        // On va mettre à jour la description ou un champ pour dire "Chauffeur Licencié (Nom Prénom)".
-                        // Idéalement, on snapshot le nom dans le rapport si ce n'est pas déjà fait.
-                        // Le rapport actuel ($accidentId) a déjà chauffeur_id.
-                        
-                        // On va notifier les admins du licenciement
+                        // Notifier les admins
                         $stmt = $pdo->query('SELECT u.id FROM utilisateurs u INNER JOIN administrateurs a ON a.utilisateur_id = u.id');
                         $adminsLicenciement = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         
                         foreach ($adminsLicenciement as $admin) {
                             $stmt = $pdo->prepare('
-                                INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, date_creation)
-                                VALUES (?, ?, ?, ?, ?, NOW())
+                                INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
+                                VALUES (?, ?, ?, ?, ?, 0)
                             ');
                             $stmt->execute([
                                 $admin['id'],
                                 'admin',
-                                'LICENCIEMENT AUTOMATIQUE',
-                                "Le chauffeur " . ($chauffeurAvant ? $chauffeurAvant['prenom'] . ' ' . $chauffeurAvant['nom'] : 'Inconnu') . " a été licencié et supprimé suite à son 3ème accident.\n\nLe rapport de l'accident est disponible dans la section Accidents.",
+                                'ACTION REQUISE : LICENCIEMENT',
+                                "Le chauffeur " . ($chauffeurAvant ? $chauffeurAvant['prenom'] . ' ' . $chauffeurAvant['nom'] : 'Inconnu') . " a atteint son 3ème accident.\n\nIl doit être licencié manuellement depuis le panneau d'administration (Rapports d'Accidents).",
                                 'alerte'
                             ]);
                         }
 
-                        // 3. Supprimer tout autre donnée liée SAUF accidents
-                        $stmt = $pdo->prepare('DELETE FROM prise_essence WHERE chauffeur_id = ?');
-                        $stmt->execute([$chauffeur_id]);
-
-                        $stmt = $pdo->prepare('DELETE FROM signalements WHERE chauffeur_id = ?');
-                        $stmt->execute([$chauffeur_id]);
-
-                        $stmt = $pdo->prepare('DELETE FROM rapports_trajets WHERE chauffeur_id = ?');
-                        $stmt->execute([$chauffeur_id]);
-
-                        $stmt = $pdo->prepare('DELETE FROM checklist_depart WHERE chauffeur_id = ?');
-                        $stmt->execute([$chauffeur_id]);
-
-                        $stmt = $pdo->prepare('UPDATE presences SET chauffeur_id = NULL WHERE chauffeur_id = ?');
-                        $stmt->execute([$chauffeur_id]);
-
-                        // 4. Supprimer le chauffeur
-                        $stmt = $pdo->prepare('DELETE FROM chauffeurs WHERE id = ?');
-                        $stmt->execute([$chauffeur_id]);
-                        
-                        // Supprimer les demandes associées
-                        $stmt = $pdo->prepare('DELETE FROM demandes WHERE tuteur_id = ?');
-                        $stmt->execute([$utilisateurId]);
-
-                        // 5. Supprimer l'utilisateur associé
-                        if ($utilisateurId) {
-                            $stmt = $pdo->prepare('DELETE FROM notifications WHERE destinataire_id = ? AND destinataire_type = "chauffeur"');
-                            $stmt->execute([$utilisateurId]); 
-                            
-                            $stmt = $pdo->prepare('DELETE FROM notifications WHERE (destinataire_id = ? OR destinataire_id = ?) AND destinataire_type = "chauffeur"');
-                            $stmt->execute([$utilisateurId, $chauffeur_id]);
-
-                            $stmt = $pdo->prepare('DELETE FROM utilisateurs WHERE id = ?');
-                            $stmt->execute([$utilisateurId]);
-                        }
-                        
                         // Notifier le responsable du bus si assigné
                         if ($bus_id) {
                             $stmt = $pdo->prepare('SELECT responsable_id, numero FROM bus WHERE id = ?');
@@ -251,14 +210,14 @@ try {
 
                                 if ($respUser) {
                                     $stmt = $pdo->prepare('
-                                        INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, date_creation)
-                                        VALUES (?, ?, ?, ?, ?, NOW())
+                                        INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
+                                        VALUES (?, ?, ?, ?, ?, 0)
                                     ');
                                     $stmt->execute([
                                         $respUser['utilisateur_id'],
                                         'responsable',
-                                        'Licenciement automatique',
-                                        "Le chauffeur du bus {$busInfoForNotif['numero']} a été licencié et supprimé automatiquement suite à son 3ème accident.",
+                                        'AVERTISSEMENT : Chauffeur à licencier',
+                                        "Le chauffeur du bus {$busInfoForNotif['numero']} a atteint son 3ème accident. Il sera licencié par l'administration.\n\nPréparez-vous à son remplacement.",
                                         'alerte'
                                     ]);
                                 }
@@ -381,8 +340,8 @@ try {
         $message .= "\n📝 Description:\n" . $description;
         
         $stmt = $pdo->prepare('
-            INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
+            VALUES (?, ?, ?, ?, ?, 0)
         ');
         $stmt->execute([
             $admin['id'],
