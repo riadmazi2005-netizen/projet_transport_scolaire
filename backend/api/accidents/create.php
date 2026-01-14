@@ -54,6 +54,18 @@ try {
         }
     }
 
+    // Si on a un bus_id (soit fourni directement, soit trouvé via responsable/chauffeur)
+    // MAIS qu'on n'a pas de chauffeur_id (ex: déclaré par un responsable),
+    // on doit récupérer le chauffeur assigné au bus pour lui imputer l'accident.
+    if ($bus_id && !$chauffeur_id) {
+        $stmt = $pdo->prepare('SELECT chauffeur_id FROM bus WHERE id = ?');
+        $stmt->execute([$bus_id]);
+        $busRes = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($busRes && $busRes['chauffeur_id']) {
+            $chauffeur_id = $busRes['chauffeur_id'];
+        }
+    }
+
     // Validation stricte : un accident doit être lié à un bus
     if (!$bus_id) {
         http_response_code(400);
@@ -140,14 +152,12 @@ try {
                     $utilisateurId = $chauffeurAvant['utilisateur_id'];
                     
                     // Envoyer une notification d'avertissement après chaque accident
-                    $avertissementMessage = "Vous avez eu un nouvel accident.\n\n";
-                    $avertissementMessage .= "Nombre total d'accidents: {$nouveauNombreAccidents}/3\n\n";
+                    $avertissementMessage = "Attention, vous avez fait {$nouveauNombreAccidents}/3 accidents.\n\n";
                     
                     if ($nouveauNombreAccidents >= 3) {
-                        $avertissementMessage .= "⚠️ ATTENTION : Suite à votre 3ème accident, vous serez licencié conformément au règlement.";
+                        $avertissementMessage .= "⚠️ Étant arrivé à 3 accidents, votre compte et vos données seront supprimés définitivement du site.";
                     } else {
-                        $accidentsRestants = 3 - $nouveauNombreAccidents;
-                        $avertissementMessage .= "Attention : Il vous reste {$accidentsRestants} accident(s) avant le licenciement automatique.";
+                        $avertissementMessage .= "Si vous arrivez à 3 accidents, vous serez directement licencier";
                     }
                     
                     $stmt = $pdo->prepare('
@@ -167,16 +177,32 @@ try {
                         $stmt = $pdo->prepare('UPDATE bus SET chauffeur_id = NULL WHERE chauffeur_id = ?');
                         $stmt->execute([$chauffeur_id]);
 
-                        // 2. Supprimer les accidents liés à ce chauffeur
-                        // Attention : on vient de créer un accident (celui-ci), il sera aussi supprimé, 
-                        // ce qui est correct si le chauffeur est supprimé complètement du site.
-                        // Mais l'admin voudra peut-être garder une trace de l'accident ? 
-                        // Le user a dit "supprimé directement de site et base de donne".
-                        // On va donc tout supprimer.
-                        $stmt = $pdo->prepare('DELETE FROM accidents WHERE chauffeur_id = ?');
-                        $stmt->execute([$chauffeur_id]);
+                        // 2. IMPORTANT: NE PAS SUPPRIMER LES ACCIDENTS.
+                        // On doit garder l'historique et le rapport du 3ème accident.
+                        // Cependant, comme on va supprimer le chauffeur, le lien chauffeur_id sera cassé (ou pointera vers rien).
+                        // On va mettre à jour la description ou un champ pour dire "Chauffeur Licencié (Nom Prénom)".
+                        // Idéalement, on snapshot le nom dans le rapport si ce n'est pas déjà fait.
+                        // Le rapport actuel ($accidentId) a déjà chauffeur_id.
                         
-                        // 3. Supprimer tout autre donnée liée
+                        // On va notifier les admins du licenciement
+                        $stmt = $pdo->query('SELECT u.id FROM utilisateurs u INNER JOIN administrateurs a ON a.utilisateur_id = u.id');
+                        $adminsLicenciement = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                        
+                        foreach ($adminsLicenciement as $admin) {
+                            $stmt = $pdo->prepare('
+                                INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, date_creation)
+                                VALUES (?, ?, ?, ?, ?, NOW())
+                            ');
+                            $stmt->execute([
+                                $admin['id'],
+                                'admin',
+                                'LICENCIEMENT AUTOMATIQUE',
+                                "Le chauffeur " . ($chauffeurAvant ? $chauffeurAvant['prenom'] . ' ' . $chauffeurAvant['nom'] : 'Inconnu') . " a été licencié et supprimé suite à son 3ème accident.\n\nLe rapport de l'accident est disponible dans la section Accidents.",
+                                'alerte'
+                            ]);
+                        }
+
+                        // 3. Supprimer tout autre donnée liée SAUF accidents
                         $stmt = $pdo->prepare('DELETE FROM prise_essence WHERE chauffeur_id = ?');
                         $stmt->execute([$chauffeur_id]);
 
@@ -213,16 +239,6 @@ try {
                         }
                         
                         // Notifier le responsable du bus si assigné
-                        // (On doit le faire AVANT la suppression si on veut les infos, mais on a déjà récupéré responsable_id via $busInfo plus haut ou on peut le refaire si besoin, mais ici on n'a pas $busInfo facile.
-                        // On va utiliser la logique existante un peu plus haut pour le responsable si dispo, 
-                        // ou juste envoyer une notif générique au responsable du bus s'il y en a un.
-                        
-                        // Récupération bus info pour notif responsable (si pas déjà fait)
-                        // On sait que le bus a été désaffecté à l'étape 1, mais on peut retrouver le responsable via la table bus (le chauffeur_id est null maintenant mais le bus existe)
-                        // Ah, on a perdu le lien bus-chauffeur. 
-                        // On aurait du choper le responsable AVANT de désaffecter.
-                        // Mais on a $bus_id de l'accident courant !
-                        
                         if ($bus_id) {
                             $stmt = $pdo->prepare('SELECT responsable_id, numero FROM bus WHERE id = ?');
                             $stmt->execute([$bus_id]);

@@ -548,29 +548,10 @@ export default function AdminChauffeur() {
                       <Edit className="w-5 h-5" />
                     </Button>
 
-                    {/* Logic pour afficher bouton Delete ou Licencier */}
-                    {item.statut === 'Licencié' ? (
-                      // Si déjà licencié, bouton supprimer pour nettoyer
-                      <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeurClick(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md" title="Supprimer définitivement">
-                        <Trash2 className="w-5 h-5" />
-                      </Button>
-                    ) : item.nombre_accidents >= 3 ? (
-                      // Si >= 3 accidents et pas encore licencié
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleLicencierClick(item)}
-                        className="rounded-xl border-2 border-red-500 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-600 w-11 h-11 shadow-md"
-                        title="Licencier ce chauffeur"
-                      >
-                        <AlertCircle className="w-5 h-5" />
-                      </Button>
-                    ) : (
-                      // Sinon bouton supprimer standard
-                      <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeurClick(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
-                        <Trash2 className="w-5 h-5" />
-                      </Button>
-                    )}
+                    {/* Suppression standard uniquement (Licenciement est automatique) */}
+                    <Button variant="outline" size="icon" onClick={() => handleDeleteChauffeurClick(item.id)} className="rounded-xl border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 w-11 h-11 shadow-md">
+                      <Trash2 className="w-5 h-5" />
+                    </Button>
                   </div>
                 </div>
               </motion.div>

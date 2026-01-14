@@ -9,7 +9,7 @@ import AlertDialog from '../components/ui/AlertDialog';
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X, BookOpen, Filter, Trash2
+  AlertCircle, Calendar, Bus, User, MapPin, ArrowLeft, Eye, Mail, Users, Camera, FileImage, CheckCircle, ZoomIn, X, BookOpen, Filter, Trash2, FileText
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -519,6 +519,23 @@ export default function AdminAccidents() {
                                 </div>
                               )}
 
+                              {/* Information sur le déclarant */}
+                              <div className="flex items-center gap-2 px-2 py-1 rounded bg-gray-50 border border-gray-100" title="Rapport envoyé par">
+                                <FileText className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-xs text-gray-500 uppercase font-semibold">Rapport:</span>
+                                {accident.responsable_id ? (
+                                  <span className="text-gray-900 font-medium">
+                                    Resp. {accident.responsable_prenom} {accident.responsable_nom}
+                                    {accident.responsable_telephone && <span className="text-gray-500 font-normal ml-1">({accident.responsable_telephone})</span>}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-900 font-medium">
+                                    Chauffeur {accident.chauffeur_prenom} {accident.chauffeur_nom}
+                                    {accident.chauffeur_telephone && <span className="text-gray-500 font-normal ml-1">({accident.chauffeur_telephone})</span>}
+                                  </span>
+                                )}
+                              </div>
+
                               {(accident.chauffeur_prenom || accident.chauffeur_nom) && (
                                 <div className="flex items-center gap-2" title="Chauffeur responsable">
                                   <User className={`w-4 h-4 ${has3Accidents ? 'text-red-500' : 'text-blue-500'}`} />
@@ -617,7 +634,7 @@ export default function AdminAccidents() {
                                   }`}
                               >
                                 <AlertCircle className="w-4 h-4 mr-2" />
-                                {accident.responsable_id ? 'Avertir (Resp.)' : `Avertir (${chauffeurAccidents.length})`}
+                                {accident.responsable_id ? 'Avertir Chauffeur' : `Avertir Chauffeur (${chauffeurAccidents.length})`}
                               </Button>
                             )}
 

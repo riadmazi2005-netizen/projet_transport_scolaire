@@ -6,25 +6,38 @@ require_once '../../config/database.php';
 
 try {
     $pdo = getDBConnection();
-    $stmt = $pdo->query('
+    // Vérifier si la colonne responsable_id existe
+    $checkCol = $pdo->query("SHOW COLUMNS FROM accidents LIKE 'responsable_id'");
+    $hasResponsableId = $checkCol->rowCount() > 0;
+
+    $joinClause = "LEFT JOIN responsables_bus r ON b.responsable_id = r.id";
+    if ($hasResponsableId) {
+        $joinClause .= " OR a.responsable_id = r.id";
+    }
+
+    $sql = "
         SELECT 
             a.*,
             a.chauffeur_id,
             b.numero as bus_numero,
             u_chauffeur.nom as chauffeur_nom,
             u_chauffeur.prenom as chauffeur_prenom,
+            u_chauffeur.telephone as chauffeur_telephone,
             r.id as responsable_id,
             r.zone_responsabilite,
             u_responsable.nom as responsable_nom,
-            u_responsable.prenom as responsable_prenom
+            u_responsable.prenom as responsable_prenom,
+            u_responsable.telephone as responsable_telephone
         FROM accidents a
         LEFT JOIN bus b ON a.bus_id = b.id
         LEFT JOIN chauffeurs c ON a.chauffeur_id = c.id
         LEFT JOIN utilisateurs u_chauffeur ON c.utilisateur_id = u_chauffeur.id
-        LEFT JOIN responsables_bus r ON b.responsable_id = r.id OR a.responsable_id = r.id
+        $joinClause
         LEFT JOIN utilisateurs u_responsable ON r.utilisateur_id = u_responsable.id
         ORDER BY a.date DESC, a.heure DESC
-    ');
+    ";
+
+    $stmt = $pdo->query($sql);
     $accidents = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Décoder les champs JSON pour chaque accident
