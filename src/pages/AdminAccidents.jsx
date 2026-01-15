@@ -728,11 +728,13 @@ export default function AdminAccidents() {
                   </p>
                   <p className="flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                    Toutes les données liées (essence, rapports, etc.) seront supprimées
+                    Le compte utilisateur sera supprimé définitivement
                   </p>
                   <p className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                    Seuls les rapports d'accidents seront conservés (anonymisés)
+                    <CheckCircle className="w-4 h-4 mt-0.5 shrink-0 text-green-600" />
+                    <span className="text-green-800">
+                      Les données (accidents, essence, problèmes) seront <strong>CONSERVÉES</strong> mais rendues anonymes
+                    </span>
                   </p>
                 </div>
               </div>
