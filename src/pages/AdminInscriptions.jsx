@@ -544,22 +544,25 @@ export default function AdminInscriptions() {
 
     return matchSearch && matchStatus;
   }).sort((a, b) => {
-    // Ordre de priorité des statuts
+    // Ordre de priorité des statuts (clés normalisées en minuscules)
     const statusPriority = {
-      'En attente': 0,
-      'En cours de traitement': 1,
-      'En attente de paiement': 2,
-      'Payée': 3,
-      'Validée': 4,
-      'Inscrit': 5,
-      'Refusée': 6,
-      'Active': 7,
-      'Terminée': 8,
-      'Suspendue': 9
+      'en attente': 0,
+      'en cours de traitement': 1,
+      'en attente de paiement': 2,
+      'payée': 3,
+      'validée': 4,
+      'inscrit': 5,
+      'refusée': 6,
+      'active': 7,
+      'terminée': 8,
+      'suspendue': 9
     };
 
-    const priorityA = statusPriority[a.statut_demande] ?? 99;
-    const priorityB = statusPriority[b.statut_demande] ?? 99;
+    const statusA = (a.statut_demande || '').toLowerCase();
+    const statusB = (b.statut_demande || '').toLowerCase();
+
+    const priorityA = statusPriority[statusA] ?? 99;
+    const priorityB = statusPriority[statusB] ?? 99;
 
     if (priorityA !== priorityB) {
       return priorityA - priorityB;
@@ -572,19 +575,20 @@ export default function AdminInscriptions() {
   });
 
   const getStatusBadge = (statut) => {
+    const normalizedStatut = (statut || '').toLowerCase();
     const styles = {
-      'En attente': 'bg-yellow-100 text-yellow-700',
-      'En cours de traitement': 'bg-blue-100 text-blue-700',
-      'En attente de paiement': 'bg-orange-100 text-orange-700',
-      'Payée': 'bg-amber-100 text-amber-700',
-      'Validée': 'bg-green-100 text-green-700',
-      'Inscrit': 'bg-emerald-100 text-emerald-700',
-      'Refusée': 'bg-red-100 text-red-700',
-      'Active': 'bg-emerald-100 text-emerald-700',
-      'Suspendue': 'bg-orange-100 text-orange-700',
-      'Terminée': 'bg-gray-100 text-gray-700'
+      'en attente': 'bg-yellow-100 text-yellow-700',
+      'en cours de traitement': 'bg-blue-100 text-blue-700',
+      'en attente de paiement': 'bg-orange-100 text-orange-700',
+      'payée': 'bg-amber-100 text-amber-700',
+      'validée': 'bg-green-100 text-green-700',
+      'inscrit': 'bg-emerald-100 text-emerald-700',
+      'refusée': 'bg-red-100 text-red-700',
+      'active': 'bg-emerald-100 text-emerald-700',
+      'suspendue': 'bg-orange-100 text-orange-700',
+      'terminée': 'bg-gray-100 text-gray-700'
     };
-    return styles[statut] || 'bg-gray-100 text-gray-700';
+    return styles[normalizedStatut] || 'bg-gray-100 text-gray-700';
   };
 
   const handleCopyCode = async (code, eleveId) => {
