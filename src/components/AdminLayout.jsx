@@ -85,7 +85,7 @@ export default function AdminLayout({ children, title = 'Administration' }) {
       // Compter les nouveaux accidents non validés
       const accidentsRes = await accidentsAPI.getAll();
       const accidents = accidentsRes?.data || accidentsRes || [];
-      const nouveauxAccidents = accidents.filter(a => a.statut === 'En attente').length;
+      const nouveauxAccidents = accidents.filter(a => a.statut && a.statut.toLowerCase() === 'en attente').length;
 
       // Compter les nouveaux problèmes non résolus
       const signalementsRes = await signalementsAPI.getAll();

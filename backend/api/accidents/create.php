@@ -158,7 +158,7 @@ try {
                     $avertissementMessage = "Attention, vous avez fait {$nouveauNombreAccidents}/3 accidents.\n\n";
                     
                     if ($nouveauNombreAccidents >= 3) {
-                        $avertissementMessage .= "⚠️ Étant arrivé à 3 accidents, votre compte et vos données seront supprimés définitivement du site.";
+                        $avertissementMessage .= "⚠️ Étant arrivé à 3 accidents, vous serez licencié definitivement.";
                     } else {
                         $avertissementMessage .= "Si vous arrivez à 3 accidents, vous serez directement licencier";
                     }
