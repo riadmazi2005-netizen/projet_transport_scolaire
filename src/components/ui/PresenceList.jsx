@@ -163,13 +163,7 @@ export default function PresenceList({
       {/* Liste verticale */}
       <div className="p-4 max-h-[600px] overflow-y-auto">
         {/* Debug info - à retirer en production */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mb-2 text-xs text-gray-500 p-2 bg-gray-50 rounded">
-            Debug: {eleves.length} élèves totaux, {filteredEleves.length} filtrés, {presences.length} présences pour {selectedDate}
-            <br />
-            Période: {periodeFilter}, Groupe: {groupFilter}, Recherche: "{searchTerm}"
-          </div>
-        )}
+
         <AnimatePresence mode="popLayout">
           <div className="space-y-2">
             {filteredEleves.map((eleve, index) => {
