@@ -13,6 +13,7 @@ const fetchAPI = async (endpoint, options = {}) => {
 
   const config = {
     method: options.method || 'GET',
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
       ...(token && { 'Authorization': `Bearer ${token}` }),

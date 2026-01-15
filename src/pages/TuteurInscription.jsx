@@ -52,9 +52,11 @@ export default function TuteurInscription() {
     groupe: ''
   });
 
-  const villes = ['Rabat', 'Salé', 'Temara'];
   const [zones, setZones] = useState([]);
   const [zonesFiltrees, setZonesFiltrees] = useState([]);
+
+  // Dériver les villes uniques depuis les zones chargées
+  const villes = [...new Set(zones.map(z => z.ville).filter(Boolean))].sort();
 
   // Classes selon le niveau
   const classesParNiveau = {

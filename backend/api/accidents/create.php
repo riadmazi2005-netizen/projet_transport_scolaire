@@ -380,6 +380,57 @@ try {
             // Garder la valeur originale si le décodage échoue
         }
     }
+
+    // --- NOTIFICATION DES TUTEURS ---
+    if ($bus_id) {
+        try {
+            // Sélectionner les tuteurs des enfants inscrits dans ce bus (inscription Active)
+            // On s'assure de ne notifier que les parents dont les enfants prennent ce bus
+            $stmt = $pdo->prepare('
+                SELECT DISTINCT u.id as user_id
+                FROM inscriptions i
+                JOIN eleves e ON i.eleve_id = e.id
+                JOIN tuteurs t ON e.tuteur_id = t.id
+                JOIN utilisateurs u ON t.utilisateur_id = u.id
+                WHERE i.bus_id = ? AND i.statut = "Active"
+            ');
+            $stmt->execute([$bus_id]);
+            $tuteurs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (!empty($tuteurs)) {
+                $messageTuteur = "⚠️ INFORMATION IMPORTANTE - ACCIDENT SIGNALÉ\n\n";
+                $messageTuteur .= "Un incident a été signalé concernant le bus de transport scolaire de votre enfant" . ($busNumero ? " (Bus $busNumero)" : "") . ".\n\n";
+                $messageTuteur .= "📅 Date: " . $date . "\n";
+                $messageTuteur .= "📍 Lieu: " . ($lieu ?: "Non précisé") . "\n";
+                $messageTuteur .= "⚡ Gravité: " . $gravite . "\n";
+                
+                if ($blesses) {
+                    $messageTuteur .= "🚑 Information: Des blessés ont été signalés. L'établissement vous contactera rapidement si nécessaire.\n";
+                } else {
+                    $messageTuteur .= "✅ Observation: Pas de blessés graves signalés initialement.\n";
+                }
+                
+                $messageTuteur .= "\nL'administration gère la situation.";
+
+                $stmtNotif = $pdo->prepare('
+                    INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
+                    VALUES (?, ?, ?, ?, ?, 0)
+                ');
+
+                foreach ($tuteurs as $tuteur) {
+                    $stmtNotif->execute([
+                        $tuteur['user_id'],
+                        'tuteur',
+                        'Incident signalé - Bus Scolaire',
+                        $messageTuteur,
+                        'alerte'
+                    ]);
+                }
+            }
+        } catch (Exception $e) {
+            // Ne pas bloquer la création de l'accident si les notifications échouent
+        }
+    }
     
     echo json_encode([
         'success' => true,

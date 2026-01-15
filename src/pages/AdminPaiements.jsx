@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { paiementsAPI, elevesAPI, tuteursAPI, inscriptionsAPI } from '../services/apiService';
+import { paiementsAPI, elevesAPI, tuteursAPI, inscriptionsAPI, demandesAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,8 @@ export default function AdminPaiements() {
   const [selectedPaiement, setSelectedPaiement] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [selectedPaiementIds, setSelectedPaiementIds] = useState([]);
   const [editForm, setEditForm] = useState({
     montant: '',
     mois: '',
@@ -50,18 +52,20 @@ export default function AdminPaiements() {
         paiementsAPI.getAll(),
         elevesAPI.getAll(),
         tuteursAPI.getAll(),
-        inscriptionsAPI.getAll()
+        inscriptionsAPI.getAll(),
+        demandesAPI.getAll()
       ]);
 
       const paiementsRes = results[0].status === 'fulfilled' ? results[0].value : { data: [] };
       const elevesRes = results[1].status === 'fulfilled' ? results[1].value : { data: [] };
       const tuteursRes = results[2].status === 'fulfilled' ? results[2].value : { data: [] };
       const inscriptionsRes = results[3].status === 'fulfilled' ? results[3].value : { data: [] };
+      const demandesRes = results[4].status === 'fulfilled' ? results[4].value : { data: [] };
 
       // Log des erreurs éventuelles pour le débogage
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
-          const endpoints = ['Paiements', 'Élèves', 'Tuteurs', 'Inscriptions'];
+          const endpoints = ['Paiements', 'Élèves', 'Tuteurs', 'Inscriptions', 'Demandes'];
           console.error(`Erreur lors du chargement de ${endpoints[index]}:`, result.reason);
         }
       });
@@ -70,6 +74,7 @@ export default function AdminPaiements() {
       const elevesData = elevesRes?.data || elevesRes || [];
       const tuteursData = tuteursRes?.data || tuteursRes || [];
       const inscriptionsData = inscriptionsRes?.data || inscriptionsRes || [];
+      const demandesData = demandesRes?.data || demandesRes || [];
 
       // Seuls les paiements mensuels (modifiables/supprimables) sont affichés
       const paiementsMensuels = Array.isArray(paiementsData) ? paiementsData
@@ -77,7 +82,41 @@ export default function AdminPaiements() {
         .map(p => {
           const inscription = Array.isArray(inscriptionsData) ? inscriptionsData.find(i => i.id === p.inscription_id) : null;
           const eleve = inscription && Array.isArray(elevesData) ? elevesData.find(e => e.id === inscription.eleve_id) : null;
-          const tuteur = eleve && Array.isArray(tuteursData) ? tuteursData.find(t => t.id === eleve.tuteur_id) : null;
+
+          // Logique robuste pour trouver le tuteur (comme dans AdminEleves)
+          let tuteur = null;
+          const demandeInscription = eleve && Array.isArray(demandesData) ? demandesData
+            .filter(d => d.eleve_id === eleve.id)
+            .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
+
+          if (eleve && Array.isArray(tuteursData)) {
+            // 1. Lien direct via élève
+            if (eleve.tuteur_id) {
+              tuteur = tuteursData.find(t => t.id == eleve.tuteur_id);
+            }
+            // 2. Lien via demande
+            if (!tuteur && demandeInscription?.tuteur_id) {
+              tuteur = tuteursData.find(t => t.id == demandeInscription.tuteur_id);
+            }
+          }
+
+          // 3. Fallback: Construction depuis la description de la demande
+          if (!tuteur && demandeInscription) {
+            tuteur = {
+              id: demandeInscription.tuteur_id,
+              nom: demandeInscription.tuteur_nom || '',
+              prenom: demandeInscription.tuteur_prenom || '',
+            };
+
+            try {
+              const desc = typeof demandeInscription.description === 'string'
+                ? JSON.parse(demandeInscription.description)
+                : demandeInscription.description || {};
+
+              if (!tuteur.nom) tuteur.nom = desc.nom_tuteur || desc.tuteur_nom || desc.nom || '';
+              if (!tuteur.prenom) tuteur.prenom = desc.prenom_tuteur || desc.tuteur_prenom || desc.prenom || '';
+            } catch (err) { console.error("Erreur parsing tuteur", err); }
+          }
 
           return {
             ...p,
@@ -224,6 +263,43 @@ export default function AdminPaiements() {
     }
   };
 
+  const toggleSelectPaiement = (id) => {
+    setSelectedPaiementIds(prev =>
+      prev.includes(id) ? prev.filter(pId => pId !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPaiementIds.length === filteredPaiements.length) {
+      setSelectedPaiementIds([]);
+    } else {
+      setSelectedPaiementIds(filteredPaiements.map(p => p.id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedPaiementIds.length === 0) return;
+
+    setProcessing(true);
+    setError(null);
+
+    try {
+      // Supprimer séquentiellement ou en parallèle
+      const deletePromises = selectedPaiementIds.map(id => paiementsAPI.delete(id));
+      await Promise.all(deletePromises);
+
+      setShowBulkDeleteModal(false);
+      setSelectedPaiementIds([]);
+      await loadData();
+    } catch (err) {
+      console.error('Erreur lors de la suppression multiple:', err);
+      await loadData();
+      setError('Certains paiements n\'ont pas pu être supprimés.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -284,6 +360,31 @@ export default function AdminPaiements() {
             Historique des Paiements
           </h2>
 
+          <div className="flex flex-wrap gap-4 items-center mb-4">
+            {/* Checkbox Tout sélectionner */}
+            <div className="flex items-center gap-2 mr-2">
+              <input
+                type="checkbox"
+                className="w-5 h-5 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                checked={filteredPaiements.length > 0 && selectedPaiementIds.length === filteredPaiements.length}
+                onChange={toggleSelectAll}
+              />
+              <span className="text-sm font-medium text-gray-600">Tout sélectionner</span>
+            </div>
+
+            {selectedPaiementIds.length > 0 && (
+              <Button
+                onClick={() => setShowBulkDeleteModal(true)}
+                variant="destructive"
+                size="sm"
+                className="rounded-xl animate-in fade-in zoom-in duration-200"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Supprimer la sélection ({selectedPaiementIds.length})
+              </Button>
+            )}
+          </div>
+
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -326,6 +427,14 @@ export default function AdminPaiements() {
                 <div key={paiement.id} className="p-6 hover:bg-teal-50/50 transition-colors">
                   <div className="flex flex-col md:flex-row justify-between gap-4">
                     <div className="flex items-start gap-4">
+                      <div className="pt-3">
+                        <input
+                          type="checkbox"
+                          className="w-5 h-5 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                          checked={selectedPaiementIds.includes(paiement.id)}
+                          onChange={() => toggleSelectPaiement(paiement.id)}
+                        />
+                      </div>
                       <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
                         <CreditCard className="w-6 h-6 text-teal-600" />
                       </div>
@@ -544,6 +653,50 @@ export default function AdminPaiements() {
                 disabled={processing}
               >
                 {processing ? 'Suppression...' : 'Supprimer'}
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal de confirmation de suppression multiple */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-gray-800">Confirmer la suppression multiple</h3>
+              <button
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+                disabled={processing}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-gray-600 mb-6">
+              Êtes-vous sûr de vouloir supprimer les {selectedPaiementIds.length} paiements sélectionnés ?
+              Cette action est irréversible.
+            </p>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800"
+                disabled={processing}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleBulkDelete}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                disabled={processing}
+              >
+                {processing ? 'Suppression...' : 'Supprimer tout'}
               </Button>
             </div>
           </motion.div>

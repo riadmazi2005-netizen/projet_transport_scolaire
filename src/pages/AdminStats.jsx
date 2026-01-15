@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPageUrl } from '../utils';
-import { elevesAPI, presencesAPI, paiementsAPI, accidentsAPI, busAPI, inscriptionsAPI, demandesAPI, tuteursAPI, signalementsAPI, essenceAPI } from '../services/apiService';
+import { elevesAPI, presencesAPI, paiementsAPI, accidentsAPI, busAPI, inscriptionsAPI, demandesAPI, tuteursAPI, signalementsAPI, essenceAPI, chauffeursAPI } from '../services/apiService';
 import { motion } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from '../components/AdminLayout';
 import {
   BarChart3, Calendar, Users, Bus, CreditCard,
-  AlertCircle, TrendingUp, Filter, ArrowLeft
+  AlertCircle, TrendingUp, Filter, ArrowLeft, Fuel, Wrench, Trophy, UserX
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, AreaChart, Area } from 'recharts';
 import { format, subDays, subWeeks, subMonths, subYears } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -21,49 +21,38 @@ export default function AdminStats() {
   const [dateDebut, setDateDebut] = useState(format(subMonths(new Date(), 1), 'yyyy-MM-dd'));
   const [dateFin, setDateFin] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [periodePreset, setPeriodePreset] = useState('mois');
+  const [activeTab, setActiveTab] = useState('overview'); // overview, bus, students
+
+  // Filters for detailed stats
   const [busFilter, setBusFilter] = useState('all');
   const [classeFilter, setClasseFilter] = useState('all');
   const [niveauFilter, setNiveauFilter] = useState('all');
+  const [groupeFilter, setGroupeFilter] = useState('all');
+  const [studentSearch, setStudentSearch] = useState('');
 
   const [data, setData] = useState({
-    eleves: [],
-    presences: [],
-    paiements: [],
-    accidents: [],
-    inscriptions: [],
-    buses: [],
-    demandes: [],
-    signalements: [],
-    essence: [],
-    tuteurs: []
+    eleves: [], presences: [], paiements: [], accidents: [], inscriptions: [],
+    buses: [], demandes: [], signalements: [], essence: [], tuteurs: [], chauffeurs: []
   });
 
   const COLORS = ['#F59E0B', '#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#EC4899'];
 
   useEffect(() => {
     loadData();
-    // Rafraîchir les données toutes les 30 secondes pour avoir des statistiques à jour
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(loadData, 60000); // Refresh every minute
     return () => clearInterval(interval);
   }, []);
 
-  // Recharger les données quand les dates changent (avec un délai pour éviter trop de rechargements)
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   useEffect(() => {
-    if (isInitialLoad) {
-      setIsInitialLoad(false);
-      return;
-    }
+    if (isInitialLoad) { setIsInitialLoad(false); return; }
     if (dateDebut && dateFin) {
-      const timeoutId = setTimeout(() => {
-        loadData();
-      }, 500);
+      const timeoutId = setTimeout(() => { loadData(); }, 500);
       return () => clearTimeout(timeoutId);
     }
   }, [dateDebut, dateFin]);
 
   useEffect(() => {
-    // Set dates based on preset
     const today = new Date();
     switch (periodePreset) {
       case 'aujourdhui':
@@ -92,127 +81,49 @@ export default function AdminStats() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [elevesRes, paiementsRes, accidentsRes, busesRes, inscriptionsRes, demandesRes, tuteursRes, signalementsRes, essenceRes] = await Promise.allSettled([
-        elevesAPI.getAll(),
-        paiementsAPI.getAll(),
-        accidentsAPI.getAll(),
-        busAPI.getAll(),
-        inscriptionsAPI.getAll(),
-        demandesAPI.getAll(),
-        tuteursAPI.getAll(),
-        signalementsAPI.getAll(),
-        essenceAPI.getAll()
+      const [elevesRes, paiementsRes, accidentsRes, busesRes, inscriptionsRes, demandesRes, tuteursRes, signalementsRes, essenceRes, chauffeursRes] = await Promise.allSettled([
+        elevesAPI.getAll(), paiementsAPI.getAll(), accidentsAPI.getAll(), busAPI.getAll(),
+        inscriptionsAPI.getAll(), demandesAPI.getAll(), tuteursAPI.getAll(), signalementsAPI.getAll(),
+        essenceAPI.getAll(), chauffeursAPI.getAll()
       ]);
 
-      // Extraire les données avec gestion de différents formats de réponse
-      const elevesArray = elevesRes.status === 'fulfilled' ? (elevesRes.value?.data || elevesRes.value || []) : [];
-      const paiementsArray = paiementsRes.status === 'fulfilled' ? (paiementsRes.value?.data || paiementsRes.value || []) : [];
-      const accidents = accidentsRes.status === 'fulfilled' ? (accidentsRes.value?.data || accidentsRes.value || []) : [];
-      const buses = busesRes.status === 'fulfilled' ? (busesRes.value?.data || busesRes.value || []) : [];
-      const inscriptions = inscriptionsRes.status === 'fulfilled' ? (inscriptionsRes.value?.data || inscriptionsRes.value || []) : [];
-      const demandesArray = demandesRes.status === 'fulfilled' ? (demandesRes.value?.data || demandesRes.value || []) : [];
-      const tuteursArray = tuteursRes.status === 'fulfilled' ? (tuteursRes.value?.data || tuteursRes.value || []) : [];
-      const signalements = signalementsRes.status === 'fulfilled' ? (signalementsRes.value?.data || signalementsRes.value || []) : [];
-      const essence = essenceRes.status === 'fulfilled' ? (essenceRes.value?.data || essenceRes.value || []) : [];
+      const getVal = (res) => res.status === 'fulfilled' ? (res.value?.data || res.value || []) : [];
+      const elevesArray = getVal(elevesRes);
 
-      // Filtrer uniquement les demandes d'inscription
-      const demandesInscription = Array.isArray(demandesArray) ? demandesArray.filter(d => d.type_demande === 'inscription') : [];
-
-      // Filtrer les élèves pour exclure ceux avec des demandes refusées (comme dans AdminEleves)
-      const eleves = Array.isArray(elevesArray) ? elevesArray.filter(e => {
-        const demandeInscription = Array.isArray(demandesInscription) ? demandesInscription
-          .filter(d => d.eleve_id === e.id)
-          .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
-
-        // Exclure si la demande la plus récente est refusée
-        if (demandeInscription?.statut === 'Refusée') {
-          return false;
-        }
-
-        // Inclure si inscription active OU demande avec statut valide
-        const inscription = Array.isArray(inscriptions) ? inscriptions.find(i => i.eleve_id === e.id && i.statut === 'Active') : null;
-        const statutsValides = ['Inscrit', 'Validée', 'Payée', 'En attente de paiement', 'En cours de traitement'];
-        return inscription !== null || (demandeInscription && statutsValides.includes(demandeInscription.statut));
-      }) : [];
-
-      // Combiner les paiements (mensuels + demandes payées) comme dans AdminPaiements
-      const paiementsMensuels = Array.isArray(paiementsArray) ? paiementsArray : [];
-      const demandesPayees = Array.isArray(demandesInscription) ? demandesInscription
-        .filter(d => d.statut === 'Payée' && d.montant_facture)
-        .map(d => {
-          let datePaiementStr = d.date_traitement || d.date_creation;
-          if (datePaiementStr) {
-            if (typeof datePaiementStr === 'string' && datePaiementStr.includes(' ')) {
-              datePaiementStr = datePaiementStr.split(' ')[0];
-            }
-          } else {
-            datePaiementStr = new Date().toISOString().split('T')[0];
-          }
-
-          return {
-            id: `demande_${d.id}`,
-            montant: parseFloat(d.montant_facture) || 0,
-            date_paiement: datePaiementStr,
-            statut: 'Payé',
-            type_paiement: 'initial'
-          };
-        }) : [];
-
-      const paiements = [...paiementsMensuels, ...demandesPayees];
-
-      // Charger les présences pour toute la période sélectionnée
-      let presences = [];
-      try {
-        // Charger les présences pour chaque jour de la période
-        const startDate = new Date(dateDebut);
-        const endDate = new Date(dateFin);
-        const presencesPromises = [];
-
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-          const dateStr = format(d, 'yyyy-MM-dd');
-          presencesPromises.push(presencesAPI.getByDate(dateStr).catch(() => ({ data: [] })));
-        }
-
-        const presencesResults = await Promise.allSettled(presencesPromises);
-        presences = presencesResults
-          .filter(result => result.status === 'fulfilled')
-          .flatMap(result => {
-            const data = result.value?.data || result.value || [];
-            return Array.isArray(data) ? data : [];
-          });
-      } catch (err) {
-        console.warn('Présences non disponibles:', err);
-      }
+      const eleves = Array.isArray(elevesArray) ? elevesArray : [];
 
       setData({
-        eleves,
-        presences,
-        paiements,
-        accidents,
-        inscriptions,
-        buses,
-        demandes: demandesArray,
-        tuteurs: tuteursArray,
-        signalements: Array.isArray(signalements) ? signalements : [],
-        essence: Array.isArray(essence) ? essence : []
+        eleves, presences: [], // Presences loaded separately
+        paiements: getVal(paiementsRes), accidents: getVal(accidentsRes), inscriptions: getVal(inscriptionsRes),
+        buses: getVal(busesRes), demandes: getVal(demandesRes), tuteurs: getVal(tuteursRes),
+        signalements: getVal(signalementsRes), essence: getVal(essenceRes), chauffeurs: getVal(chauffeursRes)
       });
+
+      loadPresences(new Date(dateDebut), new Date(dateFin));
+
     } catch (err) {
-      console.error('Erreur lors du chargement des statistiques:', err);
-      setData({
-        eleves: [],
-        presences: [],
-        paiements: [],
-        accidents: [],
-        inscriptions: [],
-        buses: [],
-        demandes: [],
-        tuteurs: [],
-        signalements: [],
-        essence: []
-      });
+      console.error('Erreur chargement stats:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadPresences = async (startDate, endDate) => {
+    try {
+      const presencesPromises = [];
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = format(d, 'yyyy-MM-dd');
+        presencesPromises.push(presencesAPI.getByDate(dateStr).catch(() => ({ data: [] })));
+      }
+      const presencesResults = await Promise.allSettled(presencesPromises);
+      const presences = presencesResults
+        .filter(result => result.status === 'fulfilled')
+        .flatMap(result => {
+          const d = result.value?.data || result.value || [];
+          return Array.isArray(d) ? d : [];
+        });
+      setData(prev => ({ ...prev, presences }));
+    } catch (e) { console.warn("Presences error", e); }
   };
 
   const filterByDate = (items, dateField = 'date') => {
@@ -224,150 +135,83 @@ export default function AdminStats() {
     });
   };
 
-  // Définir les classes disponibles
-  const classesDisponibles = ['1AP', '2AP', '3AP', '4AP', '5AP', '6AP', '1AC', '2AC', '3AC', 'TC', '1BAC', '2BAC'];
-  const niveauxDisponibles = ['Primaire', 'Collège', 'Lycée'];
-
-  // Fonction pour déterminer le niveau d'une classe
-  const getNiveauFromClasse = (classe) => {
-    const classeUpper = (classe || '').toUpperCase();
-    if (['1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].includes(classeUpper)) return 'Primaire';
-    if (['1AC', '2AC', '3AC'].includes(classeUpper)) return 'Collège';
-    if (['TC', '1BAC', '2BAC'].includes(classeUpper)) return 'Lycée';
-    return null;
-  };
-
-  // Filtrer les élèves pour les statistiques
-  const filteredEleves = data.eleves.filter(eleve => {
-    const inscription = data.inscriptions.find(i => i.eleve_id === eleve.id);
-    const matchBus = busFilter === 'all' || inscription?.bus_id?.toString() === busFilter;
-    const matchClasse = classeFilter === 'all' || (eleve.classe && eleve.classe.toUpperCase() === classeFilter.toUpperCase());
-    const eleveNiveau = getNiveauFromClasse(eleve.classe);
-    const matchNiveau = niveauFilter === 'all' || eleveNiveau === niveauFilter;
-    return matchBus && matchClasse && matchNiveau;
-  });
-
-  const filterByBusAndClasse = (items) => {
-    return items.filter(item => {
-      const eleve = data.eleves.find(e => e.id === item.eleve_id);
-      if (!eleve) return true;
-
-      const inscription = data.inscriptions.find(i => i.eleve_id === eleve.id);
-      const matchBus = busFilter === 'all' || inscription?.bus_id?.toString() === busFilter;
-
-      // Filtre par classe
-      const matchClasse = classeFilter === 'all' || (eleve.classe && eleve.classe.toUpperCase() === classeFilter.toUpperCase());
-
-      // Filtre par niveau
-      const eleveNiveau = getNiveauFromClasse(eleve.classe);
-      const matchNiveau = niveauFilter === 'all' || eleveNiveau === niveauFilter;
-
-      return matchBus && matchClasse && matchNiveau;
-    });
-  };
-
-  // Stats calculations
-  const filteredPresences = filterByBusAndClasse(filterByDate(data.presences));
-  const filteredPaiements = filterByDate(data.paiements, 'date_paiement');
+  // --- STATS COMPUTATION ---
   const filteredAccidents = filterByDate(data.accidents, 'date');
-  const filteredInscriptions = filterByDate(data.inscriptions, 'date_inscription');
+  const filteredEssence = filterByDate(data.essence, 'date');
+  const filteredSignalements = filterByDate(data.signalements, 'date');
+  const filteredPresences = filterByDate(data.presences, 'date');
 
-  // Calculer le montant total des paiements validés
-  const totalMontantPaiements = filteredPaiements
-    .filter(p => p.statut === 'Payé')
-    .reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0);
-
-  // Absences stats - adapter selon votre structure de données
-  const absencesMatin = filteredPresences.filter(p => !p.present_matin).length;
-  const absencesSoir = filteredPresences.filter(p => !p.present_soir).length;
-  const presencesMatin = filteredPresences.filter(p => p.present_matin).length;
-  const presencesSoir = filteredPresences.filter(p => p.present_soir).length;
-
-  // Gender distribution - Le champ sexe n'existe pas dans la base de données, donc on ne peut pas calculer cette statistique
-  // Cette statistique a été supprimée car elle n'est pas basée sur des données réelles
-
-  // Level distribution - Utiliser les vraies classes du système (avec toUpperCase pour normaliser) (utiliser filteredEleves)
-  const primaire = filteredEleves.filter(e => {
-    const classe = (e.classe || '').toUpperCase();
-    return ['1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].includes(classe);
-  }).length;
-
-  const college = filteredEleves.filter(e => {
-    const classe = (e.classe || '').toUpperCase();
-    return ['1AC', '2AC', '3AC'].includes(classe);
-  }).length;
-
-  const lycee = filteredEleves.filter(e => {
-    const classe = (e.classe || '').toUpperCase();
-    return ['TC', '1BAC', '2BAC'].includes(classe);
-  }).length;
-
-  // Most absent students
-  const absencesByEleve = {};
-  filteredPresences.forEach(p => {
-    if (!p.present_matin || !p.present_soir) {
-      absencesByEleve[p.eleve_id] = (absencesByEleve[p.eleve_id] || 0) +
-        (!p.present_matin ? 1 : 0) + (!p.present_soir ? 1 : 0);
+  // --- BUS VIEW HELPERS ---
+  const getBusStats = () => {
+    let relevantBuses = data.buses;
+    if (busFilter !== 'all') {
+      relevantBuses = data.buses.filter(b => b.id.toString() === busFilter);
     }
-  });
 
-  const mostAbsent = Object.entries(absencesByEleve)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([eleveId, count]) => {
-      const eleve = data.eleves.find(e => e.id === parseInt(eleveId));
-      return { name: eleve ? `${eleve.prenom} ${eleve.nom}` : 'Inconnu', absences: count };
-    });
+    return relevantBuses.map(bus => {
+      const busAccidents = filteredAccidents.filter(a => a.bus_id === bus.id);
+      const busEssence = filteredEssence.filter(e => e.bus_id === bus.id);
+      const busSignalements = filteredSignalements.filter(s => s.bus_id === bus.id);
 
-  // Most present students
-  const presencesByEleve = {};
-  filteredPresences.forEach(p => {
-    if (p.present_matin || p.present_soir) {
-      presencesByEleve[p.eleve_id] = (presencesByEleve[p.eleve_id] || 0) +
-        (p.present_matin ? 1 : 0) + (p.present_soir ? 1 : 0);
-    }
-  });
+      const totalCost = busEssence.reduce((acc, curr) => acc + (parseFloat(curr.montant) || parseFloat(curr.prix_total) || 0), 0);
 
-  const mostPresent = Object.entries(presencesByEleve)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([eleveId, count]) => {
-      const eleve = filteredEleves.find(e => e.id === parseInt(eleveId));
-      return { name: eleve ? `${eleve.prenom} ${eleve.nom}` : 'Inconnu', presences: count };
-    });
-
-  // genderData supprimé - le champ sexe n'existe pas dans la base de données
-
-  const levelData = [
-    { name: 'Primaire', value: primaire },
-    { name: 'Collège', value: college },
-    { name: 'Lycée', value: lycee }
-  ];
-
-  const presenceData = [
-    { name: 'Matin', Présents: presencesMatin, Absents: absencesMatin },
-    { name: 'Soir', Présents: presencesSoir, Absents: absencesSoir }
-  ];
-
-  // Statistiques avancées : Famille avec le plus d'inscriptions (utiliser filteredEleves)
-  const inscriptionsParTuteur = {};
-  filteredEleves.forEach(eleve => {
-    if (eleve.tuteur_id) {
-      const tuteurId = eleve.tuteur_id;
-      inscriptionsParTuteur[tuteurId] = (inscriptionsParTuteur[tuteurId] || 0) + 1;
-    }
-  });
-
-  const famillesTopInscriptions = Object.entries(inscriptionsParTuteur)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([tuteurId, count]) => {
-      const tuteur = Array.isArray(data.tuteurs) ? data.tuteurs.find(t => t.id === parseInt(tuteurId)) : null;
       return {
-        name: tuteur ? `${tuteur.prenom || ''} ${tuteur.nom || ''}`.trim() || 'Inconnu' : 'Inconnu',
-        inscriptions: count
+        ...bus,
+        accidentsCount: busAccidents.length,
+        fuelCost: totalCost,
+        issuesCount: busSignalements.length
       };
     });
+  };
+
+  const busStatsData = getBusStats();
+  const selectedBus = busFilter !== 'all' ? busStatsData[0] : null;
+
+  // --- STUDENT VIEW HELPERS ---
+  const getFilteredStudents = () => {
+    return data.eleves.filter(eleve => {
+      const getNiveauFromClasse = (classe) => {
+        const classeUpper = (classe || '').toUpperCase();
+        if (['1AP', '2AP', '3AP', '4AP', '5AP', '6AP'].includes(classeUpper)) return 'Primaire';
+        if (['1AC', '2AC', '3AC'].includes(classeUpper)) return 'Collège';
+        if (['TC', '1BAC', '2BAC'].includes(classeUpper)) return 'Lycée';
+        return null;
+      };
+
+      const matchClasse = classeFilter === 'all' || (eleve.classe && eleve.classe.toUpperCase() === classeFilter.toUpperCase());
+      const matchNiveau = niveauFilter === 'all' || getNiveauFromClasse(eleve.classe) === niveauFilter;
+      const inscription = data.inscriptions.find(i => i.eleve_id === eleve.id);
+
+      const groupeEleve = eleve.groupe;
+      const groupeInscription = inscription?.groupe;
+      const groupeDemande = data.demandes.find(d => d.eleve_id === eleve.id && d.type_demande === 'inscription')?.groupe;
+      const studentGroup = groupeEleve || groupeInscription || groupeDemande;
+      const matchGroupe = groupeFilter === 'all' || studentGroup === groupeFilter;
+
+      const fullName = `${eleve.nom} ${eleve.prenom}`.toLowerCase();
+      const matchSearch = studentSearch === '' || fullName.includes(studentSearch.toLowerCase());
+
+      return matchClasse && matchNiveau && matchGroupe && matchSearch;
+    });
+  };
+
+  const filteredStudents = getFilteredStudents();
+
+  const studentAbsenceStats = filteredStudents.map(eleve => {
+    const myPresences = filteredPresences.filter(p => p.eleve_id == eleve.id);
+    const absMatin = myPresences.filter(p => p.present_matin == 0).length;
+    const absSoir = myPresences.filter(p => p.present_soir == 0).length;
+    return {
+      ...eleve,
+      totalAbsences: absMatin + absSoir
+    };
+  }).sort((a, b) => b.totalAbsences - a.totalAbsences);
+
+  const topAbsentees = studentAbsenceStats.slice(0, 5);
+
+  const classesDisponibles = ['1AP', '2AP', '3AP', '4AP', '5AP', '6AP', '1AC', '2AC', '3AC', 'TC', '1BAC', '2BAC'];
+  const groupesDisponibles = ['A', 'B'];
+
 
   if (loading) {
     return (
@@ -381,295 +225,346 @@ export default function AdminStats() {
 
   return (
     <AdminLayout title="Statistiques">
-      <div className="mb-4 flex justify-between items-center">
+      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <button onClick={() => navigate(createPageUrl('AdminDashboard'))} className="flex items-center gap-2 text-gray-500 hover:text-amber-600 mb-2 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Retour
+          </button>
+          <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
+            <BarChart3 className="w-8 h-8 text-amber-500" />
+            Statistiques & Analyses
+          </h1>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
+          <Select value={periodePreset} onValueChange={setPeriodePreset}>
+            <SelectTrigger className="w-[140px] border-none bg-gray-50 h-10 rounded-xl">
+              <SelectValue placeholder="Période" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semaine">Semaine</SelectItem>
+              <SelectItem value="mois">Mois</SelectItem>
+              <SelectItem value="annee">Année</SelectItem>
+              <SelectItem value="custom">Personnalisé</SelectItem>
+            </SelectContent>
+          </Select>
+          {(periodePreset === 'custom') && (
+            <div className="flex items-center gap-2 text-sm bg-gray-50 px-3 py-2 rounded-lg">
+              <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)} className="bg-transparent border-none outline-none text-gray-600 w-32" />
+              <span className="text-gray-400">→</span>
+              <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)} className="bg-transparent border-none outline-none text-gray-600 w-32" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-4 border-b border-gray-200 mb-8 overflow-x-auto pb-1">
         <button
-          onClick={() => navigate(createPageUrl('AdminDashboard'))}
-          className="flex items-center gap-2 text-gray-600 hover:text-amber-600 transition-colors"
+          onClick={() => setActiveTab('overview')}
+          className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-all relative whitespace-nowrap ${activeTab === 'overview' ? 'text-amber-600' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          <ArrowLeft className="w-4 h-4" />
-          Retour au tableau de bord
+          <BarChart3 className="w-4 h-4" /> Vue Globale
+          {activeTab === 'overview' && <motion.div layoutId="activeTab" className="absolute bottom-[-1px] left-0 right-0 h-1 bg-amber-500 rounded-t-full" />}
+        </button>
+        <button
+          onClick={() => setActiveTab('bus')}
+          className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-all relative whitespace-nowrap ${activeTab === 'bus' ? 'text-amber-600' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          <Bus className="w-4 h-4" /> Flotte & Bus
+          {activeTab === 'bus' && <motion.div layoutId="activeTab" className="absolute bottom-[-1px] left-0 right-0 h-1 bg-amber-500 rounded-t-full" />}
+        </button>
+        <button
+          onClick={() => setActiveTab('students')}
+          className={`flex items-center gap-2 px-6 py-3 font-medium text-sm transition-all relative whitespace-nowrap ${activeTab === 'students' ? 'text-amber-600' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          <Users className="w-4 h-4" /> Élèves & Présences
+          {activeTab === 'students' && <motion.div layoutId="activeTab" className="absolute bottom-[-1px] left-0 right-0 h-1 bg-amber-500 rounded-t-full" />}
         </button>
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        {/* Header with filters */}
-        <div className="bg-white rounded-3xl shadow-xl p-6 mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2 mb-6">
-            <BarChart3 className="w-7 h-7 text-indigo-500" />
-            Statistiques & Historiques
-          </h1>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            <Select value={periodePreset} onValueChange={setPeriodePreset}>
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Période" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="aujourdhui">Aujourd'hui</SelectItem>
-                <SelectItem value="hier">Hier</SelectItem>
-                <SelectItem value="semaine">Semaine dernière</SelectItem>
-                <SelectItem value="mois">Mois dernier</SelectItem>
-                <SelectItem value="annee">Année dernière</SelectItem>
-                <SelectItem value="custom">Personnalisé</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <Input
-                type="date"
-                value={dateDebut}
-                onChange={(e) => {
-                  setDateDebut(e.target.value);
-                  setPeriodePreset('custom');
-                }}
-                className="rounded-xl"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400">→</span>
-              <Input
-                type="date"
-                value={dateFin}
-                onChange={(e) => {
-                  setDateFin(e.target.value);
-                  setPeriodePreset('custom');
-                }}
-                className="rounded-xl"
-              />
-            </div>
-
-            <Select value={busFilter} onValueChange={setBusFilter}>
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Bus" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les bus</SelectItem>
-                {data.buses.map(b => (
-                  <SelectItem key={b.id} value={b.id.toString()}>{b.numero}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-          </div>
-
-          {/* Nouvelle ligne de filtres */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mt-4">
-            <Select value={niveauFilter} onValueChange={setNiveauFilter}>
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Niveau" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les niveaux</SelectItem>
-                {niveauxDisponibles.map(niveau => (
-                  <SelectItem key={niveau} value={niveau}>{niveau}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={classeFilter} onValueChange={setClasseFilter}>
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Classe" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes les classes</SelectItem>
-                {classesDisponibles.map(classe => (
-                  <SelectItem key={classe} value={classe}>{classe}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-blue-600" />
+      <div className="min-h-[500px]">
+        {activeTab === 'overview' && (
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div className="text-gray-500 text-sm font-medium mb-2">Total Élèves Filt.</div>
+                <div className="text-3xl font-bold text-gray-800">{filteredStudents.length}</div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Total Élèves</p>
-                <p className="text-2xl font-bold text-gray-800">{filteredEleves.length}</p>
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div className="text-gray-500 text-sm font-medium mb-2">Accidents</div>
+                <div className="text-3xl font-bold text-red-500">{filteredAccidents.length}</div>
+              </div>
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div className="text-gray-500 text-sm font-medium mb-2">Dépenses Carburant</div>
+                <div className="text-3xl font-bold text-amber-500">{Math.round(filteredEssence.reduce((s, e) => s + parseFloat(e.prix_total || e.montant || 0), 0))} DH</div>
+              </div>
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div className="text-gray-500 text-sm font-medium mb-2">Signalements</div>
+                <div className="text-3xl font-bold text-orange-500">{filteredSignalements.length}</div>
               </div>
             </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                <CreditCard className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Paiements</p>
-                <p className="text-2xl font-bold text-gray-800">{filteredPaiements.filter(p => p.statut === 'Payé').length}</p>
-                <p className="text-xs text-gray-400 mt-1">{totalMontantPaiements.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH</p>
-              </div>
+            <div className="bg-blue-50 p-8 rounded-3xl text-center">
+              <h3 className="text-blue-800 font-bold text-lg mb-2">Bienvenue dans le nouveau module statistiques</h3>
+              <p className="text-blue-600">Utilisez les onglets ci-dessus pour accéder aux analyses détaillées par Bus ou par Élève.</p>
             </div>
-          </div>
+          </motion.div>
+        )}
 
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Accidents</p>
-                <p className="text-2xl font-bold text-gray-800">{filteredAccidents.length}</p>
-              </div>
+        {activeTab === 'bus' && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 max-w-md">
+              <Bus className="text-gray-400" />
+              <Select value={busFilter} onValueChange={setBusFilter}>
+                <SelectTrigger className="border-none shadow-none focus:ring-0">
+                  <SelectValue placeholder="Sélectionner un bus" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Vue d'ensemble (Tous les bus)</SelectItem>
+                  {data.buses.map(b => (
+                    <SelectItem key={b.id} value={b.id.toString()}>{b.numero || b.immatriculation} - {b.marque}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Inscriptions</p>
-                <p className="text-2xl font-bold text-gray-800">{filteredInscriptions.length}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+            {busFilter === 'all' ? (
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-white p-6 rounded-3xl shadow-lg">
+                    <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                      <Fuel className="w-5 h-5 text-amber-500" /> Consommation Carburant par Bus
+                    </h3>
+                    <div className="h-80">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={busStatsData.sort((a, b) => b.fuelCost - a.fuelCost)}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="numero" />
+                          <YAxis />
+                          <Tooltip contentStyle={{ borderRadius: '12px' }} />
+                          <Bar dataKey="fuelCost" fill="#F59E0B" radius={[4, 4, 0, 0]} name="Montant (DH)" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
 
-        {/* Charts Row 1 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Presence Chart */}
-          <div className="bg-white rounded-3xl shadow-xl p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Présences vs Absences</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={presenceData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="Présents" fill="#10B981" />
-                  <Bar dataKey="Absents" fill="#EF4444" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Charts Row 2 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Level Distribution */}
-          <div className="bg-white rounded-3xl shadow-xl p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Répartition par Niveau</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={levelData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    dataKey="value"
-                    label={({ name, value }) => `${name}: ${value}`}
-                  >
-                    {levelData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Most Absent */}
-          <div className="bg-white rounded-3xl shadow-xl p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Élèves les plus absents</h3>
-            {mostAbsent.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">Aucune absence enregistrée</p>
-            ) : (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={mostAbsent} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} />
-                    <YAxis dataKey="name" type="category" width={100} />
-                    <Tooltip />
-                    <Bar dataKey="absences" fill="#EF4444" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Charts Row 3 - NOUVEAU: Bus avec accidents */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-3xl shadow-xl p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Bus avec le plus d'accidents</h3>
-            {(() => {
-              const accidentsByBus = {};
-              filteredAccidents.forEach(a => {
-                if (a.bus_id) {
-                  accidentsByBus[a.bus_id] = (accidentsByBus[a.bus_id] || 0) + 1;
-                }
-              });
-
-              const busAccidentsData = Object.entries(accidentsByBus)
-                .sort(([, a], [, b]) => b - a)
-                .slice(0, 5)
-                .map(([busId, count]) => {
-                  const bus = data.buses.find(b => b.id === parseInt(busId));
-                  return { name: bus ? bus.numero : `Bus #${busId}`, accidents: count };
-                });
-
-              if (busAccidentsData.length === 0) {
-                return <p className="text-gray-400 text-center py-8">Aucun accident enregistré</p>;
-              }
-
-              return (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={busAccidentsData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" allowDecimals={false} />
-                      <YAxis dataKey="name" type="category" width={80} />
-                      <Tooltip />
-                      <Bar dataKey="accidents" fill="#EF4444" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div className="bg-white p-6 rounded-3xl shadow-lg">
+                    <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-red-500" /> Accidents par Bus
+                    </h3>
+                    <div className="h-80">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={busStatsData.sort((a, b) => b.accidentsCount - a.accidentsCount)}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="numero" />
+                          <YAxis allowDecimals={false} />
+                          <Tooltip contentStyle={{ borderRadius: '12px' }} />
+                          <Bar dataKey="accidentsCount" fill="#EF4444" radius={[4, 4, 0, 0]} name="Accidents" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
                 </div>
-              );
-            })()}
-          </div>
 
-          {/* Most Present */}
-          <div className="bg-white rounded-3xl shadow-xl p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Élèves les plus présents</h3>
-            {mostPresent.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">Aucune présence enregistrée</p>
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                      <Bus className="w-5 h-5 text-blue-600" /> Liste complète des bus
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold">
+                        <tr>
+                          <th className="px-6 py-4">Bus</th>
+                          <th className="px-6 py-4">Immatriculation</th>
+                          <th className="px-6 py-4 text-center">Capacité</th>
+                          <th className="px-6 py-4 text-center">Inscrits</th>
+                          <th className="px-6 py-4 text-right">Carburant</th>
+                          <th className="px-6 py-4 text-center">Accidents</th>
+                          <th className="px-6 py-4 text-center">Signalements</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {busStatsData.map((bus) => (
+                          <tr key={bus.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="font-bold text-gray-800">{bus.numero}</div>
+                              <div className="text-xs text-gray-500">{bus.marque} {bus.modele}</div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{bus.immatriculation}</td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {bus.capacite} places
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {bus.eleves_inscrits || 0}
+                            </td>
+                            <td className="px-6 py-4 text-right font-medium text-amber-600">
+                              {bus.fuelCost > 0 ? `${bus.fuelCost} DH` : '-'}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {bus.accidentsCount > 0 ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  {bus.accidentsCount}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {bus.issuesCount > 0 ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                  {bus.issuesCount}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             ) : (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={mostPresent} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" allowDecimals={false} />
-                    <YAxis dataKey="name" type="category" width={100} />
-                    <Tooltip />
-                    <Bar dataKey="presences" fill="#10B981" />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="space-y-6">
+                {selectedBus && (
+                  <>
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600">
+                          <Bus className="w-8 h-8" />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-bold text-gray-800">{selectedBus.numero}</h2>
+                          <p className="text-gray-500">{selectedBus.marque} {selectedBus.modele} • {selectedBus.immatriculation}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-4 text-center">
+                        <div className="px-6 py-2 bg-gray-50 rounded-xl">
+                          <div className="text-2xl font-bold text-gray-800">{selectedBus.capacite}</div>
+                          <div className="text-xs text-gray-500 uppercase tracking-wide">Capacité</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
+                        <div className="text-red-500 font-medium mb-1">Accidents</div>
+                        <div className="text-4xl font-bold text-red-700">{selectedBus.accidentsCount}</div>
+                        <p className="text-sm text-red-400 mt-2">Sur la période sélectionnée</p>
+                      </div>
+                      <div className="bg-amber-50 p-6 rounded-3xl border border-amber-100">
+                        <div className="text-amber-600 font-medium mb-1">Carburant</div>
+                        <div className="text-4xl font-bold text-amber-700">{selectedBus.fuelCost} <span className="text-xl">DH</span></div>
+                        <p className="text-sm text-amber-500 mt-2">Dépenses totales</p>
+                      </div>
+                      <div className="bg-orange-50 p-6 rounded-3xl border border-orange-100">
+                        <div className="text-orange-600 font-medium mb-1">Pannes & Problèmes</div>
+                        <div className="text-4xl font-bold text-orange-700">{selectedBus.issuesCount}</div>
+                        <p className="text-sm text-orange-500 mt-2">Signalements reçus</p>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
-          </div>
+          </motion.div>
+        )}
 
-        </div>
-      </motion.div>
+        {activeTab === 'students' && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+
+            <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Select value={classeFilter} onValueChange={setClasseFilter}>
+                <SelectTrigger className="h-11 rounded-xl bg-gray-50 border-none">
+                  <SelectValue placeholder="Classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les classes</SelectItem>
+                  {classesDisponibles.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+
+              <Select value={groupeFilter} onValueChange={setGroupeFilter}>
+                <SelectTrigger className="h-11 rounded-xl bg-gray-50 border-none">
+                  <SelectValue placeholder="Groupe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les groupes</SelectItem>
+                  {groupesDisponibles.map(g => <SelectItem key={g} value={g}>Groupe {g}</SelectItem>)}
+                </SelectContent>
+              </Select>
+
+              <div className="md:col-span-2 relative">
+                <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un élève..."
+                  className="w-full h-11 pl-10 pr-4 bg-gray-50 rounded-xl border-none outline-none focus:ring-1 focus:ring-amber-500 transition-all font-medium text-gray-700"
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 bg-white rounded-3xl shadow-lg overflow-hidden">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <UserX className="w-5 h-5 text-red-500" /> Top Absences
+                  </h3>
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Top 5</span>
+                </div>
+                <div className="p-4">
+                  {topAbsentees.length > 0 ? (
+                    <div className="space-y-4">
+                      {topAbsentees.map((eleve, idx) => (
+                        <div key={eleve.id} className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${idx === 0 ? 'bg-red-500' : 'bg-gray-400'}`}>
+                              {idx + 1}
+                            </div>
+                            <div>
+                              <div className="font-bold text-gray-800">{eleve.nom} {eleve.prenom}</div>
+                              <div className="text-xs text-gray-500">{eleve.classe} • Groupe {eleve.groupe || 'N/A'}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl font-bold text-red-600">{eleve.totalAbsences}</div>
+                            <div className="text-xs text-red-400">Absences</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-10 text-gray-400">Aucune absence enregistrée pour ces critères.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-3xl shadow-lg border-l-4 border-amber-500">
+                  <div className="text-gray-500 text-sm font-medium mb-1">Nombre d'élèves</div>
+                  <div className="text-4xl font-bold text-gray-800">{filteredStudents.length}</div>
+                  <div className="text-xs text-amber-600 mt-2 font-medium">Correspondant aux filtres</div>
+                </div>
+
+                <div className="bg-white p-6 rounded-3xl shadow-lg border-l-4 border-red-500">
+                  <div className="text-gray-500 text-sm font-medium mb-1">Total Absences</div>
+                  <div className="text-4xl font-bold text-red-600">
+                    {studentAbsenceStats.reduce((sum, e) => sum + e.totalAbsences, 0)}
+                  </div>
+                  <div className="text-xs text-red-400 mt-2 font-medium">Sur la période sélectionnée</div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+      </div>
     </AdminLayout>
   );
 }

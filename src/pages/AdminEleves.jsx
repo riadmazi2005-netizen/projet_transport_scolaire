@@ -105,14 +105,77 @@ export default function AdminEleves() {
 
       // Enrichir les élèves avec toutes les informations
       const elevesWithDetails = elevesInscrits.map(e => {
-        const tuteur = Array.isArray(tuteursArray) ? tuteursArray.find(t => t.id == e.tuteur_id) : null;
-        const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut === 'Active') : null;
-        const bus = inscription?.bus_id && Array.isArray(busesArray) ? busesArray.find(b => b.id === inscription.bus_id) : null;
-        const trajet = bus?.trajet_id && Array.isArray(trajetsArray) ? trajetsArray.find(t => t.id === bus.trajet_id) : null;
-        // Trouver la demande d'inscription pour obtenir type_transport, abonnement, groupe
+        // Trouver la demande d'inscription pour cet élève (la plus récente)
         const demandeInscription = Array.isArray(demandesInscription) ? demandesInscription
           .filter(d => d.eleve_id === e.id)
           .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
+
+        // Trouver le tuteur: d'abord via l'élève, sinon via la demande
+        let tuteur = null;
+
+        if (Array.isArray(tuteursArray)) {
+          // Priority 1: Direct link from eleve
+          if (e.tuteur_id) {
+            tuteur = tuteursArray.find(t => t.id == e.tuteur_id);
+          }
+          // Priority 2: Link from demande (si absent via élève ou non trouvé)
+          if (!tuteur && demandeInscription?.tuteur_id) {
+            tuteur = tuteursArray.find(t => t.id == demandeInscription.tuteur_id);
+          }
+        }
+
+        // Aplatir l'objet tuteur s'il contient une propriété 'utilisateur'
+        if (tuteur && tuteur.utilisateur) {
+          tuteur = { ...tuteur, ...tuteur.utilisateur };
+        }
+
+        // Fallback: Si le tuteur n'est pas dans la liste (ex: id incorrect), on construit un objet avec les infos de la demande
+        if (!tuteur && demandeInscription) {
+          tuteur = {
+            id: demandeInscription.tuteur_id,
+            nom: demandeInscription.tuteur_nom || '',
+            prenom: demandeInscription.tuteur_prenom || '',
+            email: demandeInscription.tuteur_email || '',
+            telephone: demandeInscription.tuteur_telephone || '',
+            adresse: demandeInscription.tuteur_adresse || '',
+            photo_identite: demandeInscription.tuteur_photo || null
+          };
+
+          // Si infos manquantes, essayer le parsing manuel du JSON (backward compatibility)
+          try {
+            const desc = typeof demandeInscription.description === 'string'
+              ? JSON.parse(demandeInscription.description)
+              : demandeInscription.description || {};
+
+            if (!tuteur.nom) tuteur.nom = desc.nom_tuteur || desc.tuteur_nom || desc.nom || '';
+            if (!tuteur.prenom) tuteur.prenom = desc.prenom_tuteur || desc.tuteur_prenom || desc.prenom || '';
+            if (!tuteur.telephone) tuteur.telephone = desc.telephone_tuteur || desc.tuteur_telephone || desc.telephone || '';
+            if (!tuteur.email) tuteur.email = desc.email_tuteur || desc.tuteur_email || desc.email || '';
+            if (!tuteur.adresse) tuteur.adresse = desc.adresse_tuteur || desc.tuteur_adresse || desc.adresse || '';
+          } catch (err) { console.error("Erreur parsing description tuteur", err); }
+        }
+
+        // 4. Fallback final: Utiliser les infos de l'élève si le tuteur est toujours manquant ou incomplet
+        if (!tuteur) {
+          tuteur = {};
+        }
+
+        // Compléter les infos manquantes avec celles de l'élève (table eleves)
+        if (!tuteur.telephone && e.telephone_parent) tuteur.telephone = e.telephone_parent;
+        if (!tuteur.email && e.email_parent) tuteur.email = e.email_parent;
+        if (!tuteur.adresse && e.adresse) tuteur.adresse = e.adresse;
+
+        // Si nom/prénom manquant, essayer d'utiliser le nom de famille de l'élève
+        if (!tuteur.nom && e.nom) tuteur.nom = e.nom; // On assume que c'est le même nom de famille
+        if (!tuteur.prenom && !tuteur.nom) {
+          // Si vraiment rien, on met un placeholder pour éviter l'affichage vide
+          tuteur.prenom = "Parent";
+          tuteur.nom = "de " + e.prenom;
+        }
+
+        const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut === 'Active') : null;
+        const bus = inscription?.bus_id && Array.isArray(busesArray) ? busesArray.find(b => b.id === inscription.bus_id) : null;
+        const trajet = bus?.trajet_id && Array.isArray(trajetsArray) ? trajetsArray.find(t => t.id === bus.trajet_id) : null;
 
         // Déterminer le statut à afficher : "Inscrit" si la demande est "Inscrit", sinon utiliser le statut de l'inscription
         const statutAffiche = demandeInscription?.statut === 'Inscrit' ? 'Inscrit' : (inscription?.statut || e.statut);
@@ -444,40 +507,7 @@ export default function AdminEleves() {
                         )}
 
                         {/* Tuteur Info Complète */}
-                        {eleve.tuteur && (
-                          <div className="mt-3 pt-3 border-t border-blue-100 w-full">
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Informations Tuteur</p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                              <div className="flex items-center gap-2 text-sm text-gray-700">
-                                <User className="w-4 h-4 text-purple-500" />
-                                <span className="font-semibold">{eleve.tuteur.prenom} {eleve.tuteur.nom}</span>
-                              </div>
-                              {eleve.tuteur.cin && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                  <span className="font-medium text-purple-600 text-xs bg-purple-50 px-2 py-0.5 rounded">CIN: {eleve.tuteur.cin}</span>
-                                </div>
-                              )}
-                              {eleve.tuteur.telephone && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                  <Phone className="w-4 h-4 text-indigo-500" />
-                                  <span>{eleve.tuteur.telephone}</span>
-                                </div>
-                              )}
-                              {eleve.tuteur.email && (
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
-                                  <span className="text-gray-400">@</span>
-                                  <span>{eleve.tuteur.email}</span>
-                                </div>
-                              )}
-                              {eleve.tuteur.adresse && (
-                                <div className="col-span-1 sm:col-span-2 flex items-start gap-2 text-sm text-gray-600 mt-1">
-                                  <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
-                                  <span>{eleve.tuteur.adresse}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
+
 
                         {/* Bus affecté */}
                         {eleve.bus && (
@@ -555,6 +585,36 @@ export default function AdminEleves() {
                       </Button>
                     </div>
                   </div>
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  {eleve.tuteur && (eleve.tuteur.nom || eleve.tuteur.prenom || eleve.tuteur.telephone) ? (
+                    <div className="flex flex-wrap gap-4 items-center">
+                      <div className="flex items-center gap-2 text-sm text-gray-700 font-medium bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100">
+                        <User className="w-4 h-4 text-purple-500" />
+                        <span className="uppercase text-xs text-purple-400 mr-1">Tuteur:</span>
+                        <span className="font-bold">{eleve.tuteur.prenom} {eleve.tuteur.nom}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm text-gray-700 font-medium bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                        <Phone className="w-4 h-4 text-indigo-500" />
+                        <span className="uppercase text-xs text-indigo-400 mr-1">Tél:</span>
+                        <span>{eleve.tuteur.telephone || 'Non renseigné'}</span>
+                      </div>
+
+                      {eleve.tuteur.email && (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 hidden md:flex">
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>{eleve.tuteur.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-amber-600 text-sm flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100 w-fit">
+                      <User className="w-4 h-4" />
+                      <span>Info tuteur non disponible</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))

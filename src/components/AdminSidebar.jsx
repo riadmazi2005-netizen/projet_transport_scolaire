@@ -67,7 +67,7 @@ export default function AdminSidebar({ admin, notifications = [], newItemsCount 
       path: '/AdminInscriptions'
     },
     {
-      title: 'Bus',
+      title: 'Bus & Trajets',
       icon: Bus,
       link: 'AdminBus',
       path: '/AdminBus'
