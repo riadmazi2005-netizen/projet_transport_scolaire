@@ -1270,13 +1270,28 @@ export default function ResponsableDashboard() {
                   <MessageSquare className="w-6 h-6 text-purple-500" />
                   Communication avec les Parents
                 </h2>
-                <Button
-                  onClick={() => setShowCommunicationForm(true)}
-                  className="bg-purple-500 hover:bg-purple-600 text-white rounded-xl"
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Nouveau message
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowNotifications(true)}
+                    className="rounded-xl border-purple-200 text-purple-600 hover:bg-purple-50 hover:text-purple-700 relative"
+                  >
+                    <Bell className="w-4 h-4 mr-2" />
+                    Notifications
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold shadow-sm">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => setShowCommunicationForm(true)}
+                    className="bg-purple-500 hover:bg-purple-600 text-white rounded-xl shadow-md hover:shadow-lg transition-all"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Nouveau message
+                  </Button>
+                </div>
               </div>
 
               <div className="p-6">

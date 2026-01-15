@@ -121,9 +121,12 @@ try {
         exit;
     }
     
+    // Récupérer l'adresse (optionnelle)
+    $adresse = isset($data['adresse']) ? trim($data['adresse']) : null;
+
     // Créer l'entrée dans la table tuteurs (inscription = toujours tuteur)
-    $stmt = $pdo->prepare('INSERT INTO tuteurs (utilisateur_id) VALUES (?)');
-    $stmt->execute([$userId]);
+    $stmt = $pdo->prepare('INSERT INTO tuteurs (utilisateur_id, adresse) VALUES (?, ?)');
+    $stmt->execute([$userId, $adresse]);
     $tuteurId = $pdo->lastInsertId();
     
     // Récupérer l'utilisateur créé avec l'adresse du tuteur (sans le mot de passe)

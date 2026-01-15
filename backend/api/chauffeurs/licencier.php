@@ -22,12 +22,11 @@ try {
     
     $chauffeur_id = (int)$data['chauffeur_id'];
     
-    // Récupérer les informations du chauffeur avant suppression pour la notification
+    // Récupérer les informations du chauffeur
     $stmt = $pdo->prepare('
-        SELECT c.id, c.utilisateur_id, b.id as bus_id, u.nom, u.prenom, b.responsable_id, b.numero as bus_numero
+        SELECT c.id, c.utilisateur_id, u.nom, u.prenom
         FROM chauffeurs c
         INNER JOIN utilisateurs u ON c.utilisateur_id = u.id
-        LEFT JOIN bus b ON c.id = b.chauffeur_id
         WHERE c.id = ?
     ');
     $stmt->execute([$chauffeur_id]);
@@ -40,10 +39,16 @@ try {
     }
     
     $chauffeurNom = $chauffeurData['prenom'] . ' ' . $chauffeurData['nom'];
-    $busId = $chauffeurData['bus_id'];
-    $responsableId = $chauffeurData['responsable_id'];
-    $busNumero = $chauffeurData['bus_numero'] || 'Inconnu';
     $utilisateurId = $chauffeurData['utilisateur_id'];
+
+    // Chercher le bus associé au chauffeur
+    $stmt = $pdo->prepare('SELECT id, numero, responsable_id FROM bus WHERE chauffeur_id = ?');
+    $stmt->execute([$chauffeur_id]);
+    $busData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $busId = $busData ? $busData['id'] : null;
+    $busNumero = $busData ? ($busData['numero'] ? $busData['numero'] : 'Inconnu') : 'Inconnu';
+    $responsableId = $busData ? $busData['responsable_id'] : null;
     
     // 1. Désaffecter le bus (retirer le chauffeur_id)
     if ($busId) {
@@ -62,17 +67,17 @@ try {
     $stmt = $pdo->prepare('DELETE FROM prise_essence WHERE chauffeur_id = ?');
     $stmt->execute([$chauffeur_id]);
 
-    // Suppression des signalements
-    $stmt = $pdo->prepare('DELETE FROM signalements WHERE chauffeur_id = ?');
-    $stmt->execute([$chauffeur_id]);
+    // Suppression des signalements (Table supprimée ou inexistante, on passe)
+    // $stmt = $pdo->prepare('DELETE FROM signalements WHERE chauffeur_id = ?');
+    // $stmt->execute([$chauffeur_id]);
 
-    // Suppression des rapports
-    $stmt = $pdo->prepare('DELETE FROM rapports_trajets WHERE chauffeur_id = ?');
-    $stmt->execute([$chauffeur_id]);
+    // Suppression des rapports (Table supprimée ou inexistante, on passe)
+    // $stmt = $pdo->prepare('DELETE FROM rapports_trajets WHERE chauffeur_id = ?');
+    // $stmt->execute([$chauffeur_id]);
 
-    // Suppression des checklists
-    $stmt = $pdo->prepare('DELETE FROM checklist_depart WHERE chauffeur_id = ?');
-    $stmt->execute([$chauffeur_id]);
+    // Suppression des checklists (Table supprimée ou inexistante, on passe)
+    // $stmt = $pdo->prepare('DELETE FROM checklist_depart WHERE chauffeur_id = ?');
+    // $stmt->execute([$chauffeur_id]);
 
     // Mettre à jour les présences (ne pas supprimer l'historique de présence, juste enlever le lien chauffeur)
     $stmt = $pdo->prepare('UPDATE presences SET chauffeur_id = NULL WHERE chauffeur_id = ?');
@@ -113,8 +118,8 @@ try {
             $message .= "Le bus n'a plus de chauffeur assigné. Veuillez contacter l'administration pour plus de détails.";
             
             $stmt = $pdo->prepare('
-                INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, date_creation)
-                VALUES (?, ?, ?, ?, ?, NOW())
+                INSERT INTO notifications (destinataire_id, destinataire_type, titre, message, type, lue)
+                VALUES (?, ?, ?, ?, ?, 0)
             ');
             $stmt->execute([
                 $responsableData['utilisateur_id'],

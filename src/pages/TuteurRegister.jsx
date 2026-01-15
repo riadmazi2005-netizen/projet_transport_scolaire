@@ -30,29 +30,30 @@ export default function TuteurRegister() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     // Validate password match
     if (formData.mot_de_passe !== formData.confirm_password) {
       setError('Les mots de passe ne correspondent pas');
       return;
     }
-    
+
     // Validate password strength
     if (formData.mot_de_passe.length < 6) {
       setError('Le mot de passe doit contenir au moins 6 caractères');
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
       // Prepare data for registration - remove confirm_password and adresse (not in DB)
-      const { confirm_password, adresse, ...userData } = formData;
+      // Prepare data for registration - remove confirm_password
+      const { confirm_password, ...userData } = formData;
       userData.role = 'tuteur'; // Add role for backend
-      
+
       // Call register API
       const response = await authAPI.register(userData);
-      
+
       if (response.success) {
         // Registration successful, redirect to login
         navigate(createPageUrl('TuteurLogin'));
@@ -61,7 +62,7 @@ export default function TuteurRegister() {
       }
     } catch (err) {
       console.error('Erreur lors de l\'inscription:', err);
-      
+
       // Handle different error types
       const errorMessage = err.message || '';
       if (errorMessage.toLowerCase().includes('email') || errorMessage.toLowerCase().includes('déjà')) {
