@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminLayout from '../components/AdminLayout';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import {
-  Bus, Plus, Edit, Trash2, Navigation, MapPin, Save, X, ArrowLeft
+  Bus, Plus, Edit, Trash2, Navigation, MapPin, Save, X, ArrowLeft, Search, Filter
 } from 'lucide-react';
 
 export default function AdminBus() {
@@ -33,6 +33,12 @@ export default function AdminBus() {
   const [busForm, setBusForm] = useState({
     numero: '', capacite: '', chauffeur_id: '', responsable_id: '', trajet_id: '', statut: 'Actif'
   });
+
+  // États pour les filtres
+  const [busSearchTerm, setBusSearchTerm] = useState('');
+  const [busTrajetFilter, setBusTrajetFilter] = useState('all');
+  const [trajetSearchTerm, setTrajetSearchTerm] = useState('');
+  const [trajetZoneFilter, setTrajetZoneFilter] = useState('all');
 
   const [trajetForm, setTrajetForm] = useState({
     nom: '', zones: [], heure_depart_matin_a: '07:30', heure_arrivee_matin_a: '08:00',
@@ -156,8 +162,8 @@ export default function AdminBus() {
       }
 
       const data = {
-        ...trajetForm,
-        zones: trajetForm.zones // Envoyer directement le tableau
+        setTrajetForm,
+        zones: trajetForm.zones
       };
 
       if (editingTrajet) {
@@ -173,6 +179,35 @@ export default function AdminBus() {
       setError('Erreur lors de l\'enregistrement du trajet');
     }
   };
+
+  // Filtrage des bus
+  const filteredBuses = buses.filter(bus => {
+    const chauffeur = chauffeurs.find(c => c.id === bus.chauffeur_id);
+    const responsable = responsables.find(r => r.id === bus.responsable_id);
+    const trajet = trajets.find(t => t.id === bus.trajet_id);
+
+    const searchString = `${bus.numero} ${chauffeur?.nom || ''} ${chauffeur?.prenom || ''} ${responsable?.nom || ''} ${responsable?.prenom || ''} ${trajet?.nom || ''}`.toLowerCase();
+    const matchesSearch = searchString.includes(busSearchTerm.toLowerCase());
+    const matchesTrajet = busTrajetFilter === 'all' || bus.trajet_id?.toString() === busTrajetFilter;
+
+    return matchesSearch && matchesTrajet;
+  });
+
+  // Filtrage des trajets
+  const filteredTrajets = trajets.filter(trajet => {
+    // Normaliser les zones en tableau
+    let zonesArray = [];
+    if (Array.isArray(trajet.zones)) {
+      zonesArray = trajet.zones;
+    } else if (typeof trajet.zones === 'string') {
+      zonesArray = trajet.zones.split(',').map(z => z.trim());
+    }
+
+    const matchesSearch = trajet.nom.toLowerCase().includes(trajetSearchTerm.toLowerCase());
+    const matchesZone = trajetZoneFilter === 'all' || zonesArray.some(z => z.includes(trajetZoneFilter));
+
+    return matchesSearch && matchesZone;
+  });
 
   const handleDeleteBusClick = (busId) => {
     setDeleteBusConfirm({ show: true, id: busId });
@@ -304,8 +339,8 @@ export default function AdminBus() {
           variant={activeTab === 'buses' ? 'default' : 'outline'}
           onClick={() => setActiveTab('buses')}
           className={`rounded-xl font-semibold transition-all duration-300 ${activeTab === 'buses'
-              ? 'bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-800 hover:to-amber-900 text-white shadow-lg shadow-amber-200'
-              : 'border-2 border-amber-200 hover:border-amber-300 text-amber-700 hover:bg-amber-50'
+            ? 'bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-800 hover:to-amber-900 text-white shadow-lg shadow-amber-200'
+            : 'border-2 border-amber-200 hover:border-amber-300 text-amber-700 hover:bg-amber-50'
             }`}
         >
           <Bus className="w-5 h-5 mr-2" />
@@ -315,8 +350,8 @@ export default function AdminBus() {
           variant={activeTab === 'trajets' ? 'default' : 'outline'}
           onClick={() => setActiveTab('trajets')}
           className={`rounded-xl font-semibold transition-all duration-300 ${activeTab === 'trajets'
-              ? 'bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-800 hover:to-amber-900 text-white shadow-lg shadow-amber-200'
-              : 'border-2 border-amber-200 hover:border-amber-300 text-amber-700 hover:bg-amber-50'
+            ? 'bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-800 hover:to-amber-900 text-white shadow-lg shadow-amber-200'
+            : 'border-2 border-amber-200 hover:border-amber-300 text-amber-700 hover:bg-amber-50'
             }`}
         >
           <Navigation className="w-5 h-5 mr-2" />
@@ -327,10 +362,35 @@ export default function AdminBus() {
       {/* Buses Tab */}
       {activeTab === 'buses' && (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-amber-100"
         >
+          {/* Filtres Bus */}
+          {!showBusForm && (
+            <div className="p-6 bg-white border-b border-amber-100 flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Input
+                  placeholder="Rechercher par numéro, chauffeur, responsable..."
+                  value={busSearchTerm}
+                  onChange={(e) => setBusSearchTerm(e.target.value)}
+                  className="pl-10 rounded-xl border-amber-200 focus:border-amber-500"
+                />
+              </div>
+              <Select value={busTrajetFilter} onValueChange={setBusTrajetFilter}>
+                <SelectTrigger className="w-full md:w-[250px] rounded-xl border-amber-200 focus:border-amber-500">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Filtrer par trajet" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les trajets</SelectItem>
+                  {trajets.map(t => (
+                    <SelectItem key={t.id} value={t.id.toString()}>{t.nom}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="p-8 bg-gradient-to-r from-amber-700 via-amber-800 to-amber-700 flex justify-between items-center">
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
@@ -452,7 +512,7 @@ export default function AdminBus() {
           )}
 
           <div className="divide-y divide-amber-100">
-            {buses.map((bus) => {
+            {filteredBuses.map((bus) => {
               const chauffeur = chauffeurs.find(c => c.id === bus.chauffeur_id);
               const responsable = responsables.find(r => r.id === bus.responsable_id);
               const trajet = trajets.find(t => t.id === bus.trajet_id);
@@ -504,7 +564,7 @@ export default function AdminBus() {
                 </motion.div>
               );
             })}
-            {buses.length === 0 && (
+            {filteredBuses.length === 0 && (
               <div className="p-16 text-center">
                 <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Bus className="w-10 h-10 text-amber-600 opacity-60" />
@@ -524,6 +584,33 @@ export default function AdminBus() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200"
         >
+          {/* Filtres Trajets */}
+          {!showTrajetForm && (
+            <div className="p-6 bg-white border-b border-gray-200 flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Input
+                  placeholder="Rechercher un trajet..."
+                  value={trajetSearchTerm}
+                  onChange={(e) => setTrajetSearchTerm(e.target.value)}
+                  className="pl-10 rounded-xl"
+                />
+              </div>
+              <Select value={trajetZoneFilter} onValueChange={setTrajetZoneFilter}>
+                <SelectTrigger className="w-full md:w-[250px] rounded-xl">
+                  <MapPin className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Filtrer par zone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les zones</SelectItem>
+                  {zones.map(z => (
+                    <SelectItem key={z} value={z}>{z}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="p-8 bg-gradient-to-r from-gray-700 via-gray-800 to-gray-700 flex justify-between items-center">
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
@@ -710,7 +797,7 @@ export default function AdminBus() {
           )}
 
           <div className="divide-y divide-gray-100">
-            {trajets.map((trajet) => {
+            {filteredTrajets.map((trajet) => {
               const zonesArray = Array.isArray(trajet.zones) ? trajet.zones : [];
 
               return (
@@ -764,7 +851,7 @@ export default function AdminBus() {
                 </motion.div>
               );
             })}
-            {trajets.length === 0 && (
+            {filteredTrajets.length === 0 && (
               <div className="p-16 text-center">
                 <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Navigation className="w-10 h-10 text-gray-600 opacity-60" />

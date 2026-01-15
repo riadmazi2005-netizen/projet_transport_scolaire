@@ -1,6 +1,7 @@
 -- DONNEES DE TEST - 50 ELEVES
--- Ce fichier ajoute environ 50 élèves, leurs tuteurs, inscriptions et paiements.
--- Les élèves sont répartis sur les différentes zones.
+-- Ce fichier ajoute environ 50 élèves, leurs tuteurs, inscriptions, demandes et paiements.
+-- Les élèves sont répartis sur les différentes zones et classes.
+-- Classes: 1AP, 2AP, 3AP, 4AP, 5AP, 6AP, 1ACC, 2AC, 3AC, TC, 1BAC, 2BAC
 -- Mot de passe pour tous les utilisateurs : test123
 
 USE transport_scolaire;
@@ -85,114 +86,220 @@ INSERT INTO tuteurs (utilisateur_id) VALUES (LAST_INSERT_ID());
 SET @tuteur_15 = LAST_INSERT_ID();
 
 -- ==============================================================================
--- 2. CRÉATION DES ÉLÈVES (50 élèves)
+-- 2. CRÉATION DES ÉLÈVES ET DEMANDES (50 élèves)
 -- ==============================================================================
 
 -- Zone: Agdal (Rabat)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Bennani', 'Ali', '2015-05-12', '10 Rue Agdal', '0661110001', 'k.bennani@test.com', 'CP', @tuteur_1, 'Actif'),
-('Bennani', 'Lina', '2013-08-23', '10 Rue Agdal', '0661110001', 'k.bennani@test.com', 'CE2', @tuteur_1, 'Actif'),
-('Chraibi', 'Adam', '2012-01-15', '45 Av Hassan II, Agdal', '0661110002', 'm.chraibi@test.com', 'CM1', @tuteur_2, 'Actif');
+('Bennani', 'Ali', '2019-05-12', '10 Rue Agdal', '0661110001', 'k.bennani@test.com', '1AP', @tuteur_1, 'Actif'),
+('Bennani', 'Lina', '2013-08-23', '10 Rue Agdal', '0661110001', 'k.bennani@test.com', '6AP', @tuteur_1, 'Actif'),
+('Chraibi', 'Adam', '2009-01-15', '45 Av Hassan II, Agdal', '0661110002', 'm.chraibi@test.com', '1BAC', @tuteur_2, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_1, 'inscription', 'Agdal', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_1, 'inscription', 'Agdal', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_2, 'inscription', 'Agdal', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Hassan (Rabat)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Berrada', 'Sara', '2014-03-30', '12 Rue Hassan', '0661110003', 'o.berrada@test.com', 'CE1', @tuteur_3, 'Actif'),
-('Berrada', 'Rania', '2016-11-10', '12 Rue Hassan', '0661110003', 'o.berrada@test.com', 'Maternelle', @tuteur_3, 'Actif'),
-('Tazi', 'Amine', '2011-06-20', '88 Bd Mohamed V, Hassan', '0661110004', 's.tazi@test.com', 'CM2', @tuteur_4, 'Actif');
+('Berrada', 'Sara', '2014-03-30', '12 Rue Hassan', '0661110003', 'o.berrada@test.com', '5AP', @tuteur_3, 'Actif'),
+('Berrada', 'Rania', '2018-11-10', '12 Rue Hassan', '0661110003', 'o.berrada@test.com', '2AP', @tuteur_3, 'Actif'),
+('Tazi', 'Amine', '2008-06-20', '88 Bd Mohamed V, Hassan', '0661110004', 's.tazi@test.com', '2BAC', @tuteur_4, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_3, 'inscription', 'Hassan', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_3, 'inscription', 'Hassan', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_4, 'inscription', 'Hassan', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Hay Riad (Rabat)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('El Fassi', 'Ghita', '2013-09-05', 'Villa 45, Secteur 10, Hay Riad', '0661110005', 'y.elfassi@test.com', 'CE2', @tuteur_5, 'Actif'),
-('El Fassi', 'Mehdi', '2010-02-14', 'Villa 45, Secteur 10, Hay Riad', '0661110005', 'y.elfassi@test.com', '6eme', @tuteur_5, 'Actif'),
-('Alaoui', 'Yassine', '2012-12-01', 'Av Annakhil, Hay Riad', '0661110006', 'f.alaoui@test.com', 'CM1', @tuteur_6, 'Actif');
+('El Fassi', 'Ghita', '2012-09-05', 'Villa 45, Secteur 10, Hay Riad', '0661110005', 'y.elfassi@test.com', '1ACC', @tuteur_5, 'Actif'),
+('El Fassi', 'Mehdi', '2010-02-14', 'Villa 45, Secteur 10, Hay Riad', '0661110005', 'y.elfassi@test.com', 'TC', @tuteur_5, 'Actif'),
+('Alaoui', 'Yassine', '2015-12-01', 'Av Annakhil, Hay Riad', '0661110006', 'f.alaoui@test.com', '3AP', @tuteur_6, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_5, 'inscription', 'Hay Riad', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_5, 'inscription', 'Hay Riad', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_6, 'inscription', 'Hay Riad', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Yacoub El Mansour (Rabat)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Kabbaj', 'Hiba', '2015-07-22', 'Res. Ocean, Yacoub Mansour', '0661110007', 'a.kabbaj@test.com', 'CP', @tuteur_7, 'Actif'),
-('Kabbaj', 'Zineb', '2013-04-18', 'Res. Ocean, Yacoub Mansour', '0661110007', 'a.kabbaj@test.com', 'CE2', @tuteur_7, 'Actif'),
-('Idrissi', 'Omar', '2014-09-09', 'Rue 12, Yacoub Mansour', '0661110008', 'l.idrissi@test.com', 'CE1', @tuteur_8, 'Actif');
+('Kabbaj', 'Hiba', '2019-07-22', 'Res. Ocean, Yacoub Mansour', '0661110007', 'a.kabbaj@test.com', '1AP', @tuteur_7, 'Actif'),
+('Kabbaj', 'Zineb', '2016-04-18', 'Res. Ocean, Yacoub Mansour', '0661110007', 'a.kabbaj@test.com', '3AP', @tuteur_7, 'Actif'),
+('Idrissi', 'Omar', '2017-09-09', 'Rue 12, Yacoub Mansour', '0661110008', 'l.idrissi@test.com', '2AP', @tuteur_8, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_7, 'inscription', 'Yacoub El Mansour', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_7, 'inscription', 'Yacoub El Mansour', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_8, 'inscription', 'Yacoub El Mansour', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Souissi (Rabat)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Benjelloun', 'Kenza', '2011-03-03', 'Villa 12, Souissi', '0661110009', 'r.benjelloun@test.com', 'CM2', @tuteur_9, 'Actif'),
-('Benjelloun', 'Ali', '2013-05-15', 'Villa 12, Souissi', '0661110009', 'r.benjelloun@test.com', 'CE2', @tuteur_9, 'Actif'),
-('Benjelloun', 'Nour', '2015-11-20', 'Villa 12, Souissi', '0661110009', 'r.benjelloun@test.com', 'CP', @tuteur_9, 'Actif');
+('Benjelloun', 'Kenza', '2011-03-03', 'Villa 12, Souissi', '0661110009', 'r.benjelloun@test.com', '2AC', @tuteur_9, 'Actif'),
+('Benjelloun', 'Ali', '2013-05-15', 'Villa 12, Souissi', '0661110009', 'r.benjelloun@test.com', '6AP', @tuteur_9, 'Actif'),
+('Benjelloun', 'Nour', '2019-11-20', 'Villa 12, Souissi', '0661110009', 'r.benjelloun@test.com', '1AP', @tuteur_9, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_9, 'inscription', 'Souissi', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_9, 'inscription', 'Souissi', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_9, 'inscription', 'Souissi', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Nahda (Rabat)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Tahiri', 'Salma', '2012-08-08', 'Lot Nahda 2', '0661110010', 'n.tahiri@test.com', 'CM1', @tuteur_10, 'Actif'),
-('Tahiri', 'Ahmed', '2010-12-12', 'Lot Nahda 2', '0661110010', 'n.tahiri@test.com', '6eme', @tuteur_10, 'Actif'),
-('Mekouar', 'Yanis', '2014-02-28', 'Rue Nahda 1', '0661110011', 'd.mekouar@test.com', 'CE1', @tuteur_11, 'Actif');
+('Tahiri', 'Salma', '2015-08-08', 'Lot Nahda 2', '0661110010', 'n.tahiri@test.com', '4AP', @tuteur_10, 'Actif'),
+('Tahiri', 'Ahmed', '2010-12-12', 'Lot Nahda 2', '0661110010', 'n.tahiri@test.com', '3AC', @tuteur_10, 'Actif'),
+('Mekouar', 'Yanis', '2017-02-28', 'Rue Nahda 1', '0661110011', 'd.mekouar@test.com', '2AP', @tuteur_11, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_10, 'inscription', 'Nahda', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_10, 'inscription', 'Nahda', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_11, 'inscription', 'Nahda', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Akkari (Rabat)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Slaoui', 'Ines', '2013-06-14', 'Bd Akkari', '0661110012', 'k.slaoui@test.com', 'CE2', @tuteur_12, 'Actif'),
-('Slaoui', 'Rym', '2015-09-30', 'Bd Akkari', '0661110012', 'k.slaoui@test.com', 'CP', @tuteur_12, 'Actif'),
-('Kadiri', 'Jad', '2011-11-11', 'Rue 4, Akkari', '0661110013', 'h.kadiri@test.com', 'CM2', @tuteur_13, 'Actif');
+('Slaoui', 'Ines', '2016-06-14', 'Bd Akkari', '0661110012', 'k.slaoui@test.com', '3AP', @tuteur_12, 'Actif'),
+('Slaoui', 'Rym', '2019-09-30', 'Bd Akkari', '0661110012', 'k.slaoui@test.com', '1AP', @tuteur_12, 'Actif'),
+('Kadiri', 'Jad', '2014-11-11', 'Rue 4, Akkari', '0661110013', 'h.kadiri@test.com', '5AP', @tuteur_13, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_12, 'inscription', 'Akkari', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_12, 'inscription', 'Akkari', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_13, 'inscription', 'Akkari', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Takkadoum (Rabat)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Chaoui', 'Malak', '2012-05-05', 'Res Takkadoum', '0661110014', 's.chaoui@test.com', 'CM1', @tuteur_14, 'Actif'),
-('Chaoui', 'Samy', '2014-10-10', 'Res Takkadoum', '0661110014', 's.chaoui@test.com', 'CE1', @tuteur_14, 'Actif'),
-('Jettou', 'Anas', '2013-07-07', 'Av Takkadoum', '0661110015', 'a.jettou@test.com', 'CE2', @tuteur_15, 'Actif');
+('Chaoui', 'Malak', '2015-05-05', 'Res Takkadoum', '0661110014', 's.chaoui@test.com', '4AP', @tuteur_14, 'Actif'),
+('Chaoui', 'Samy', '2017-10-10', 'Res Takkadoum', '0661110014', 's.chaoui@test.com', '2AP', @tuteur_14, 'Actif'),
+('Jettou', 'Anas', '2016-07-07', 'Av Takkadoum', '0661110015', 'a.jettou@test.com', '3AP', @tuteur_15, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_14, 'inscription', 'Takkadoum', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_14, 'inscription', 'Takkadoum', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_15, 'inscription', 'Takkadoum', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Hay Amal (Salé)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Bennani', 'Dina', '2011-01-25', 'Hay Amal, Salé', '0661110001', 'k.bennani@test.com', 'CM2', @tuteur_1, 'Actif'),
-('Chraibi', 'Sofia', '2015-03-15', 'Hay Amal, Salé', '0661110002', 'm.chraibi@test.com', 'CP', @tuteur_2, 'Actif');
+('Bennani', 'Dina', '2014-01-25', 'Hay Amal, Salé', '0661110001', 'k.bennani@test.com', '5AP', @tuteur_1, 'Actif'),
+('Chraibi', 'Sofia', '2019-03-15', 'Hay Amal, Salé', '0661110002', 'm.chraibi@test.com', '1AP', @tuteur_2, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_1, 'inscription', 'Hay Amal', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_2, 'inscription', 'Hay Amal', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Hay Karima (Salé)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Berrada', 'Khalil', '2012-09-20', 'Hay Karima, Salé', '0661110003', 'o.berrada@test.com', 'CM1', @tuteur_3, 'Actif'),
-('Tazi', 'Neyla', '2014-04-05', 'Hay Karima, Salé', '0661110004', 's.tazi@test.com', 'CE1', @tuteur_4, 'Actif');
+('Berrada', 'Khalil', '2015-09-20', 'Hay Karima, Salé', '0661110003', 'o.berrada@test.com', '4AP', @tuteur_3, 'Actif'),
+('Tazi', 'Neyla', '2017-04-05', 'Hay Karima, Salé', '0661110004', 's.tazi@test.com', '2AP', @tuteur_4, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_3, 'inscription', 'Hay Karima', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_4, 'inscription', 'Hay Karima', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Hay Nbi3at (Salé)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('El Fassi', 'Rayan', '2013-12-30', 'Hay Nbi3at, Salé', '0661110005', 'y.elfassi@test.com', 'CE2', @tuteur_5, 'Actif'),
-('Alaoui', 'Mia', '2015-08-15', 'Hay Nbi3at, Salé', '0661110006', 'f.alaoui@test.com', 'CP', @tuteur_6, 'Actif');
+('El Fassi', 'Rayan', '2016-12-30', 'Hay Nbi3at, Salé', '0661110005', 'y.elfassi@test.com', '3AP', @tuteur_5, 'Actif'),
+('Alaoui', 'Mia', '2019-08-15', 'Hay Nbi3at, Salé', '0661110006', 'f.alaoui@test.com', '1AP', @tuteur_6, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_5, 'inscription', 'Hay Nbi3at', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_6, 'inscription', 'Hay Nbi3at', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Sidi Moussa (Salé)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Kabbaj', 'Amir', '2011-05-10', 'Sidi Moussa, Salé', '0661110007', 'a.kabbaj@test.com', 'CM2', @tuteur_7, 'Actif'),
-('Idrissi', 'Leen', '2014-01-20', 'Sidi Moussa, Salé', '0661110008', 'l.idrissi@test.com', 'CE1', @tuteur_8, 'Actif');
+('Kabbaj', 'Amir', '2014-05-10', 'Sidi Moussa, Salé', '0661110007', 'a.kabbaj@test.com', '5AP', @tuteur_7, 'Actif'),
+('Idrissi', 'Leen', '2017-01-20', 'Sidi Moussa, Salé', '0661110008', 'l.idrissi@test.com', '2AP', @tuteur_8, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_7, 'inscription', 'Sidi Moussa', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_8, 'inscription', 'Sidi Moussa', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Boulknadel (Salé)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Benjelloun', 'Reda', '2012-06-06', 'Boulknadel', '0661110009', 'r.benjelloun@test.com', 'CM1', @tuteur_9, 'Actif'),
-('Tahiri', 'Yara', '2015-02-14', 'Boulknadel', '0661110010', 'n.tahiri@test.com', 'CP', @tuteur_10, 'Actif');
+('Benjelloun', 'Reda', '2015-06-06', 'Boulknadel', '0661110009', 'r.benjelloun@test.com', '4AP', @tuteur_9, 'Actif'),
+('Tahiri', 'Yara', '2019-02-14', 'Boulknadel', '0661110010', 'n.tahiri@test.com', '1AP', @tuteur_10, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_9, 'inscription', 'Boulknadel', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_10, 'inscription', 'Boulknadel', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Sale Jadida (Salé)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Mekouar', 'Samir', '2013-10-25', 'Sale Jadida', '0661110011', 'd.mekouar@test.com', 'CE2', @tuteur_11, 'Actif'),
-('Slaoui', 'Lilya', '2011-04-12', 'Sale Jadida', '0661110012', 'k.slaoui@test.com', 'CM2', @tuteur_12, 'Actif');
+('Mekouar', 'Samir', '2016-10-25', 'Sale Jadida', '0661110011', 'd.mekouar@test.com', '3AP', @tuteur_11, 'Actif'),
+('Slaoui', 'Lilya', '2014-04-12', 'Sale Jadida', '0661110012', 'k.slaoui@test.com', '5AP', @tuteur_12, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_11, 'inscription', 'Sale Jadida', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_12, 'inscription', 'Sale Jadida', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Harhoura (Salé/Temara)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Kadiri', 'Ziad', '2014-09-09', 'Villa Harhoura', '0661110013', 'h.kadiri@test.com', 'CE1', @tuteur_13, 'Actif'),
-('Chaoui', 'Nour', '2012-11-30', 'Villa Harhoura', '0661110014', 's.chaoui@test.com', 'CM1', @tuteur_14, 'Actif'),
-('Jettou', 'Ilya', '2015-07-01', 'Villa Harhoura', '0661110015', 'a.jettou@test.com', 'CP', @tuteur_15, 'Actif');
+('Kadiri', 'Ziad', '2017-09-09', 'Villa Harhoura', '0661110013', 'h.kadiri@test.com', '2AP', @tuteur_13, 'Actif'),
+('Chaoui', 'Nour', '2015-11-30', 'Villa Harhoura', '0661110014', 's.chaoui@test.com', '4AP', @tuteur_14, 'Actif'),
+('Jettou', 'Ilya', '2019-07-01', 'Villa Harhoura', '0661110015', 'a.jettou@test.com', '1AP', @tuteur_15, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_13, 'inscription', 'Harhoura', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_14, 'inscription', 'Harhoura', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_15, 'inscription', 'Harhoura', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Maamora (Salé)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Bennani', 'Kamal', '2013-02-18', 'Maamora', '0661110001', 'k.bennani@test.com', 'CE2', @tuteur_1, 'Actif'),
-('Chraibi', 'Soraya', '2011-08-22', 'Maamora', '0661110002', 'm.chraibi@test.com', 'CM2', @tuteur_2, 'Actif');
+('Bennani', 'Kamal', '2016-02-18', 'Maamora', '0661110001', 'k.bennani@test.com', '3AP', @tuteur_1, 'Actif'),
+('Chraibi', 'Soraya', '2014-08-22', 'Maamora', '0661110002', 'm.chraibi@test.com', '5AP', @tuteur_2, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_1, 'inscription', 'Maamora', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_2, 'inscription', 'Maamora', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Temara Centre
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Berrada', 'Marwane', '2014-12-05', 'Temara Centre', '0661110003', 'o.berrada@test.com', 'CE1', @tuteur_3, 'Actif'),
-('Tazi', 'Yasmine', '2012-05-15', 'Temara Centre', '0661110004', 's.tazi@test.com', 'CM1', @tuteur_4, 'Actif');
+('Berrada', 'Marwane', '2017-12-05', 'Temara Centre', '0661110003', 'o.berrada@test.com', '2AP', @tuteur_3, 'Actif'),
+('Tazi', 'Yasmine', '2008-05-15', 'Temara Centre', '0661110004', 's.tazi@test.com', '2BAC', @tuteur_4, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_3, 'inscription', 'Temara Centre', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_4, 'inscription', 'Temara Centre', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Zone: Milano (Temara)
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('El Fassi', 'Driss', '2015-01-10', 'Res Milano, Temara', '0661110005', 'y.elfassi@test.com', 'CP', @tuteur_5, 'Actif'),
-('Alaoui', 'Selma', '2013-09-28', 'Res Milano, Temara', '0661110006', 'f.alaoui@test.com', 'CE2', @tuteur_6, 'Actif');
+('El Fassi', 'Driss', '2019-01-10', 'Res Milano, Temara', '0661110005', 'y.elfassi@test.com', '1AP', @tuteur_5, 'Actif'),
+('Alaoui', 'Selma', '2016-09-28', 'Res Milano, Temara', '0661110006', 'f.alaoui@test.com', '3AP', @tuteur_6, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_5, 'inscription', 'Milano', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_6, 'inscription', 'Milano', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 -- Quelques élèves supplémentaires en Vrac pour atteindre le compte
 INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, email_parent, classe, tuteur_id, statut) VALUES 
-('Kabbaj', 'Nabil', '2011-02-02', 'Maarif', '0661110007', 'a.kabbaj@test.com', 'CM2', @tuteur_7, 'Actif'),
-('Idrissi', 'Mounir', '2014-06-16', 'Agdal', '0661110008', 'l.idrissi@test.com', 'CE1', @tuteur_8, 'Actif'),
-('Benjelloun', 'Sanae', '2012-10-10', 'Hay Riad', '0661110009', 'r.benjelloun@test.com', 'CM1', @tuteur_9, 'Actif'),
-('Tahiri', 'Yassir', '2015-03-23', 'Souissi', '0661110010', 'n.tahiri@test.com', 'CP', @tuteur_10, 'Actif');
+('Kabbaj', 'Nabil', '2009-02-02', 'Maarif', '0661110007', 'a.kabbaj@test.com', 'TC', @tuteur_7, 'Actif'),
+('Idrissi', 'Mounir', '2017-06-16', 'Agdal', '0661110008', 'l.idrissi@test.com', '2AP', @tuteur_8, 'Actif'),
+('Benjelloun', 'Sanae', '2015-10-10', 'Hay Riad', '0661110009', 'r.benjelloun@test.com', '4AP', @tuteur_9, 'Actif'),
+('Tahiri', 'Yassir', '2019-03-23', 'Souissi', '0661110010', 'n.tahiri@test.com', '1AP', @tuteur_10, 'Actif');
+
+SET @id_start = LAST_INSERT_ID();
+INSERT INTO demandes (eleve_id, tuteur_id, type_demande, zone_geographique, montant_facture, statut, description) VALUES
+(@id_start, @tuteur_7, 'inscription', 'Maarif', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+1, @tuteur_8, 'inscription', 'Agdal', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+2, @tuteur_9, 'inscription', 'Hay Riad', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}'),
+(@id_start+3, @tuteur_10, 'inscription', 'Souissi', 500.00, 'Inscrit', '{"abonnement":"Mensuel"}');
 
 
 -- ==============================================================================
@@ -201,9 +308,6 @@ INSERT INTO eleves (nom, prenom, date_naissance, adresse, telephone_parent, emai
 
 -- On crée des inscriptions pour tous ces élèves
 -- Et on ajoute des paiements (certains payés, certains en attente)
-
--- Procedure pour simplifier (ou bloc répété en SQL pur pour compatibilité simple)
--- Utilisons une requête INSERT INTO ... SELECT pour faire ça en masse
 
 INSERT INTO inscriptions (eleve_id, bus_id, date_inscription, date_debut, date_fin, statut, montant_mensuel)
 SELECT 

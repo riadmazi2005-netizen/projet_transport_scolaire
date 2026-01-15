@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import AdminLayout from '../components/AdminLayout';
-import { 
+import {
   FileText, CheckCircle, XCircle, Calendar, User, Bus, Phone, ArrowLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -39,8 +39,8 @@ export default function AdminDemandes() {
         inscriptionsAPI.getAll(),
         busAPI.getAll()
       ]);
-      
-      const demandesData = demandesRes.status === 'fulfilled' 
+
+      const demandesData = demandesRes.status === 'fulfilled'
         ? (demandesRes.value?.data || demandesRes.value || [])
         : [];
       const inscriptionsData = inscriptionsRes.status === 'fulfilled'
@@ -49,14 +49,14 @@ export default function AdminDemandes() {
       const busesData = busesRes.status === 'fulfilled'
         ? (busesRes.value?.data || busesRes.value || [])
         : [];
-      
+
       // Charger les informations complètes de transport pour les demandes d'inscription
       const [trajetsRes, chauffeursRes, responsablesRes] = await Promise.allSettled([
         trajetsAPI.getAll(),
         chauffeursAPI.getAll(),
         responsablesAPI.getAll()
       ]);
-      
+
       const trajetsData = trajetsRes.status === 'fulfilled'
         ? (trajetsRes.value?.data || trajetsRes.value || [])
         : [];
@@ -66,23 +66,23 @@ export default function AdminDemandes() {
       const responsablesData = responsablesRes.status === 'fulfilled'
         ? (responsablesRes.value?.data || responsablesRes.value || [])
         : [];
-      
+
       // Inclure les demandes d'inscription avec leurs informations de bus
       const demandesAvecBus = demandesData.map(demande => {
         if (demande.type_demande === 'inscription' && demande.eleve_id) {
           // Trouver l'inscription de cet élève avec un bus
-          const inscription = inscriptionsData.find(i => 
-            i.eleve_id === demande.eleve_id && 
-            i.bus_id && 
-            i.bus_id !== null && 
+          const inscription = inscriptionsData.find(i =>
+            i.eleve_id === demande.eleve_id &&
+            i.bus_id &&
+            i.bus_id !== null &&
             i.bus_id > 0
           );
-          
+
           if (inscription) {
             const bus = busesData.find(b => b.id === inscription.bus_id);
             if (bus) {
               // Charger les informations complètes du bus
-              const chauffeur = bus.chauffeur_id 
+              const chauffeur = bus.chauffeur_id
                 ? chauffeursData.find(c => c.id === bus.chauffeur_id)
                 : null;
               const responsable = bus.responsable_id
@@ -91,7 +91,7 @@ export default function AdminDemandes() {
               const trajet = bus.trajet_id
                 ? trajetsData.find(t => t.id === bus.trajet_id)
                 : null;
-              
+
               return {
                 ...demande,
                 inscription,
@@ -107,7 +107,7 @@ export default function AdminDemandes() {
         }
         return demande;
       });
-      
+
       setDemandes(demandesAvecBus.sort((a, b) => new Date(b.date_creation || b.date_demande || 0) - new Date(a.date_creation || a.date_demande || 0)));
     } catch (err) {
       console.error('Erreur lors du chargement:', err);
@@ -121,7 +121,7 @@ export default function AdminDemandes() {
     if (!selectedDemande) return;
     setProcessing(true);
     setError(null);
-    
+
     try {
       // Pour les demandes d'inscription, passer en "En attente de paiement" pour générer le code
       // Pour les autres types, passer en "Approuvée" ou "En cours de traitement"
@@ -131,13 +131,13 @@ export default function AdminDemandes() {
       } else if (selectedDemande.type_demande === 'modification' || selectedDemande.type_demande === 'desinscription') {
         nouveauStatut = 'En cours de traitement';
       }
-      
+
       // Traiter la demande
       const result = await demandesAPI.traiter(selectedDemande.id, nouveauStatut, reponse || 'Demande approuvée');
-      
+
       // Note: L'affectation du bus se fera APRÈS la validation du code de paiement
       // Ici on génère juste le code et on passe en "En attente de paiement"
-      
+
       // Si augmentation, mettre à jour le salaire
       if (selectedDemande.type_demande === 'Augmentation' && nouveauSalaire) {
         if (selectedDemande.demandeur_type === 'chauffeur') {
@@ -150,7 +150,7 @@ export default function AdminDemandes() {
           });
         }
       }
-      
+
       // Si déménagement, mettre à jour l'adresse et la zone de l'élève
       if (selectedDemande.type_demande === 'Déménagement' && selectedDemande.eleve_id) {
         const updateData = {};
@@ -163,20 +163,19 @@ export default function AdminDemandes() {
           await elevesAPI.update(selectedDemande.eleve_id, updateData);
         }
       }
-      
+
       // Envoyer notification
       await notificationsAPI.create({
         destinataire_id: selectedDemande.demandeur_id,
         destinataire_type: selectedDemande.demandeur_type,
         titre: 'Demande acceptée',
-        message: `Votre demande de ${selectedDemande.type_demande.toLowerCase()} a été acceptée.${
-          selectedDemande.type_demande === 'Augmentation' && nouveauSalaire 
-            ? ` Nouveau salaire: ${nouveauSalaire} DH` 
+        message: `Votre demande de ${selectedDemande.type_demande.toLowerCase()} a été acceptée.${selectedDemande.type_demande === 'Augmentation' && nouveauSalaire
+            ? ` Nouveau salaire: ${nouveauSalaire} DH`
             : ''
-        }`,
+          }`,
         type: 'info'
       });
-      
+
       // Afficher le code de vérification si généré
       if (result?.data?.code_verification) {
         setCodeVerification(result.data.code_verification);
@@ -188,7 +187,7 @@ export default function AdminDemandes() {
         setSelectedBusId(null);
         setAvailableBuses([]);
       }
-      
+
       setSelectedDemande(null);
       setNouveauSalaire('');
       setReponse('');
@@ -208,10 +207,10 @@ export default function AdminDemandes() {
     }
     setProcessing(true);
     setError(null);
-    
+
     try {
       await demandesAPI.traiter(selectedDemande.id, 'Refusée', '', reponse);
-      
+
       // Envoyer notification
       await notificationsAPI.create({
         destinataire_id: selectedDemande.demandeur_id,
@@ -220,7 +219,7 @@ export default function AdminDemandes() {
         message: `Votre demande de ${selectedDemande.type_demande.toLowerCase()} a été refusée. Motif: ${reponse}`,
         type: 'alerte'
       });
-      
+
       setSelectedDemande(null);
       setReponse('');
       await loadData();
@@ -275,7 +274,7 @@ export default function AdminDemandes() {
           Retour au tableau de bord
         </button>
       </div>
-      
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
           {error}
@@ -290,9 +289,9 @@ export default function AdminDemandes() {
         <div className="p-6 bg-gradient-to-r from-orange-500 to-red-500">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <FileText className="w-6 h-6" />
-            Traitement des Demandes du Personnel
+            Traitement des Demandes
           </h2>
-          <p className="text-orange-100 mt-1 text-sm">Chauffeurs et Responsables uniquement</p>
+          <p className="text-orange-100 mt-1 text-sm">Gestion des demandes (Inscriptions, Congés, etc.)</p>
         </div>
 
         <div className="divide-y divide-gray-100">
@@ -315,312 +314,311 @@ export default function AdminDemandes() {
                         <p className="text-sm text-gray-500 capitalize">{demande.demandeur_type}</p>
                       </div>
                     </div>
-                      
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getTypeBadge(demande.type_demande)}`}>
-                          {demande.type_demande}
-                        </span>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(demande.statut)}`}>
-                          {demande.statut}
-                        </span>
-                      </div>
 
-                      {demande.type_demande === 'Augmentation' && demande.salaire_actuel && (
-                        <div className="flex gap-4 text-sm mb-2">
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getTypeBadge(demande.type_demande)}`}>
+                        {demande.type_demande}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(demande.statut)}`}>
+                        {demande.statut}
+                      </span>
+                    </div>
+
+                    {demande.type_demande === 'Augmentation' && demande.salaire_actuel && (
+                      <div className="flex gap-4 text-sm mb-2">
+                        <div>
+                          <span className="text-gray-500">Salaire actuel:</span>
+                          <span className="ml-2 font-semibold">{demande.salaire_actuel} DH</span>
+                        </div>
+                        {demande.salaire_demande && (
                           <div>
-                            <span className="text-gray-500">Salaire actuel:</span>
-                            <span className="ml-2 font-semibold">{demande.salaire_actuel} DH</span>
+                            <span className="text-gray-500">Salaire demandé:</span>
+                            <span className="ml-2 font-semibold text-purple-600">{demande.salaire_demande} DH</span>
                           </div>
-                          {demande.salaire_demande && (
-                            <div>
-                              <span className="text-gray-500">Salaire demandé:</span>
-                              <span className="ml-2 font-semibold text-purple-600">{demande.salaire_demande} DH</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
+                    )}
 
-                      {demande.type_demande === 'Congé' && demande.date_debut_conge && (
-                        <div className="flex items-center gap-2 text-sm mb-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          <span>{demande.date_debut_conge} → {demande.date_fin_conge}</span>
-                        </div>
-                      )}
+                    {demande.type_demande === 'Congé' && demande.date_debut_conge && (
+                      <div className="flex items-center gap-2 text-sm mb-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <span>{demande.date_debut_conge} → {demande.date_fin_conge}</span>
+                      </div>
+                    )}
 
-                      {demande.type_demande === 'inscription' && (
-                        <>
-                          <div className="bg-blue-50 rounded-xl p-4 text-sm mb-2">
-                            <div className="grid grid-cols-2 gap-2">
-                              {demande.eleve_nom && (
-                                <>
+                    {demande.type_demande === 'inscription' && (
+                      <>
+                        <div className="bg-blue-50 rounded-xl p-4 text-sm mb-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            {demande.eleve_nom && (
+                              <>
+                                <div>
+                                  <span className="text-gray-600">Élève:</span>
+                                  <p className="font-medium">{demande.eleve_prenom} {demande.eleve_nom}</p>
+                                </div>
+                                {demande.eleve_classe && (
                                   <div>
-                                    <span className="text-gray-600">Élève:</span>
-                                    <p className="font-medium">{demande.eleve_prenom} {demande.eleve_nom}</p>
+                                    <span className="text-gray-600">Classe:</span>
+                                    <p className="font-medium">{demande.eleve_classe}</p>
                                   </div>
-                                  {demande.eleve_classe && (
-                                    <div>
-                                      <span className="text-gray-600">Classe:</span>
-                                      <p className="font-medium">{demande.eleve_classe}</p>
+                                )}
+                                {demande.zone_geographique && (
+                                  <div>
+                                    <span className="text-gray-600">Zone géographique:</span>
+                                    <p className="font-medium text-blue-700">{demande.zone_geographique}</p>
+                                  </div>
+                                )}
+                                {demande.eleve_adresse && (
+                                  <div>
+                                    <span className="text-gray-600">Adresse:</span>
+                                    <p className="font-medium">{demande.eleve_adresse}</p>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Informations de transport (bus) */}
+                        {demande.bus && demande.bus.id && (
+                          <div className="bg-green-50 rounded-xl p-4 text-sm mb-2 border border-green-200">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Bus className="w-5 h-5 text-green-600" />
+                              <h4 className="font-semibold text-green-800">Informations de transport</h4>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="bg-white rounded-lg p-3 border border-green-100">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-gray-600 text-xs">Bus assigné</span>
+                                  <span className="text-lg font-bold text-green-700">
+                                    {demande.bus.numero ? demande.bus.numero.toString().replace(/^#\s*/, '') : 'N/A'}
+                                  </span>
+                                </div>
+                                {demande.bus.immatriculation && (
+                                  <p className="text-xs text-gray-500">{demande.bus.immatriculation}</p>
+                                )}
+                                {demande.bus.marque && (
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    {demande.bus.marque} {demande.bus.modele || ''}
+                                  </p>
+                                )}
+                                {demande.bus.capacite && (
+                                  <p className="text-xs text-gray-500">Capacité: {demande.bus.capacite} places</p>
+                                )}
+                              </div>
+
+                              {demande.bus.chauffeur && (
+                                <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                                  <p className="text-xs font-semibold text-blue-700 mb-1 flex items-center gap-1">
+                                    <User className="w-3 h-3" />
+                                    Chauffeur
+                                  </p>
+                                  <p className="text-sm font-medium text-gray-800">
+                                    {demande.bus.chauffeur.prenom || ''} {demande.bus.chauffeur.nom || ''}
+                                  </p>
+                                  {demande.bus.chauffeur.telephone && (
+                                    <a
+                                      href={`tel:${demande.bus.chauffeur.telephone}`}
+                                      className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                                    >
+                                      <Phone className="w-3 h-3" />
+                                      {demande.bus.chauffeur.telephone}
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+
+                              {demande.bus.responsable && (
+                                <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
+                                  <p className="text-xs font-semibold text-purple-700 mb-1 flex items-center gap-1">
+                                    <User className="w-3 h-3" />
+                                    Responsable bus
+                                  </p>
+                                  <p className="text-sm font-medium text-gray-800">
+                                    {demande.bus.responsable.prenom || ''} {demande.bus.responsable.nom || ''}
+                                  </p>
+                                  {demande.bus.responsable.telephone && (
+                                    <a
+                                      href={`tel:${demande.bus.responsable.telephone}`}
+                                      className="text-xs text-purple-600 hover:underline flex items-center gap-1 mt-1"
+                                    >
+                                      <Phone className="w-3 h-3" />
+                                      {demande.bus.responsable.telephone}
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+
+                              {demande.bus.trajet && (
+                                <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
+                                  <p className="text-xs font-semibold text-amber-700 mb-1">Trajet</p>
+                                  <p className="text-sm font-medium text-gray-800">{demande.bus.trajet.nom || 'N/A'}</p>
+                                  {demande.bus.trajet.heure_depart_matin_a && (
+                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                      <div className="bg-white rounded p-2">
+                                        <p className="text-xs text-blue-600 mb-1">Matin</p>
+                                        <p className="text-xs font-semibold">
+                                          {demande.bus.trajet.heure_depart_matin_a} - {demande.bus.trajet.heure_arrivee_matin_a}
+                                        </p>
+                                      </div>
+                                      <div className="bg-white rounded p-2">
+                                        <p className="text-xs text-orange-600 mb-1">Soir</p>
+                                        <p className="text-xs font-semibold">
+                                          {demande.bus.trajet.heure_depart_soir_a} - {demande.bus.trajet.heure_arrivee_soir_a}
+                                        </p>
+                                      </div>
                                     </div>
                                   )}
-                                  {demande.zone_geographique && (
-                                    <div>
-                                      <span className="text-gray-600">Zone géographique:</span>
-                                      <p className="font-medium text-blue-700">{demande.zone_geographique}</p>
-                                    </div>
-                                  )}
-                                  {demande.eleve_adresse && (
-                                    <div>
-                                      <span className="text-gray-600">Adresse:</span>
-                                      <p className="font-medium">{demande.eleve_adresse}</p>
-                                    </div>
-                                  )}
-                                </>
+                                </div>
                               )}
                             </div>
                           </div>
-                          
-                          {/* Informations de transport (bus) */}
-                          {demande.bus && demande.bus.id && (
-                            <div className="bg-green-50 rounded-xl p-4 text-sm mb-2 border border-green-200">
-                              <div className="flex items-center gap-2 mb-3">
-                                <Bus className="w-5 h-5 text-green-600" />
-                                <h4 className="font-semibold text-green-800">Informations de transport</h4>
-                              </div>
-                              
-                              <div className="space-y-3">
-                                <div className="bg-white rounded-lg p-3 border border-green-100">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="text-gray-600 text-xs">Bus assigné</span>
-                                    <span className="text-lg font-bold text-green-700">
-                                      {demande.bus.numero ? demande.bus.numero.toString().replace(/^#\s*/, '') : 'N/A'}
-                                    </span>
-                                  </div>
-                                  {demande.bus.immatriculation && (
-                                    <p className="text-xs text-gray-500">{demande.bus.immatriculation}</p>
-                                  )}
-                                  {demande.bus.marque && (
-                                    <p className="text-xs text-gray-600 mt-1">
-                                      {demande.bus.marque} {demande.bus.modele || ''}
-                                    </p>
-                                  )}
-                                  {demande.bus.capacite && (
-                                    <p className="text-xs text-gray-500">Capacité: {demande.bus.capacite} places</p>
-                                  )}
-                                </div>
-                                
-                                {demande.bus.chauffeur && (
-                                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-                                    <p className="text-xs font-semibold text-blue-700 mb-1 flex items-center gap-1">
-                                      <User className="w-3 h-3" />
-                                      Chauffeur
-                                    </p>
-                                    <p className="text-sm font-medium text-gray-800">
-                                      {demande.bus.chauffeur.prenom || ''} {demande.bus.chauffeur.nom || ''}
-                                    </p>
-                                    {demande.bus.chauffeur.telephone && (
-                                      <a 
-                                        href={`tel:${demande.bus.chauffeur.telephone}`}
-                                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
-                                      >
-                                        <Phone className="w-3 h-3" />
-                                        {demande.bus.chauffeur.telephone}
-                                      </a>
-                                    )}
-                                  </div>
-                                )}
-                                
-                                {demande.bus.responsable && (
-                                  <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
-                                    <p className="text-xs font-semibold text-purple-700 mb-1 flex items-center gap-1">
-                                      <User className="w-3 h-3" />
-                                      Responsable bus
-                                    </p>
-                                    <p className="text-sm font-medium text-gray-800">
-                                      {demande.bus.responsable.prenom || ''} {demande.bus.responsable.nom || ''}
-                                    </p>
-                                    {demande.bus.responsable.telephone && (
-                                      <a 
-                                        href={`tel:${demande.bus.responsable.telephone}`}
-                                        className="text-xs text-purple-600 hover:underline flex items-center gap-1 mt-1"
-                                      >
-                                        <Phone className="w-3 h-3" />
-                                        {demande.bus.responsable.telephone}
-                                      </a>
-                                    )}
-                                  </div>
-                                )}
-                                
-                                {demande.bus.trajet && (
-                                  <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
-                                    <p className="text-xs font-semibold text-amber-700 mb-1">Trajet</p>
-                                    <p className="text-sm font-medium text-gray-800">{demande.bus.trajet.nom || 'N/A'}</p>
-                                    {demande.bus.trajet.heure_depart_matin_a && (
-                                      <div className="mt-2 grid grid-cols-2 gap-2">
-                                        <div className="bg-white rounded p-2">
-                                          <p className="text-xs text-blue-600 mb-1">Matin</p>
-                                          <p className="text-xs font-semibold">
-                                            {demande.bus.trajet.heure_depart_matin_a} - {demande.bus.trajet.heure_arrivee_matin_a}
-                                          </p>
-                                        </div>
-                                        <div className="bg-white rounded p-2">
-                                          <p className="text-xs text-orange-600 mb-1">Soir</p>
-                                          <p className="text-xs font-semibold">
-                                            {demande.bus.trajet.heure_depart_soir_a} - {demande.bus.trajet.heure_arrivee_soir_a}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
+                        )}
+                      </>
+                    )}
+
+                    {demande.type_demande === 'Déménagement' && (
+                      <div className="bg-amber-50 rounded-xl p-4 text-sm mb-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          {demande.eleve_adresse && (
+                            <div>
+                              <span className="text-gray-600">Adresse actuelle:</span>
+                              <p className="font-medium">{demande.eleve_adresse}</p>
                             </div>
                           )}
-                        </>
-                      )}
-
-                      {demande.type_demande === 'Déménagement' && (
-                        <div className="bg-amber-50 rounded-xl p-4 text-sm mb-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            {demande.eleve_adresse && (
-                              <div>
-                                <span className="text-gray-600">Adresse actuelle:</span>
-                                <p className="font-medium">{demande.eleve_adresse}</p>
-                              </div>
-                            )}
-                            {demande.nouvelle_adresse && (
-                              <div>
-                                <span className="text-gray-600">Nouvelle adresse:</span>
-                                <p className="font-medium text-amber-700">{demande.nouvelle_adresse}</p>
-                              </div>
-                            )}
-                            {demande.nouvelle_zone && (
-                              <div>
-                                <span className="text-gray-600">Nouvelle zone:</span>
-                                <p className="font-medium text-amber-700">{demande.nouvelle_zone}</p>
-                              </div>
-                            )}
-                            {demande.date_demenagement && (
-                              <div>
-                                <span className="text-gray-600">Date de déménagement:</span>
-                                <p className="font-medium">{demande.date_demenagement}</p>
-                              </div>
-                            )}
-                          </div>
+                          {demande.nouvelle_adresse && (
+                            <div>
+                              <span className="text-gray-600">Nouvelle adresse:</span>
+                              <p className="font-medium text-amber-700">{demande.nouvelle_adresse}</p>
+                            </div>
+                          )}
+                          {demande.nouvelle_zone && (
+                            <div>
+                              <span className="text-gray-600">Nouvelle zone:</span>
+                              <p className="font-medium text-amber-700">{demande.nouvelle_zone}</p>
+                            </div>
+                          )}
+                          {demande.date_demenagement && (
+                            <div>
+                              <span className="text-gray-600">Date de déménagement:</span>
+                              <p className="font-medium">{demande.date_demenagement}</p>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {demande.raisons && (
-                        <p className="text-gray-600 text-sm bg-gray-50 rounded-xl p-3 mt-2">
-                          <strong>Justification:</strong> {demande.raisons}
-                        </p>
-                      )}
-
-                      {demande.description && !demande.raisons && (
-                        <p className="text-gray-600 text-sm bg-gray-50 rounded-xl p-3 mt-2">
-                          <strong>Description:</strong> {typeof demande.description === 'string' ? demande.description : JSON.stringify(demande.description)}
-                        </p>
-                      )}
-
-                      {demande.raison_refus && (
-                        <p className="text-sm rounded-xl p-3 mt-2 bg-red-50 text-red-700">
-                          <strong>Raison du refus:</strong> {demande.raison_refus}
-                        </p>
-                      )}
-
-                      {demande.commentaire && !demande.raison_refus && (
-                        <p className={`text-sm rounded-xl p-3 mt-2 ${
-                          demande.statut === 'Approuvée' || demande.statut === 'Validée' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                        }`}>
-                          <strong>Réponse:</strong> {demande.commentaire}
-                        </p>
-                      )}
-
-                      {demande.code_verification && demande.statut === 'En attente de paiement' && (
-                        <p className="text-sm rounded-xl p-3 mt-2 bg-blue-50 text-blue-700">
-                          <strong>Code de vérification:</strong> <span className="font-mono font-bold">{demande.code_verification}</span>
-                        </p>
-                      )}
-
-                      <p className="text-xs text-gray-400 mt-2">
-                        {format(new Date(demande.date_creation || demande.date_demande || Date.now()), 'dd MMMM yyyy à HH:mm', { locale: fr })}
+                    {demande.raisons && (
+                      <p className="text-gray-600 text-sm bg-gray-50 rounded-xl p-3 mt-2">
+                        <strong>Justification:</strong> {demande.raisons}
                       </p>
-                    </div>
-
-                    {(demande.statut === 'En attente' || demande.statut === 'En cours de traitement') && (
-                      <div className="flex gap-2 lg:flex-col">
-                        <Button
-                          onClick={async () => {
-                            setSelectedDemande(demande);
-                            setNouveauSalaire(demande.salaire_demande?.toString() || '');
-                            setCodeVerification(null);
-                            setSelectedBusId(null);
-                            
-                            // Si c'est une demande d'inscription, charger les bus disponibles par zone
-                            if (demande.type_demande === 'inscription' && demande.zone_geographique) {
-                              try {
-                                const busesResponse = await busAPI.getByZone(demande.zone_geographique);
-                                if (busesResponse.success) {
-                                  setAvailableBuses(busesResponse.data || []);
-                                }
-                              } catch (err) {
-                                console.warn('Erreur lors du chargement des bus:', err);
-                                // Charger tous les bus en fallback
-                                try {
-                                  const allBuses = await busAPI.getAll();
-                                  setAvailableBuses(allBuses.filter(b => b.statut === 'Actif') || []);
-                                } catch (e) {
-                                  setAvailableBuses([]);
-                                }
-                              }
-                            }
-                          }}
-                          className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Traiter
-                        </Button>
-                      </div>
                     )}
 
-                    {/* Bouton pour affecter le bus aux demandes validées */}
-                    {demande.statut === 'Validée' && demande.type_demande === 'inscription' && demande.eleve_id && !demande.bus_id && (
-                      <div className="flex gap-2 lg:flex-col">
-                        <Button
-                          onClick={async () => {
-                            setSelectedDemande(demande);
-                            setCodeVerification(null);
-                            setSelectedBusId(null);
-                            
-                            // Charger les bus disponibles par zone
-                            if (demande.zone_geographique) {
-                              try {
-                                const busesResponse = await busAPI.getByZone(demande.zone_geographique);
-                                if (busesResponse.success) {
-                                  setAvailableBuses(busesResponse.data || []);
-                                }
-                              } catch (err) {
-                                console.warn('Erreur lors du chargement des bus:', err);
-                                try {
-                                  const allBuses = await busAPI.getAll();
-                                  setAvailableBuses(allBuses.filter(b => b.statut === 'Actif') || []);
-                                } catch (e) {
-                                  setAvailableBuses([]);
-                                }
-                              }
-                            }
-                          }}
-                          className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
-                        >
-                          <Bus className="w-4 h-4 mr-2" />
-                          Affecter un bus
-                        </Button>
-                      </div>
+                    {demande.description && !demande.raisons && (
+                      <p className="text-gray-600 text-sm bg-gray-50 rounded-xl p-3 mt-2">
+                        <strong>Description:</strong> {typeof demande.description === 'string' ? demande.description : JSON.stringify(demande.description)}
+                      </p>
                     )}
+
+                    {demande.raison_refus && (
+                      <p className="text-sm rounded-xl p-3 mt-2 bg-red-50 text-red-700">
+                        <strong>Raison du refus:</strong> {demande.raison_refus}
+                      </p>
+                    )}
+
+                    {demande.commentaire && !demande.raison_refus && (
+                      <p className={`text-sm rounded-xl p-3 mt-2 ${demande.statut === 'Approuvée' || demande.statut === 'Validée' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                        }`}>
+                        <strong>Réponse:</strong> {demande.commentaire}
+                      </p>
+                    )}
+
+                    {demande.code_verification && demande.statut === 'En attente de paiement' && (
+                      <p className="text-sm rounded-xl p-3 mt-2 bg-blue-50 text-blue-700">
+                        <strong>Code de vérification:</strong> <span className="font-mono font-bold">{demande.code_verification}</span>
+                      </p>
+                    )}
+
+                    <p className="text-xs text-gray-400 mt-2">
+                      {format(new Date(demande.date_creation || demande.date_demande || Date.now()), 'dd MMMM yyyy à HH:mm', { locale: fr })}
+                    </p>
                   </div>
+
+                  {(demande.statut === 'En attente' || demande.statut === 'En cours de traitement') && (
+                    <div className="flex gap-2 lg:flex-col">
+                      <Button
+                        onClick={async () => {
+                          setSelectedDemande(demande);
+                          setNouveauSalaire(demande.salaire_demande?.toString() || '');
+                          setCodeVerification(null);
+                          setSelectedBusId(null);
+
+                          // Si c'est une demande d'inscription, charger les bus disponibles par zone
+                          if (demande.type_demande === 'inscription' && demande.zone_geographique) {
+                            try {
+                              const busesResponse = await busAPI.getByZone(demande.zone_geographique);
+                              if (busesResponse.success) {
+                                setAvailableBuses(busesResponse.data || []);
+                              }
+                            } catch (err) {
+                              console.warn('Erreur lors du chargement des bus:', err);
+                              // Charger tous les bus en fallback
+                              try {
+                                const allBuses = await busAPI.getAll();
+                                setAvailableBuses(allBuses.filter(b => b.statut === 'Actif') || []);
+                              } catch (e) {
+                                setAvailableBuses([]);
+                              }
+                            }
+                          }
+                        }}
+                        className="bg-green-500 hover:bg-green-600 text-white rounded-xl"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Traiter
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Bouton pour affecter le bus aux demandes validées */}
+                  {demande.statut === 'Validée' && demande.type_demande === 'inscription' && demande.eleve_id && !demande.bus_id && (
+                    <div className="flex gap-2 lg:flex-col">
+                      <Button
+                        onClick={async () => {
+                          setSelectedDemande(demande);
+                          setCodeVerification(null);
+                          setSelectedBusId(null);
+
+                          // Charger les bus disponibles par zone
+                          if (demande.zone_geographique) {
+                            try {
+                              const busesResponse = await busAPI.getByZone(demande.zone_geographique);
+                              if (busesResponse.success) {
+                                setAvailableBuses(busesResponse.data || []);
+                              }
+                            } catch (err) {
+                              console.warn('Erreur lors du chargement des bus:', err);
+                              try {
+                                const allBuses = await busAPI.getAll();
+                                setAvailableBuses(allBuses.filter(b => b.statut === 'Actif') || []);
+                              } catch (e) {
+                                setAvailableBuses([]);
+                              }
+                            }
+                          }
+                        }}
+                        className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
+                      >
+                        <Bus className="w-4 h-4 mr-2" />
+                        Affecter un bus
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              ))
-            )}
+              </div>
+            ))
+          )}
         </div>
       </motion.div>
 
@@ -681,13 +679,13 @@ export default function AdminDemandes() {
                       </>
                     )}
                   </div>
-                  
+
                   {/* Bus disponibles pour cette zone */}
                   {availableBuses.length > 0 && (
                     <div className="mt-4">
                       <h4 className="font-semibold text-gray-800 mb-2">
-                        {selectedDemande.statut === 'Validée' 
-                          ? 'Sélectionner un bus pour affecter l\'élève:' 
+                        {selectedDemande.statut === 'Validée'
+                          ? 'Sélectionner un bus pour affecter l\'élève:'
                           : 'Bus disponibles pour cette zone:'}
                       </h4>
                       {selectedDemande.statut !== 'Validée' && (
@@ -699,15 +697,13 @@ export default function AdminDemandes() {
                         {availableBuses.map((bus) => (
                           <div
                             key={bus.id}
-                            className={`p-3 rounded-lg border-2 transition-all ${
-                              selectedDemande.statut === 'Validée'
-                                ? `cursor-pointer ${
-                                    selectedBusId === bus.id
-                                      ? 'border-blue-500 bg-blue-100'
-                                      : 'border-gray-200 hover:border-blue-300 bg-white'
-                                  }`
+                            className={`p-3 rounded-lg border-2 transition-all ${selectedDemande.statut === 'Validée'
+                                ? `cursor-pointer ${selectedBusId === bus.id
+                                  ? 'border-blue-500 bg-blue-100'
+                                  : 'border-gray-200 hover:border-blue-300 bg-white'
+                                }`
                                 : 'border-gray-200 bg-gray-50'
-                            }`}
+                              }`}
                             onClick={() => {
                               if (selectedDemande.statut === 'Validée') {
                                 setSelectedBusId(bus.id);

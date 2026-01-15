@@ -102,8 +102,10 @@ export default function AdminInscriptions() {
       // Afficher TOUS les élèves qui ont une demande d'inscription, même s'ils n'ont pas encore d'inscription créée
       const elevesWithDetails = Array.isArray(elevesArray) ? elevesArray
         .filter(e => {
-          // Filtrer uniquement les élèves qui ont une demande d'inscription
-          return demandesInscription.some(d => d.eleve_id === e.id);
+          // Filtrer les élèves qui ont une demande d'inscription OU une inscription existante
+          const hasDemande = demandesInscription.some(d => d.eleve_id === e.id);
+          const hasInscription = Array.isArray(inscriptionsArray) && inscriptionsArray.some(i => i.eleve_id === e.id);
+          return hasDemande || hasInscription;
         })
         .map(e => {
           // Trouver la demande d'inscription pour cet élève (la plus récente)
@@ -125,7 +127,12 @@ export default function AdminInscriptions() {
             }
           }
 
-          // Fallback: Si le tuteur n'est pas dans la liste (ex: id incorrect), on construit un objet avec les infos de la demande
+          // Aplatir l'objet tuteur s'il contient une propriété 'utilisateur' (cas de certaines APIs)
+          if (tuteur && tuteur.utilisateur) {
+            tuteur = { ...tuteur, ...tuteur.utilisateur };
+          }
+
+          // 3. Fallback: Construction depuis la description de la demande
           if (!tuteur && demandeInscription) {
             tuteur = {
               id: demandeInscription.tuteur_id,
@@ -137,7 +144,6 @@ export default function AdminInscriptions() {
               photo_identite: demandeInscription.tuteur_photo || null
             };
 
-            // Si infos manquantes, essayer le parsing manuel du JSON (backward compatibility)
             try {
               const desc = typeof demandeInscription.description === 'string'
                 ? JSON.parse(demandeInscription.description)
@@ -151,6 +157,24 @@ export default function AdminInscriptions() {
             } catch (err) { console.error("Erreur parsing description tuteur", err); }
           }
 
+          // 4. Fallback final: Utiliser les infos de l'élève si le tuteur est toujours manquant ou incomplet
+          if (!tuteur) {
+            tuteur = {};
+          }
+
+          // Compléter les infos manquantes avec celles de l'élève (table eleves)
+          if (!tuteur.telephone && e.telephone_parent) tuteur.telephone = e.telephone_parent;
+          if (!tuteur.email && e.email_parent) tuteur.email = e.email_parent;
+          if (!tuteur.adresse && e.adresse) tuteur.adresse = e.adresse;
+
+          // Si nom/prénom manquant, essayer d'utiliser le nom de famille de l'élève
+          if (!tuteur.nom && e.nom) tuteur.nom = e.nom; // On assume que c'est le même nom de famille
+          if (!tuteur.prenom && !tuteur.nom) {
+            // Si vraiment rien, on met un placeholder pour éviter l'affichage vide
+            tuteur.prenom = "Parent";
+            tuteur.nom = "de " + e.prenom;
+          }
+
           const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut !== 'Terminée') : null;
           const bus = inscription?.bus_id && Array.isArray(busesArray) ? busesArray.find(b => b.id === inscription.bus_id) : null;
           const chauffeur = bus?.chauffeur_id && Array.isArray(chauffeursArray) ? chauffeursArray.find(c => c.id == bus.chauffeur_id) : null;
@@ -162,8 +186,8 @@ export default function AdminInscriptions() {
             bus,
             chauffeur,
             demande_inscription: demandeInscription,
-            // Utiliser le statut de la demande d'inscription au lieu de Actif/Inactif
-            statut_demande: demandeInscription?.statut || 'En attente'
+            // Utiliser le statut de la demande, sinon déduire de l'inscription
+            statut_demande: demandeInscription?.statut || (inscription ? 'Inscrit' : 'En attente')
           };
         }) : [];
 
@@ -519,6 +543,32 @@ export default function AdminInscriptions() {
     const matchStatus = statusFilter === 'all' || e.statut_demande === statusFilter;
 
     return matchSearch && matchStatus;
+  }).sort((a, b) => {
+    // Ordre de priorité des statuts
+    const statusPriority = {
+      'En attente': 0,
+      'En cours de traitement': 1,
+      'En attente de paiement': 2,
+      'Payée': 3,
+      'Validée': 4,
+      'Inscrit': 5,
+      'Refusée': 6,
+      'Active': 7,
+      'Terminée': 8,
+      'Suspendue': 9
+    };
+
+    const priorityA = statusPriority[a.statut_demande] ?? 99;
+    const priorityB = statusPriority[b.statut_demande] ?? 99;
+
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+
+    // Si même statut, trier par date décroissante (plus récent en premier)
+    const dateA = new Date(a.demande_inscription?.date_creation || a.date_creation || 0);
+    const dateB = new Date(b.demande_inscription?.date_creation || b.date_creation || 0);
+    return dateB - dateA;
   });
 
   const getStatusBadge = (statut) => {
@@ -904,11 +954,7 @@ export default function AdminInscriptions() {
                     </div>
                     <div>
                       <span className="text-xs text-gray-500 uppercase tracking-wider">Email</span>
-                      <p className="font-medium text-gray-900 break-words">{selectedEleve.tuteur?.email}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-gray-500 uppercase tracking-wider">Adresse</span>
-                      <p className="font-medium text-gray-900">{selectedEleve.tuteur?.adresse || '-'}</p>
+                      <p className="font-medium text-gray-900 break-words">{selectedEleve.tuteur?.email || '-'}</p>
                     </div>
                   </div>
                 </div>
@@ -1045,7 +1091,7 @@ export default function AdminInscriptions() {
                         </div>
                       )}
                       {/* Afficher le code de vérification si disponible */}
-                      {selectedEleve.demande_inscription.code_verification &&
+                      {selectedEleve.demande_inscription?.code_verification &&
                         (selectedEleve.statut_demande === 'En attente de paiement' ||
                           selectedEleve.statut_demande === 'Payée' ||
                           selectedEleve.statut_demande === 'Validée' ||
@@ -1107,7 +1153,7 @@ export default function AdminInscriptions() {
               )}
 
               {/* Afficher le montant de la facture avec détails de réduction si disponible */}
-              {selectedEleve.demande_inscription.montant_facture && (() => {
+              {selectedEleve.demande_inscription?.montant_facture && (() => {
                 try {
                   const desc = typeof selectedEleve.demande_inscription.description === 'string'
                     ? JSON.parse(selectedEleve.demande_inscription.description)

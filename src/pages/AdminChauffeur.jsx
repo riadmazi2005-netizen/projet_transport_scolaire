@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import AdminLayout from '../components/AdminLayout';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import {
-  Users, UserCog, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle, ArrowLeft, Bus
+  Users, UserCog, Plus, Edit, Trash2, Save, X, Eye, EyeOff, AlertCircle, ArrowLeft, Bus, Search
 } from 'lucide-react';
 
 export default function AdminChauffeur() {
@@ -29,6 +29,7 @@ export default function AdminChauffeur() {
   const [deleteResponsableConfirm, setDeleteResponsableConfirm] = useState({ show: false, id: null });
   const [licencierConfirm, setLicencierConfirm] = useState({ show: false, id: null, nom: '' });
   const [cleanTerminatedConfirm, setCleanTerminatedConfirm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [chauffeurForm, setChauffeurForm] = useState({
     nom: '', prenom: '', email: '', telephone: '', mot_de_passe: '', salaire: '', date_embauche: ''
@@ -305,6 +306,17 @@ export default function AdminChauffeur() {
         </div>
       )}
 
+      {/* Search Bar */}
+      <div className="mb-6 relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <Input
+          placeholder="Rechercher par nom ou prénom..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10 h-12 rounded-xl bg-white border-2 border-gray-100 focus:border-amber-500 transition-all"
+        />
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-3 mb-8">
         <Button
@@ -487,7 +499,10 @@ export default function AdminChauffeur() {
           )}
 
           <div className="divide-y divide-emerald-100">
-            {chauffeurs.map((item) => (
+            {chauffeurs.filter(item =>
+              item.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              item.prenom.toLowerCase().includes(searchTerm.toLowerCase())
+            ).map((item) => (
               <motion.div
                 key={item.id}
                 className="p-8 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-white transition-all duration-300"
@@ -713,7 +728,10 @@ export default function AdminChauffeur() {
           )}
 
           <div className="divide-y divide-violet-100">
-            {responsables.map((item) => {
+            {responsables.filter(item =>
+              item.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+              item.prenom.toLowerCase().includes(searchTerm.toLowerCase())
+            ).map((item) => {
               const isPasswordVisible = showPassword[item.id] || false;
               const passwordValue = item.mot_de_passe_plain || item.user_password || item.mot_de_passe || 'N/A';
               const passwordDisplay = isPasswordVisible ? passwordValue : '••••••••';
