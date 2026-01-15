@@ -13,7 +13,13 @@ $data = json_decode(file_get_contents('php://input'), true);
 try {
     $pdo = getDBConnection();
     
-    if (!isset($data['chauffeur_id']) || !isset($data['bus_id']) || !isset($data['type_probleme']) || !isset($data['description'])) {
+    if (!isset($data['bus_id']) || empty($data['bus_id'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => "Erreur: Vous n'êtes pas encore assigné à aucun bus"]);
+        exit;
+    }
+
+    if (!isset($data['chauffeur_id']) || !isset($data['type_probleme']) || !isset($data['description'])) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Données incomplètes']);
         exit;

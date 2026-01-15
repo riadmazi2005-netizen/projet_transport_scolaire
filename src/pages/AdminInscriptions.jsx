@@ -31,8 +31,7 @@ export default function AdminInscriptions() {
   const [showInscriptionModal, setShowInscriptionModal] = useState(false);
   const [availableBuses, setAvailableBuses] = useState([]);
   const [error, setError] = useState(null);
-  const [debugInfo, setDebugInfo] = useState(null);
-  const [showDebug, setShowDebug] = useState(false);
+
   const [adminUser, setAdminUser] = useState(null);
   const [inscriptionForm, setInscriptionForm] = useState({
     date_debut: format(new Date(), 'yyyy-MM-dd'),
@@ -112,41 +111,44 @@ export default function AdminInscriptions() {
             .filter(d => d.eleve_id === e.id)
             .sort((a, b) => new Date(b.date_creation || 0) - new Date(a.date_creation || 0))[0] : null;
 
-          let tuteur = Array.isArray(tuteursArray) ? tuteursArray.find(t => t.id == e.tuteur_id) : null;
+          // Trouver le tuteur: d'abord via l'élève, sinon via la demande
+          let tuteur = null;
 
-          // Fallback: Essayer de trouver le tuteur via le demandeur (utilisateur) si pas de lien direct
+          if (Array.isArray(tuteursArray)) {
+            // Priority 1: Direct link from eleve
+            if (e.tuteur_id) {
+              tuteur = tuteursArray.find(t => t.id == e.tuteur_id);
+            }
+            // Priority 2: Link from demande
+            if (!tuteur && demandeInscription?.tuteur_id) {
+              tuteur = tuteursArray.find(t => t.id == demandeInscription.tuteur_id);
+            }
+          }
+
+          // Fallback: Si le tuteur n'est pas dans la liste (ex: id incorrect), on construit un objet avec les infos de la demande
           if (!tuteur && demandeInscription) {
-            // 1. Via ID utilisateur
-            const userId = demandeInscription.demandeur_id || demandeInscription.utilisateur_id;
-            if (userId && Array.isArray(tuteursArray)) {
-              tuteur = tuteursArray.find(t => t.utilisateur_id == userId);
-            }
+            tuteur = {
+              id: demandeInscription.tuteur_id,
+              nom: demandeInscription.tuteur_nom || '',
+              prenom: demandeInscription.tuteur_prenom || '',
+              email: demandeInscription.tuteur_email || '',
+              telephone: demandeInscription.tuteur_telephone || '',
+              adresse: demandeInscription.tuteur_adresse || '',
+              photo_identite: demandeInscription.tuteur_photo || null
+            };
 
-            // 2. Via description JSON (infos manuelles) si toujours pas trouvé
-            if (!tuteur) {
-              try {
-                const desc = typeof demandeInscription.description === 'string'
-                  ? JSON.parse(demandeInscription.description)
-                  : demandeInscription.description || {};
+            // Si infos manquantes, essayer le parsing manuel du JSON (backward compatibility)
+            try {
+              const desc = typeof demandeInscription.description === 'string'
+                ? JSON.parse(demandeInscription.description)
+                : demandeInscription.description || {};
 
-                // Créer un objet tuteur temporaire avec les infos disponibles
-                // On cherche des clés courantes (nom_tuteur, tuteur_nom, nom, etc.)
-                const nom = desc.nom_tuteur || desc.tuteur_nom || desc.nom || desc.nom_famille || 'Non renseigné';
-                const prenom = desc.prenom_tuteur || desc.tuteur_prenom || desc.prenom || '';
-
-                // Si on a au moins un nom ou prénom, on crée l'objet
-                if (nom !== 'Non renseigné' || prenom) {
-                  tuteur = {
-                    id: 'temp_' + e.id,
-                    nom: nom,
-                    prenom: prenom,
-                    telephone: desc.telephone_tuteur || desc.tuteur_telephone || desc.telephone || '-',
-                    email: desc.email_tuteur || desc.tuteur_email || desc.email || '-',
-                    adresse: desc.adresse_tuteur || desc.tuteur_adresse || desc.adresse || '-'
-                  };
-                }
-              } catch (err) { console.error("Erreur parsing description tuteur", err); }
-            }
+              if (!tuteur.nom) tuteur.nom = desc.nom_tuteur || desc.tuteur_nom || desc.nom || '';
+              if (!tuteur.prenom) tuteur.prenom = desc.prenom_tuteur || desc.tuteur_prenom || desc.prenom || '';
+              if (!tuteur.telephone) tuteur.telephone = desc.telephone_tuteur || desc.tuteur_telephone || desc.telephone || '';
+              if (!tuteur.email) tuteur.email = desc.email_tuteur || desc.tuteur_email || desc.email || '';
+              if (!tuteur.adresse) tuteur.adresse = desc.adresse_tuteur || desc.tuteur_adresse || desc.adresse || '';
+            } catch (err) { console.error("Erreur parsing description tuteur", err); }
           }
 
           const inscription = Array.isArray(inscriptionsArray) ? inscriptionsArray.find(i => i.eleve_id === e.id && i.statut !== 'Terminée') : null;
@@ -206,7 +208,7 @@ export default function AdminInscriptions() {
     setSelectedEleve(eleve);
     setError(null);
     setAvailableBuses([]); // Réinitialiser avant chargement
-    setDebugInfo(null);
+
 
     // Déterminer le type d'abonnement
     let abonnement = 'Mensuel';
@@ -233,7 +235,7 @@ export default function AdminInscriptions() {
       const zone = eleve.demande_inscription?.zone_geographique || eleve.zone;
       if (zone) {
         const busesResponse = await busAPI.getByZone(zone);
-        if (busesResponse.debug) setDebugInfo(busesResponse.debug);
+
 
         if (busesResponse.success && busesResponse.data && busesResponse.data.length > 0) {
           const busesWithCapacity = busesResponse.data.map(bus => ({
@@ -243,8 +245,6 @@ export default function AdminInscriptions() {
             elevesInscrits: bus.eleves_inscrits || 0
           }));
           setAvailableBuses(busesWithCapacity);
-        } else {
-          setError(busesResponse.message || `Aucun bus disponible pour la zone "${zone}"`);
         }
       }
     } catch (err) {
@@ -382,10 +382,7 @@ export default function AdminInscriptions() {
         return;
       }
 
-      if (busesWithCapacity.length === 0) {
-        setError(`Aucun bus disponible pour la zone "${zone}"`);
-        return;
-      }
+
 
       setAvailableBuses(busesWithCapacity);
       setShowVerifyModal(true);
@@ -1189,50 +1186,10 @@ export default function AdminInscriptions() {
                           <AlertCircle className="w-4 h-4" />
                           ⚠️ Aucun bus disponible
                         </p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowDebug(!showDebug)}
-                          className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 h-8"
-                        >
-                          {showDebug ? 'Masquer' : 'Diagnostic'}
-                        </Button>
+
                       </div>
 
-                      {showDebug && debugInfo && (
-                        <div className="space-y-3 mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className="grid grid-cols-2 gap-2 text-[10px]">
-                            <div className="p-2 bg-white rounded border border-amber-100">
-                              <span className="text-gray-400">Vérifiés:</span>
-                              <p className="font-bold text-amber-700">{debugInfo.total_bus_actifs || 0}</p>
-                            </div>
-                            <div className="p-2 bg-white rounded border border-amber-100">
-                              <span className="text-gray-400">Non match:</span>
-                              <p className="font-bold text-amber-700">{debugInfo.bus_zones_non_match || 0}</p>
-                            </div>
-                          </div>
 
-                          <div className="max-h-40 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                            {debugInfo.exemples_trajets_zones && debugInfo.exemples_trajets_zones.length > 0 ? (
-                              debugInfo.exemples_trajets_zones.map((ex, i) => (
-                                <div key={i} className={`p-1.5 rounded border text-[10px] ${ex.zone_match ? 'bg-green-50 border-green-100' : 'bg-white border-gray-100'}`}>
-                                  <div className="flex justify-between font-bold">
-                                    <span>{ex.bus_numero}</span>
-                                    {ex.zone_match ? <span className="text-green-600">Match!</span> : <span className="text-gray-300">No match</span>}
-                                  </div>
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {ex.zones && ex.zones.map((z, j) => (
-                                      <span key={j} className={`px-1 rounded ${ex.matched_zone === z ? 'bg-green-200 text-green-800' : 'bg-gray-100'}`}>
-                                        {z}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))
-                            ) : null}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="space-y-3 mb-6">
@@ -1274,12 +1231,7 @@ export default function AdminInscriptions() {
                                 <p className="text-sm text-gray-600 mb-1">
                                   <span className="font-medium">Marque/Modèle:</span> {bus.marque || 'N/A'} {bus.modele || ''}
                                 </p>
-                                <p className="text-sm text-gray-600 mb-1">
-                                  <span className="font-medium">Plaque:</span> {bus.plaque || 'N/A'}
-                                </p>
-                                <p className="text-sm text-gray-600 mb-2">
-                                  <span className="font-medium">Trajet:</span> {bus.trajet?.nom || bus.trajet_nom || 'Non assigné'}
-                                </p>
+
                                 {trajetZones.length > 0 && (
                                   <div className="mt-2 flex flex-wrap gap-1">
                                     <span className="text-xs text-gray-500">Zones couvertes:</span>
@@ -1338,73 +1290,14 @@ export default function AdminInscriptions() {
                           <AlertCircle className="w-4 h-4" />
                           ⚠️ Validation impossible : Aucun bus disponible
                         </p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowDebug(!showDebug)}
-                          className="text-orange-700 hover:text-orange-800 hover:bg-orange-100 h-8 font-bold"
-                        >
-                          {showDebug ? 'Masquer Diagnostic' : 'Diagnostic de recherche'}
-                        </Button>
+
                       </div>
 
                       <p className="text-xs text-orange-700 mb-2">
                         Aucun bus actif avec des places disponibles n'a été trouvé pour la zone "{selectedEleve.demande_inscription?.zone_geographique || selectedEleve.zone || 'non spécifiée'}".
                       </p>
 
-                      {showDebug && debugInfo && (
-                        <div className="mt-4 pt-4 border-t border-orange-200 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className="grid grid-cols-2 gap-2 text-[11px] mb-4">
-                            <div className="p-2 bg-white rounded border border-orange-100">
-                              <span className="text-gray-500 uppercase font-bold">Total vérifiés:</span>
-                              <p className="text-lg font-black text-orange-700">{debugInfo.total_bus_actifs || 0}</p>
-                            </div>
-                            <div className="p-2 bg-white rounded border border-orange-100">
-                              <span className="text-gray-500 uppercase font-bold">Zones non match:</span>
-                              <p className="text-lg font-black text-orange-700">{debugInfo.bus_zones_non_match || 0}</p>
-                            </div>
-                          </div>
 
-                          <div className="text-[11px] font-bold text-gray-400 mb-2 uppercase tracking-widest">
-                            Analyse détaillée par bus :
-                          </div>
-                          <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                            {debugInfo.exemples_trajets_zones && debugInfo.exemples_trajets_zones.length > 0 ? (
-                              debugInfo.exemples_trajets_zones.map((ex, i) => (
-                                <div key={i} className={`p-3 rounded-xl border text-xs ${ex.zone_match ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100'}`}>
-                                  <div className="flex justify-between items-start mb-1">
-                                    <span className={`font-bold ${ex.zone_match ? 'text-green-700' : 'text-gray-700'}`}>
-                                      {ex.bus_numero}
-                                    </span>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${ex.zone_match ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                      {ex.zone_match ? 'Zone Match ✅' : 'No Match ❌'}
-                                    </span>
-                                  </div>
-                                  <p className="text-gray-500 mb-2">Route: <span className="text-gray-700 font-medium">{ex.trajet_nom || 'Non assigné'}</span></p>
-                                  <div className="flex flex-wrap gap-1 mb-2">
-                                    {ex.zones && ex.zones.length > 0 ? ex.zones.map((z, j) => (
-                                      <span key={j} className={`px-2 py-0.5 rounded-md text-[10px] ${ex.matched_zone === z ? 'bg-green-600 text-white font-bold' : 'bg-gray-100 text-gray-600'}`}>
-                                        {z}
-                                      </span>
-                                    )) : <span className="italic text-gray-400">Aucune zone configurée</span>}
-                                  </div>
-                                  <div className="flex justify-between items-center pt-2 border-t border-dashed border-gray-100">
-                                    <span className="text-[10px] text-gray-400">Places: {ex.places_restantes}</span>
-                                    {ex.zone_match && ex.places_restantes <= 0 && (
-                                      <span className="text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded text-[10px]">BUS COMPLET</span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="text-center py-6 text-gray-400 italic text-xs">Aucun bus trouvé dans le système</p>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-gray-500 mt-3 italic text-center">
-                            La recherche fusionne les zones proches et ignore les accents.
-                          </p>
-                        </div>
-                      )}
                     </div>
                   )}
                   {availableBuses.length > 0 && (

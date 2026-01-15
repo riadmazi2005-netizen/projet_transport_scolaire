@@ -1579,7 +1579,13 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
                     Signalements de Problèmes
                   </h2>
                   <Button
-                    onClick={() => setShowSignalementForm(true)}
+                    onClick={() => {
+                      if (!bus || !bus.id) {
+                        showToast("Erreur: Vous n'êtes pas encore assigné à aucun bus", 'error');
+                        return;
+                      }
+                      setShowSignalementForm(true);
+                    }}
                     className="bg-green-500 hover:bg-green-600 text-white rounded-xl shadow-lg hover:shadow-xl transition-all"
                   >
                     <Plus className="w-4 h-4 mr-2" />
@@ -2487,6 +2493,11 @@ function ChauffeurDashboardContent({ activeTab, setActiveTab }) {
             <form onSubmit={async (e) => {
               e.preventDefault();
               try {
+                if (!bus || !bus.id) {
+                  showToast("Erreur: Vous n'êtes pas encore assigné à aucun bus", 'error');
+                  return;
+                }
+
                 // Vérifier la taille totale des fichiers
                 const totalSize = signalementPhotos.reduce((sum, photo) => sum + photo.file.size, 0);
                 const maxSize = 10 * 1024 * 1024; // 10 MB max
