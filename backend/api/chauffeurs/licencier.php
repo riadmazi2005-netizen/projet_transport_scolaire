@@ -56,20 +56,23 @@ try {
         $stmt->execute([$busId]);
     }
 
-    // 2. Supprimer les accidents liés à ce chauffeur
-    $stmt = $pdo->prepare('DELETE FROM accidents WHERE chauffeur_id = ?');
+    // 2. Anonymiser les accidents liés à ce chauffeur (au lieu de supprimer)
+    // On garde les accidents pour les statistiques, mais on retire le lien direct
+    $stmt = $pdo->prepare('UPDATE accidents SET chauffeur_id = NULL WHERE chauffeur_id = ?');
     $stmt->execute([$chauffeur_id]);
     
-    // 3. Supprimer tout autre donnée liée (facultatif selon les contraintes FK, mais mieux vaut nettoyer)
-    // Par exemple: rapports, essence, etc. si nécessaire. Supposons que les contraintes FK gèrent ou qu'on veut garder l'historique anonyme.
-    // Pour "supprimer de tout le site", on devrait supprimer.
-    // Suppresssion des prises d'essence
-    $stmt = $pdo->prepare('DELETE FROM prise_essence WHERE chauffeur_id = ?');
+    // 3. Anonymiser les prises d'essence (au lieu de supprimer)
+    $stmt = $pdo->prepare('UPDATE prise_essence SET chauffeur_id = NULL WHERE chauffeur_id = ?');
     $stmt->execute([$chauffeur_id]);
 
-    // Suppression des signalements (Table supprimée ou inexistante, on passe)
-    // $stmt = $pdo->prepare('DELETE FROM signalements WHERE chauffeur_id = ?');
-    // $stmt->execute([$chauffeur_id]);
+    // 4. Anonymiser les signalements/problèmes (au lieu de supprimer)
+    // On vérifie d'abord si la table existe pour éviter les erreurs
+    try {
+        $stmt = $pdo->prepare('UPDATE signalements SET chauffeur_id = NULL WHERE chauffeur_id = ?');
+        $stmt->execute([$chauffeur_id]);
+    } catch (PDOException $e) {
+        // Table signalements peut ne pas exister ou pas de colonne chauffeur_id
+    }
 
     // Suppression des rapports (Table supprimée ou inexistante, on passe)
     // $stmt = $pdo->prepare('DELETE FROM rapports_trajets WHERE chauffeur_id = ?');

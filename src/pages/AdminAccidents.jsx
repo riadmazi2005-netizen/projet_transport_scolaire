@@ -647,19 +647,21 @@ export default function AdminAccidents() {
                             {/* Actions Critiques - Dernier accident ou déclaré par responsable */}
                             {(accident.isLatestForChauffeur || accident.responsable_id) && accident.chauffeur_id && (
                               <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleAvertir(accident.chauffeur_id, chauffeurAccidents.length, accident.responsable_id ? 'responsable' : 'system', accident)}
-                                  className={`text-white font-semibold shadow-sm ${accident.responsable_id
-                                    ? 'bg-orange-500 hover:bg-orange-600'
-                                    : 'bg-amber-500 hover:bg-amber-600'
-                                    }`}
-                                >
-                                  <AlertCircle className="w-4 h-4 mr-2" />
-                                  {accident.responsable_id ? 'Avertir Chauffeur' : `Avertir Chauffeur (${chauffeurAccidents.length})`}
-                                </Button>
+                                {!has3Accidents && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleAvertir(accident.chauffeur_id, chauffeurAccidents.length, accident.responsable_id ? 'responsable' : 'system', accident)}
+                                    className={`text-white font-semibold shadow-sm ${accident.responsable_id
+                                      ? 'bg-orange-500 hover:bg-orange-600'
+                                      : 'bg-amber-500 hover:bg-amber-600'
+                                      }`}
+                                  >
+                                    <AlertCircle className="w-4 h-4 mr-2" />
+                                    {accident.responsable_id ? 'Avertir Chauffeur' : `Avertir Chauffeur (${chauffeurAccidents.length})`}
+                                  </Button>
+                                )}
 
-                                {has3Accidents && (
+                                {has3Accidents && accident.isLatestForChauffeur && (
                                   <Button
                                     size="sm"
                                     onClick={() => { setChauffeurToLicencier(chauffeur); setShowLicencierModal(true); }}

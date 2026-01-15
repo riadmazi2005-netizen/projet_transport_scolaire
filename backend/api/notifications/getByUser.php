@@ -41,6 +41,48 @@ try {
                 }
             }
         }
+    } else if ($userType === 'responsable') {
+        // Logique pour responsable
+        $stmt = $pdo->prepare('SELECT id, utilisateur_id FROM responsables_bus WHERE id = ?');
+        $stmt->execute([$userId]);
+        $responsable = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($responsable && $responsable['utilisateur_id']) {
+            if (!in_array($responsable['utilisateur_id'], $idsToCheck)) {
+                $idsToCheck[] = $responsable['utilisateur_id'];
+            }
+        } else {
+            $stmt = $pdo->prepare('SELECT id, utilisateur_id FROM responsables_bus WHERE utilisateur_id = ?');
+            $stmt->execute([$userId]);
+            $responsable = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($responsable) {
+                if (!in_array($responsable['id'], $idsToCheck)) {
+                    $idsToCheck[] = $responsable['id'];
+                }
+            }
+        }
+    } else if ($userType === 'chauffeur') {
+        // Logique pour chauffeur
+        $stmt = $pdo->prepare('SELECT id, utilisateur_id FROM chauffeurs WHERE id = ?');
+        $stmt->execute([$userId]);
+        $chauffeur = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($chauffeur && $chauffeur['utilisateur_id']) {
+            if (!in_array($chauffeur['utilisateur_id'], $idsToCheck)) {
+                $idsToCheck[] = $chauffeur['utilisateur_id'];
+            }
+        } else {
+            $stmt = $pdo->prepare('SELECT id, utilisateur_id FROM chauffeurs WHERE utilisateur_id = ?');
+            $stmt->execute([$userId]);
+            $chauffeur = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($chauffeur) {
+                if (!in_array($chauffeur['id'], $idsToCheck)) {
+                    $idsToCheck[] = $chauffeur['id'];
+                }
+            }
+        }
     }
     
     // Construire la requête pour chercher dans tous les IDs identifiés
