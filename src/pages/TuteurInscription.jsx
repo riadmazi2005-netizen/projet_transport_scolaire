@@ -6,7 +6,7 @@ import { calculerMontantFacture, formaterMontantFacture } from '../utils/calculF
 
 // Helper function to get admins
 const getAdmins = async () => {
-  const response = await fetch('http://localhost/backend/api/utilisateurs/getAdmins.php');
+  const response = await fetch(`http://${window.location.hostname}/backend/api/utilisateurs/getAdmins.php`);
   if (response.ok) {
     return await response.json();
   }

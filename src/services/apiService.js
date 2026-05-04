@@ -3,7 +3,8 @@
 
 // URL du backend - Configuration pour XAMPP
 // Le dossier backend doit être placé dans C:\xampp\htdocs\backend
-const API_BASE_URL = 'http://localhost/backend/api';
+// URL de l'API dynamique pour s'adapter à localhost ou à l'adresse IP du téléphone
+const API_BASE_URL = `http://${window.location.hostname}/backend/api`;
 
 /**
  * Fonction utilitaire pour gérer les requêtes HTTP
